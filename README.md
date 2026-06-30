@@ -36,6 +36,8 @@ and see the toolpath before committing to a cut.
 - Header/footer generation: units, positioning, homing, heaters/spindle/beam, safe-Z retract, park, end.
 - **Image → etch** workflows: raster fill and vector outline (marching squares), by beam power or Z depth.
 - Live XY toolpath **preview** with depth shading and travel vs. cut/burn styling.
+- **Feeds/speeds handoff**: detects an advisory `gcodeHandoff` payload (written by the
+  Feeds & Speeds calculator) and offers to apply the suggested spindle RPM and feed.
 - Copy / download `.gcode`.
 
 ## Roadmap

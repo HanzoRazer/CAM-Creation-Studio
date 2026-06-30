@@ -9,6 +9,7 @@
 // path generation. Preview and image modules are scheduled for later extraction.
 
 import { buildProgram } from '../src/gcode/generator.js';
+import { readHandoff, clearHandoff, handoffText, applyHandoffToState } from '../src/handoff/handoff.js';
 
 // ---------------------------------------------------------------------------
 // State
@@ -37,6 +38,7 @@ const state = {
   etchPower: '200',
   engraveZ: '-0.2',
   copied: false,
+  handoff: null, // advisory payload from the Feeds & Speeds calculator
   seq: 4,
   moves: [
     { id: 1, type: 'G0', x: '0', y: '0', z: '', f: '', e: '', i: '', j: '' },
@@ -448,6 +450,10 @@ function render() {
   setActive('#strategySeg button', 'strategy', state.etchStrategy);
   setActive('#controlSeg button', 'control', state.etchControl);
 
+  // handoff banner
+  $('#handoffBanner').classList.toggle('hidden', !state.handoff);
+  $('#handoffText').textContent = handoffText(state.handoff);
+
   $('#homeToggle').classList.toggle('on', state.home);
   $('#homeToggle').textContent = state.home ? 'G28 · ON' : 'OFF';
   $('#spindleToggle').classList.toggle('on', state.spindleOn);
@@ -550,6 +556,16 @@ function wire() {
     update({ seq: id, moves: [...state.moves, { id, type: 'G1', x: '', y: '', z: '', f: '', e: '', i: '', j: '' }] });
   });
 
+  $('#applyHandoffBtn').addEventListener('click', () => {
+    if (!state.handoff) return;
+    update({ ...applyHandoffToState(state, state.handoff), handoff: null });
+    clearHandoff(window.localStorage);
+  });
+  $('#dismissHandoffBtn').addEventListener('click', () => {
+    update({ handoff: null });
+    clearHandoff(window.localStorage);
+  });
+
   $('#imageInput').addEventListener('change', onImagePick);
   $('#removeImageBtn').addEventListener('click', () => {
     imgEl = null; field = null; etchCache = null;
@@ -606,5 +622,6 @@ function onImagePick(e) {
 }
 
 // ---------------------------------------------------------------------------
+state.handoff = readHandoff(window.localStorage); // detect a pending calculator handoff
 wire();
 render();

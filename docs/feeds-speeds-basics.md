@@ -34,5 +34,15 @@ chipload = 0.05 mm
 - Tool and machine presets are starter profiles you can edit.
 - The calculator emits **notes and warnings**, not approvals.
 
+## Handoff to the Creator
+
+The Creator already supports an **advisory handoff**: when a Feeds & Speeds
+calculator writes a payload to `localStorage` under the key `gcodeHandoff`
+(shape `{ rpm, feed, units, material }`), the Creator shows a banner offering to
+**Apply S & F**. Applying it switches to CNC mode, sets the spindle RPM, etch
+feed, and units, and fills the feed on any cut move that is missing one. The
+contract lives in [`src/handoff/handoff.js`](../src/handoff/handoff.js) and is
+unit-tested. The calculator side itself is archived for a later phase.
+
 See [safety-disclaimer.md](safety-disclaimer.md) and
 [product-scope.md](product-scope.md) for why this stays advisory.
