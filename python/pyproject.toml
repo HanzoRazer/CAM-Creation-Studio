@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cam-creation-studio"
+version = "0.1.0"
+description = "Python core for CAM-Creation-Studio: a standalone learning and authoring environment for simple CNC, laser, and Marlin-style G-code (gcode generation, parsing, validation, feeds/speeds, presets, preview model, image etch, and safety warnings). Educational — not a certified post-processor."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cam_creation_studio*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

@@ -11,6 +11,11 @@ and see the toolpath before committing to a cut.
 > output. Preview is **not** simulation. Always verify a program — and air-cut
 > above the stock — before running it on real hardware.
 
+> 🧭 **Architecture note.** The **Python package** in [`python/`](python/) is the
+> primary source of truth for the project's logic. The browser app in
+> [`app/`](app/) + [`src/`](src/) is preserved as a prototype and behavioral
+> reference. See [docs/architecture.md](docs/architecture.md).
+
 ---
 
 ## What it is
@@ -54,15 +59,26 @@ See [docs/product-scope.md](docs/product-scope.md) for the full scope.
 
 ## Quick start
 
+**Python core (primary):**
+
 ```bash
-npm install
-npm run dev      # serve the app at the printed localhost URL
-npm test         # run the test suite (Vitest)
-npm run build    # emit a static bundle to dist/
+cd python
+python -m pytest      # run the core test suite (standard library only)
 ```
 
-The app lives in [app/](app/) and imports shared logic from [src/](src/).
-See [docs/quick-start.md](docs/quick-start.md).
+See [python/README.md](python/README.md) for the module map and API taste.
+
+**Browser prototype (reference):**
+
+```bash
+npm install
+npm run dev      # serve the prototype app at the printed localhost URL
+npm test         # run the JS test suite (Vitest)
+```
+
+The prototype app lives in [app/](app/) and imports shared logic from
+[src/](src/). See [docs/quick-start.md](docs/quick-start.md) and
+[docs/architecture.md](docs/architecture.md).
 
 ## Relationship to CAM Assist
 

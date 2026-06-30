@@ -3,3 +3,13 @@ dist/
 .vite/
 *.log
 .DS_Store
+*.code-workspace
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+build/

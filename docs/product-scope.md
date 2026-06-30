@@ -65,5 +65,10 @@ phase. See [future-cam-assist-relationship.md](future-cam-assist-relationship.md
 - A non-blocking validator with safety warnings.
 - A fuller feeds/speeds calculator with presets.
 - Extracted, independently tested preview and image modules.
-- Optionally, a Python processing layer for heavier work — but the basic app
-  must always run in the browser without requiring Python.
+
+**Architecture direction (updated):** the project core is now built as a
+**Python package** ([`../python`](../python)) — it is the primary source of
+truth for generation, parsing, validation, feeds/speeds, presets, the preview
+model, image-etch logic, and safety warnings. The browser app is retained as a
+prototype and behavioral reference. A future UI is an optional wrapper around
+the Python core. See [architecture.md](architecture.md).
