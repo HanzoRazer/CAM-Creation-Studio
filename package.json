@@ -1,0 +1,18 @@
+{
+  "name": "cam-creation-studio",
+  "version": "0.1.0",
+  "description": "Standalone learning and authoring environment for simple CNC, laser, and Marlin-style G-code: understand it, generate starter programs, preview motion, and calculate advisory feeds and speeds.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "vitest": "^2.1.0"
+  }
+}

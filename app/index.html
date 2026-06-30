@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CAM-Creation-Studio — G-code Creator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- ===== TOP BAR ===== -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-name"><b>G-CODE</b> CREATOR</div>
+      <div class="brand-rev">CAM-CREATION-STUDIO · v0.1.0</div>
+    </div>
+    <div class="topbar-actions">
+      <div class="machine-tabs">
+        <button class="tab" data-machine="marlin">Marlin · 3D Printer</button>
+        <button class="tab" data-machine="genericCnc">CNC Mill</button>
+      </div>
+      <button class="btn" id="copyBtn">Copy</button>
+      <button class="btn btn-primary" id="downloadBtn">Download .gcode</button>
+    </div>
+  </div>
+
+  <!-- ===== ADVISORY ===== -->
+  <div class="advisory">
+    <div class="advisory-inner">
+      <strong>Educational tool.</strong> Generated G-code is a starting point, not a certified
+      post-processor. Preview is not simulation. Always verify the program — and air-cut — before running.
+    </div>
+  </div>
+
+  <!-- ===== WORKSPACE ===== -->
+  <div class="workspace">
+    <!-- ---- LEFT: BUILDER ---- -->
+    <div class="builder">
+      <!-- Builder mode -->
+      <div class="seg light">
+        <button class="mode" data-mode="manual">&#9998;&nbsp; Manual moves</button>
+        <button class="mode" data-mode="etch">&#9638;&nbsp; Etch from image</button>
+      </div>
+
+      <!-- Setup card -->
+      <div class="card">
+        <div class="card-title">Setup &amp; Header</div>
+        <div class="row">
+          <div>
+            <div class="field-label">Units</div>
+            <div class="seg" id="unitsSeg">
+              <button data-units="mm">mm · G21</button>
+              <button data-units="in">in · G20</button>
+            </div>
+          </div>
+          <div>
+            <div class="field-label">Positioning</div>
+            <div class="seg" id="posSeg">
+              <button data-pos="abs">Abs · G90</button>
+              <button data-pos="rel">Rel · G91</button>
+            </div>
+          </div>
+          <div>
+            <div class="field-label">Home first</div>
+            <button class="toggle" id="homeToggle">G28 · ON</button>
+          </div>
+          <div>
+            <div class="field-label">Safe Z height</div>
+            <input type="text" inputmode="decimal" class="num" data-key="safeZ" />
+          </div>
+        </div>
+
+        <!-- Marlin heaters -->
+        <div class="row bordered" id="marlinFields">
+          <div>
+            <div class="field-label">Hotend °C · M109</div>
+            <input type="text" inputmode="numeric" class="num" data-key="hotend" />
+          </div>
+          <div>
+            <div class="field-label">Bed °C · M190</div>
+            <input type="text" inputmode="numeric" class="num" data-key="bed" />
+          </div>
+        </div>
+
+        <!-- CNC spindle -->
+        <div class="row bordered" id="cncFields" style="align-items: flex-end;">
+          <div>
+            <div class="field-label">Spindle</div>
+            <button class="toggle" id="spindleToggle">M3 · ON</button>
+          </div>
+          <div>
+            <div class="field-label">Speed RPM · S</div>
+            <input type="text" inputmode="numeric" class="num" data-key="spindleRpm" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== MANUAL MOVES ===== -->
+      <div class="card" id="manualCard">
+        <div class="moves-head">
+          <div class="card-title" style="margin: 0;">Body · Toolpath Moves</div>
+          <div class="moves-count"><span id="moveCount">0</span> moves</div>
+        </div>
+        <div class="moves-list" id="movesList"></div>
+        <button class="btn-add" id="addMoveBtn">+ Add move</button>
+        <div class="hint">Cut moves are shaded by depth — deeper Z plots darker in the preview.</div>
+      </div>
+
+      <!-- ===== ETCH FROM IMAGE ===== -->
+      <div class="card hidden" id="etchCard">
+        <div class="card-title">Etch From Image</div>
+        <div class="row" style="align-items: center;">
+          <label class="upload">
+            &#11014; Upload graphic
+            <input type="file" accept="image/*" id="imageInput" />
+          </label>
+          <div class="file-chip hidden" id="fileChip">
+            <span class="file-name" id="fileName"></span>
+            <button class="remove" id="removeImageBtn">Remove</button>
+          </div>
+          <span class="hint" id="noImageHint">PNG / JPG — high contrast works best</span>
+        </div>
+
+        <div class="row bordered">
+          <div>
+            <div class="field-label">Work area (W × H)</div>
+            <div style="display: flex; align-items: center; gap: 6px; font-family: var(--mono); color: var(--muted);">
+              <input type="text" inputmode="decimal" class="num-sm" data-key="workW" />×
+              <input type="text" inputmode="decimal" class="num-sm" data-key="workH" />
+            </div>
+          </div>
+          <div>
+            <div class="field-label">Strategy</div>
+            <div class="seg" id="strategySeg">
+              <button data-strategy="raster">Raster fill</button>
+              <button data-strategy="outline">Vector outline</button>
+            </div>
+          </div>
+          <div>
+            <div class="field-label">Cut by</div>
+            <div class="seg" id="controlSeg">
+              <button data-control="power">Power · S</button>
+              <button data-control="depth">Z depth</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 18px;">
+          <div id="lineSpacingField">
+            <div class="field-label">Line spacing (mm)</div>
+            <input type="text" inputmode="decimal" class="num" data-key="lineSpacing" />
+          </div>
+          <div>
+            <div class="field-label">Darkness cutoff %</div>
+            <input type="text" inputmode="numeric" class="num" data-key="threshold" />
+          </div>
+          <div>
+            <div class="field-label">Feed · F</div>
+            <input type="text" inputmode="numeric" class="num" data-key="etchFeed" />
+          </div>
+          <div id="powerField">
+            <div class="field-label" style="color: #9a6a1e;">Beam power · S</div>
+            <input type="text" inputmode="numeric" class="num" data-key="etchPower" />
+          </div>
+          <div id="depthField">
+            <div class="field-label" style="color: #9a6a1e;">Engrave Z depth</div>
+            <input type="text" inputmode="decimal" class="num" data-key="engraveZ" />
+          </div>
+        </div>
+
+        <div class="info-box" id="etchInfo">No image yet — upload a graphic to generate a toolpath.</div>
+      </div>
+
+      <div class="note">The footer is generated automatically — retract to safe Z, stop spindle / beam /
+        heaters, park, and end the program.</div>
+    </div>
+
+    <!-- ---- RIGHT: PREVIEW + OUTPUT ---- -->
+    <div class="sidebar">
+      <div class="card" style="padding: 18px 18px 14px;">
+        <div class="preview-head">
+          <div class="card-title" style="margin: 0;">Toolpath · Top View (XY)</div>
+          <div class="legend">
+            <span><span class="swatch-travel"></span>Travel</span>
+            <span><span class="swatch-cut"></span>Cut / burn</span>
+          </div>
+        </div>
+        <canvas id="preview" width="524" height="360"></canvas>
+      </div>
+
+      <div class="output">
+        <div class="output-head">
+          <div class="label">program.gcode</div>
+          <div class="label"><span id="lineCount">0</span> lines</div>
+        </div>
+        <pre id="gcode"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

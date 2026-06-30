@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; background:#f4efe6; }
+  * { box-sizing:border-box; }
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb { background:#3a352d; border-radius:6px; }
+  .ed::-webkit-scrollbar-thumb { background:#3a352d; }
+  textarea:focus { outline:none; }
+</style>
+</helmet>
+<div style="font-family:'IBM Plex Sans',system-ui,sans-serif; color:#1a1613; min-height:100vh; background:#f4efe6;">
+
+  <!-- ===== TOP BAR ===== -->
+  <div style="position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:13px 24px; background:#1a1613; color:#e8e1d4;">
+    <div style="display:flex; align-items:baseline; gap:14px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:15px; letter-spacing:0.04em;"><span style="color:#c8924a;">G-CODE</span> PREVIEW</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8a8276; letter-spacing:0.16em;">DASHBOARD</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:18px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; color:#8a8276; text-transform:uppercase;">Kinematics</span>
+        <div style="display:flex; background:#2a2620; border-radius:6px; padding:3px;">
+          <button onClick="{{ setFdm }}" style="{{ fdmStyle }}">3D Printer</button>
+          <button onClick="{{ setCncK }}" style="{{ cncKStyle }}">CNC Mill</button>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; color:#8a8276; text-transform:uppercase;">Profile</span>
+        <div style="display:flex; background:#2a2620; border-radius:6px; padding:3px;">
+          <button onClick="{{ setMarlin }}" style="{{ marlinStyle }}">Marlin</button>
+          <button onClick="{{ setGrbl }}" style="{{ grblStyle }}">GRBL</button>
+        </div>
+      </div>
+      <button onClick="{{ exportPng }}" style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; padding:8px 14px; border:none; background:#b06a23; color:#fff; border-radius:6px; cursor:pointer;" style-hover="background:#c0772e;">⬇ Export PNG</button>
+    </div>
+  </div>
+
+  <!-- ===== WORKSPACE ===== -->
+  <div style="display:grid; grid-template-columns:440px 1fr; gap:0; height:calc(100vh - 55px);">
+
+    <!-- ---- LEFT: EDITOR ---- -->
+    <div style="display:flex; flex-direction:column; background:#211d18; border-right:1px solid #322d26; min-height:0;">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:11px 16px; border-bottom:1px solid #322d26;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:#8a8276;">Raw G-code</div>
+        <div style="display:flex; gap:8px;">
+          <button onClick="{{ loadSample }}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1px solid #3f3930; background:#2a2620; color:#c9c0b2; border-radius:5px; cursor:pointer;">Sample</button>
+          <button onClick="{{ clearCode }}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; padding:5px 10px; border:1px solid #3f3930; background:#2a2620; color:#c9c0b2; border-radius:5px; cursor:pointer;">Clear</button>
+        </div>
+      </div>
+      <div style="position:relative; flex:1; min-height:0; display:flex;">
+        <div ref="{{ gutterRef }}" style="overflow:hidden; padding:14px 0; width:46px; background:#1b1813; border-right:1px solid #2c281f; font-family:'IBM Plex Mono',monospace; font-size:12.5px; line-height:1.6; color:#5e574c; text-align:right; user-select:none; white-space:pre; padding-right:8px;">{{ gutter }}</div>
+        <textarea ref="{{ codeRef }}" class="ed" onInput="{{ onCodeInput }}" onScroll="{{ onEditorScroll }}" spellcheck="false" style="flex:1; resize:none; border:none; background:#211d18; color:#e8e1d4; padding:14px 14px 14px 12px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; line-height:1.6; white-space:pre; overflow:auto;"></textarea>
+      </div>
+      <!-- diagnostics -->
+      <div style="border-top:1px solid #322d26; max-height:38%; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:12px; padding:9px 16px; background:#1b1813;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:#8a8276;">Diagnostics</span>
+          <span style="display:inline-flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#d9694a;"><span style="width:7px; height:7px; border-radius:50%; background:#d9694a;"></span>{{ errCount }} errors</span>
+          <span style="display:inline-flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#cc9a3c;"><span style="width:7px; height:7px; border-radius:50%; background:#cc9a3c;"></span>{{ warnCount }} warnings</span>
+        </div>
+        <div style="overflow:auto; padding:4px 0 10px;">
+          <sc-if value="{{ clean }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:10px 16px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:#6fae8f;">✓ No problems found for this profile.</div>
+          </sc-if>
+          <sc-for list="{{ diagnostics }}" as="d" hint-placeholder-count="0">
+            <div onClick="{{ d.jump }}" style="display:grid; grid-template-columns:54px 14px 1fr; gap:8px; align-items:start; padding:6px 16px; cursor:pointer; border-left:2px solid {{ d.bar }};" style-hover="background:#2a2620;">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7d7468;">{{ d.lineLabel }}</span>
+              <span style="color:{{ d.color }}; font-size:12px; line-height:1.3;">{{ d.icon }}</span>
+              <span style="font-size:11.5px; color:#cdc4b6; line-height:1.4;">{{ d.msg }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- RIGHT: VIEWPORT ---- -->
+    <div style="display:flex; flex-direction:column; min-height:0; min-width:0;">
+      <!-- stats strip -->
+      <div style="display:flex; align-items:stretch; gap:0; border-bottom:1px solid #e1d7c4; background:#fbf8f1;">
+        <div style="flex:1; padding:13px 18px; border-right:1px solid #ece3d1;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#9a9286;">{{ timeLabel }}</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; color:#b06a23; margin-top:3px;">{{ timeText }}</div>
+        </div>
+        <div style="flex:1; padding:13px 18px; border-right:1px solid #ece3d1;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#9a9286;">{{ distLabel }}</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; color:#1a1613; margin-top:3px;">{{ distText }}</div>
+        </div>
+        <div style="flex:1; padding:13px 18px; border-right:1px solid #ece3d1;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#9a9286;">Dimensions (mm)</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:600; color:#1a1613; margin-top:7px;">{{ dimText }}</div>
+        </div>
+        <div style="flex:1; padding:13px 18px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#9a9286;">Moves</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:600; color:#1a1613; margin-top:7px;">{{ moveText }}</div>
+        </div>
+      </div>
+
+      <!-- canvas -->
+      <div ref="{{ wrapRef }}" style="position:relative; flex:1; min-height:0; background:#f4efe6; overflow:hidden;">
+        <canvas ref="{{ canvasRef }}" style="position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab;"></canvas>
+
+        <!-- legend -->
+        <div style="position:absolute; left:16px; top:14px; display:flex; flex-direction:column; gap:6px; pointer-events:none;">
+          <div style="display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6b645c;"><span style="width:18px; height:0; border-top:2px solid #b06a23;"></span>{{ workLegend }}</div>
+          <div style="display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6b645c;"><span style="width:18px; height:0; border-top:2px solid #2c6e63;"></span>Arc (G2/G3)</div>
+          <div style="display:flex; align-items:center; gap:7px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#9a9286;"><span style="width:18px; height:0; border-top:2px dashed #b3a89a;"></span>Travel (G0)</div>
+        </div>
+
+        <!-- view controls -->
+        <div style="position:absolute; right:16px; top:14px; display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+          <div style="display:flex; gap:6px;">
+            <button onClick="{{ viewTop }}" style="{{ viewBtn }}">Top</button>
+            <button onClick="{{ viewFront }}" style="{{ viewBtn }}">Front</button>
+            <button onClick="{{ viewIso }}" style="{{ viewBtn }}">Iso</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; background:#fffdf8; border:1px solid #e1d7c4; border-radius:7px; padding:5px 9px;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#9a9286; text-transform:uppercase; letter-spacing:0.08em;">Color</span>
+            <button onClick="{{ setColorType }}" style="{{ ctTypeStyle }}">Move type</button>
+            <button onClick="{{ setColorZ }}" style="{{ ctZStyle }}">Z height</button>
+          </div>
+          <label style="display:flex; align-items:center; gap:8px; background:#fffdf8; border:1px solid #e1d7c4; border-radius:7px; padding:6px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6b645c; cursor:pointer;">
+            <input type="checkbox" checked="{{ showTravel }}" onChange="{{ toggleTravel }}" style="accent-color:#b06a23;"> show travel
+          </label>
+        </div>
+
+        <div style="position:absolute; left:50%; bottom:12px; transform:translateX(-50%); font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#a59c8d; pointer-events:none;">drag to orbit · scroll to zoom</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  codeRef = React.createRef();
+  gutterRef = React.createRef();
+  canvasRef = React.createRef();
+  wrapRef = React.createRef();
+
+  state = {
+    profile: 'marlin',     // 'marlin' | 'grbl'
+    kinematic: 'fdm',      // 'fdm' | 'cnc'
+    code: '',
+    yaw: -0.6, pitch: 1.0, zoom: 1, panX: 0, panY: 0,
+    colorMode: 'type',     // 'type' | 'z'
+    showTravel: true,
+    nLines: 1,
+  };
+
+  SAMPLE_FDM = [
+    '; --- HEADER ---',
+    'G21          ; units = mm',
+    'G90          ; absolute positioning',
+    'G28          ; home all axes',
+    'M140 S60     ; bed temp',
+    'M104 S210    ; hotend temp',
+    'M190 S60     ; wait bed',
+    'M109 S210    ; wait hotend',
+    'G92 E0',
+    'G0 Z0.3 F3000',
+    '',
+    '; --- BODY: a layer ---',
+    'G0 X20 Y20 F6000',
+    'G1 X60 Y20 E2.4 F1500',
+    'G1 X60 Y60 E4.8',
+    'G1 X20 Y60 E7.2',
+    'G1 X20 Y20 E9.6',
+    'G0 X40 Y40 F6000',
+    'G2 X50 Y40 I5 J0 E11.0 F1200',
+    'G3 X40 Y40 I-5 J0 E12.4',
+    'G0 Z5',
+    '',
+    '; --- FOOTER ---',
+    'M104 S0',
+    'M140 S0',
+    'M84',
+    'M30',
+  ].join('\n');
+
+  SAMPLE_CNC = [
+    '; --- HEADER ---',
+    'G21          ; units = mm',
+    'G90          ; absolute',
+    'G28          ; home',
+    'M3 S12000    ; spindle on',
+    'G0 Z5        ; safe height',
+    '',
+    '; --- BODY: pocket outline ---',
+    'G0 X10 Y10',
+    'G1 Z-1.5 F200',
+    'G1 X70 Y10 F800',
+    'G1 X70 Y50',
+    'G1 X10 Y50',
+    'G1 X10 Y10',
+    'G0 Z5',
+    'G0 X40 Y30',
+    'G1 Z-1.5 F200',
+    'G2 X40 Y30 I15 J0 F600  ; full circle',
+    'G0 Z5',
+    '',
+    '; --- FOOTER ---',
+    'M5           ; spindle off',
+    'G0 X0 Y0',
+    'M30',
+  ].join('\n');
+
+  componentDidMount() {
+    const ta = this.codeRef.current;
+    if (ta) { ta.value = this.SAMPLE_FDM; }
+    this.setState({ code: this.SAMPLE_FDM, nLines: this.SAMPLE_FDM.split('\n').length });
+    this._attachOrbit();
+    requestAnimationFrame(() => this.draw());
+    window.addEventListener('resize', this._onResize);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._onResize);
+  }
+  componentDidUpdate() { this.draw(); }
+  _onResize = () => this.draw();
+
+  // ---- editor ----
+  onCodeInput = (e) => {
+    const v = e.target.value;
+    this.setState({ code: v, nLines: v.split('\n').length });
+  };
+  onEditorScroll = (e) => { if (this.gutterRef.current) this.gutterRef.current.scrollTop = e.target.scrollTop; };
+  loadSample = () => {
+    const v = this.state.kinematic === 'cnc' ? this.SAMPLE_CNC : this.SAMPLE_FDM;
+    if (this.codeRef.current) this.codeRef.current.value = v;
+    this.setState({ code: v, nLines: v.split('\n').length });
+  };
+  clearCode = () => { if (this.codeRef.current) this.codeRef.current.value = ''; this.setState({ code: '', nLines: 1 }); };
+  jumpTo = (lineNo) => {
+    const ta = this.codeRef.current; if (!ta) return;
+    const lines = ta.value.split('\n');
+    let pos = 0; for (let i = 0; i < lineNo - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+    ta.focus(); ta.setSelectionRange(pos, pos + (lines[lineNo - 1] || '').length);
+    const lh = 12.5 * 1.6; ta.scrollTop = Math.max(0, (lineNo - 4) * lh);
+    if (this.gutterRef.current) this.gutterRef.current.scrollTop = ta.scrollTop;
+  };
+
+  // ---- toggles ----
+  setFdm = () => this.setState({ kinematic: 'fdm' });
+  setCncK = () => this.setState({ kinematic: 'cnc' });
+  setMarlin = () => this.setState({ profile: 'marlin' });
+  setGrbl = () => this.setState({ profile: 'grbl' });
+  setColorType = () => this.setState({ colorMode: 'type' });
+  setColorZ = () => this.setState({ colorMode: 'z' });
+  toggleTravel = () => this.setState(s => ({ showTravel: !s.showTravel }));
+  viewTop = () => this.setState({ yaw: 0, pitch: Math.PI / 2 - 0.001 });
+  viewFront = () => this.setState({ yaw: 0, pitch: 0.02 });
+  viewIso = () => this.setState({ yaw: -0.6, pitch: 1.0 });
+
+  // ---- orbit / zoom ----
+  _attachOrbit() {
+    const cv = this.canvasRef.current; if (!cv) return;
+    let dragging = false, lx = 0, ly = 0;
+    cv.addEventListener('mousedown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; cv.style.cursor = 'grabbing'; });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - lx, dy = e.clientY - ly; lx = e.clientX; ly = e.clientY;
+      this.setState(s => {
+        let pitch = s.pitch - dy * 0.008;
+        pitch = Math.max(0.02, Math.min(Math.PI / 2 - 0.001, pitch));
+        return { yaw: s.yaw - dx * 0.008, pitch };
+      });
+    });
+    window.addEventListener('mouseup', () => { dragging = false; cv.style.cursor = 'grab'; });
+    cv.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      this.setState(s => ({ zoom: Math.max(0.2, Math.min(8, s.zoom * (e.deltaY < 0 ? 1.12 : 0.89))) }));
+    }, { passive: false });
+  }
+
+  // ================= PARSER =================
+  parse(code, kinematic) {
+    const lines = code.split('\n');
+    let unit = 1, abs = true, eAbs = true;
+    let pos = { x: 0, y: 0, z: 0, e: 0 };
+    let feed = 0, feedSeen = false;
+    const segs = [];
+    const b = { minx: Infinity, maxx: -Infinity, miny: Infinity, maxy: -Infinity, minz: Infinity, maxz: -Infinity };
+    let workDist = 0, travelDist = 0, seconds = 0;
+    let extrudeMoves = 0, cutMoves = 0, travelMoves = 0;
+    const rapid = kinematic === 'cnc' ? 5000 : 9000; // mm/min for G0 time
+    const grow = (p) => { b.minx = Math.min(b.minx, p.x); b.maxx = Math.max(b.maxx, p.x); b.miny = Math.min(b.miny, p.y); b.maxy = Math.max(b.maxy, p.y); b.minz = Math.min(b.minz, p.z); b.maxz = Math.max(b.maxz, p.z); };
+    grow(pos);
+
+    for (let li = 0; li < lines.length; li++) {
+      let raw = lines[li];
+      const cut = raw.indexOf(';'); if (cut >= 0) raw = raw.slice(0, cut);
+      raw = raw.replace(/\([^)]*\)/g, ' ').trim();
+      if (!raw) continue;
+      const toks = raw.match(/([A-Za-z])\s*(-?\d*\.?\d+)?/g);
+      if (!toks) continue;
+      const w = {};
+      let cmd = null;
+      toks.forEach(t => {
+        const L = t[0].toUpperCase();
+        const num = parseFloat(t.slice(1));
+        if ((L === 'G' || L === 'M' || L === 'T') && cmd === null) cmd = L + (isNaN(num) ? '' : num);
+        else w[L] = num;
+      });
+      if (raw[0] && raw[0].toUpperCase() === 'N') { /* line number, cmd already next */ }
+
+      if (cmd === 'G20') unit = 25.4;
+      else if (cmd === 'G21') unit = 1;
+      else if (cmd === 'G90') abs = true;
+      else if (cmd === 'G91') abs = false;
+      else if (cmd === 'M82') eAbs = true;
+      else if (cmd === 'M83') eAbs = false;
+      else if (cmd === 'G92') {
+        if (w.X != null) pos.x = w.X * unit; if (w.Y != null) pos.y = w.Y * unit;
+        if (w.Z != null) pos.z = w.Z * unit; if (w.E != null) pos.e = w.E * unit;
+      } else if (cmd === 'G0' || cmd === 'G1' || cmd === 'G2' || cmd === 'G3') {
+        if (w.F != null) { feed = w.F * unit; feedSeen = true; }
+        const from = { ...pos };
+        const to = { ...pos };
+        const setAxis = (ax, val) => { if (val == null) return; to[ax] = abs ? val * unit : from[ax] + val * unit; };
+        setAxis('x', w.X); setAxis('y', w.Y); setAxis('z', w.Z);
+        let eDelta = 0;
+        if (w.E != null) { const ev = eAbs ? w.E * unit : from.e + w.E * unit; eDelta = ev - from.e; to.e = ev; }
+
+        if (cmd === 'G2' || cmd === 'G3') {
+          // arc center via I/J (relative) or R
+          let cx, cy, r;
+          if (w.I != null || w.J != null) { cx = from.x + (w.I || 0) * unit; cy = from.y + (w.J || 0) * unit; r = Math.hypot(from.x - cx, from.y - cy); }
+          else if (w.R != null) {
+            r = w.R * unit;
+            const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2;
+            const dx = to.x - from.x, dy = to.y - from.y; const d = Math.hypot(dx, dy) || 1e-6;
+            const h = Math.sqrt(Math.max(0, r * r - (d / 2) * (d / 2)));
+            const sgn = (cmd === 'G2' ? -1 : 1) * (r < 0 ? -1 : 1);
+            cx = mx + sgn * h * (-dy / d); cy = my + sgn * h * (dx / d); r = Math.abs(r);
+          }
+          if (cx != null) {
+            let a0 = Math.atan2(from.y - cy, from.x - cx), a1 = Math.atan2(to.y - cy, to.x - cx);
+            let da = a1 - a0;
+            if (cmd === 'G2') { if (da >= 0) da -= 2 * Math.PI; } else { if (da <= 0) da += 2 * Math.PI; }
+            if (Math.abs(da) < 1e-6) da = (cmd === 'G2' ? -1 : 1) * 2 * Math.PI; // full circle
+            const arcLen = Math.abs(da) * r;
+            const N = Math.max(6, Math.min(120, Math.ceil(Math.abs(da) / 0.12)));
+            let prev = { ...from };
+            for (let k = 1; k <= N; k++) {
+              const a = a0 + da * (k / N);
+              const p = { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: from.z + (to.z - from.z) * (k / N), e: 0 };
+              segs.push({ from: prev, to: p, type: 'arc', z: p.z });
+              grow(p); prev = p;
+            }
+            workDist += arcLen; cutMoves++;
+            if (feed > 0) seconds += (arcLen / feed) * 60;
+            pos = { ...to };
+            continue;
+          }
+        }
+
+        const dist = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
+        const isTravel = cmd === 'G0' || (eDelta <= 0 && kinematic === 'fdm' && cmd === 'G1' && (to.z === from.z) && dist > 0 && eDelta === 0 && !(w.E != null));
+        let type;
+        if (cmd === 'G0') { type = 'travel'; travelDist += dist; travelMoves++; if (rapid > 0) seconds += (dist / rapid) * 60; }
+        else {
+          if (kinematic === 'fdm') {
+            if (eDelta > 0) { type = 'extrude'; extrudeMoves++; }
+            else { type = 'travel'; travelMoves++; }
+          } else { type = 'cut'; cutMoves++; }
+          if (type === 'travel') { travelDist += dist; if (rapid > 0) seconds += (dist / rapid) * 60; }
+          else { workDist += dist; if (feed > 0) seconds += (dist / feed) * 60; }
+        }
+        segs.push({ from, to, type, z: to.z });
+        grow(to);
+        pos = { ...to };
+      }
+    }
+
+    if (!isFinite(b.minx)) { b.minx = b.maxx = b.miny = b.maxy = b.minz = b.maxz = 0; }
+    return { segs, bounds: b, workDist, travelDist, seconds, extrudeMoves, cutMoves, travelMoves, feedSeen };
+  }
+
+  // ================= VALIDATOR =================
+  validate(code, profile, kinematic) {
+    const lines = code.split('\n');
+    const diags = [];
+    let feedSeen = false, sawMove = false;
+    const heaters = ['M104', 'M109', 'M140', 'M190', 'M141', 'M191'];
+    const fans = ['M106', 'M107'];
+    const marlinOnly = ['M84', 'M82', 'M83', 'M201', 'M203', 'M204', 'M205', 'M420', 'G29'];
+    const knownG = new Set(['G0','G1','G2','G3','G4','G10','G17','G18','G19','G20','G21','G28','G29','G53','G54','G55','G56','G57','G58','G59','G90','G91','G92','G93','G94']);
+
+    for (let li = 0; li < lines.length; li++) {
+      let raw = lines[li];
+      const c = raw.indexOf(';'); if (c >= 0) raw = raw.slice(0, c);
+      raw = raw.replace(/\([^)]*\)/g, ' ').trim();
+      if (!raw) continue;
+      const ln = li + 1;
+      const toks = raw.match(/([A-Za-z])\s*(-?\d*\.?\d+)?/g) || [];
+      const w = {};
+      let cmd = null, cmdLetter = null;
+      let bad = false;
+      toks.forEach(t => {
+        const L = t[0].toUpperCase();
+        const numPart = t.slice(1).trim();
+        const num = parseFloat(numPart);
+        if (!'GMTXYZEFIJRSPN'.includes(L)) bad = true;
+        if ((L === 'G' || L === 'M' || L === 'T') && cmd === null) { cmd = L + (isNaN(num) ? '' : num); cmdLetter = L; }
+        else if (numPart !== '' && isNaN(num)) bad = true;
+        else w[L] = num;
+      });
+      const add = (sev, msg) => diags.push({ line: ln, sev, msg, text: raw });
+
+      if (bad) add('error', 'Unrecognized token or malformed number');
+      if (cmd === null && Object.keys(w).length) { add('warn', 'Parameters with no G/M command on this line'); continue; }
+      if (cmd === null) continue;
+
+      // movement-related
+      if (['G0', 'G1', 'G2', 'G3'].includes(cmd)) {
+        sawMove = true;
+        if (w.F != null) feedSeen = true;
+        if ((cmd === 'G1' || cmd === 'G2' || cmd === 'G3') && !feedSeen) add('error', 'No feed rate (F) assigned before first cutting/printing move');
+        if ((cmd === 'G2' || cmd === 'G3') && w.I == null && w.J == null && w.R == null) add('error', cmd + ' arc missing center offsets (I/J) or radius (R)');
+        if (w.F != null && w.F <= 0) add('warn', 'Feed rate F is zero or negative');
+        if (w.E != null && kinematic === 'cnc') add('error', 'E (extruder) word on a CNC kinematic — no extruder present');
+        if (w.E != null && profile === 'grbl') add('error', 'GRBL has no extruder — E word is not supported');
+      }
+
+      // profile-specific commands
+      if (cmdLetter === 'M' || cmdLetter === 'G') {
+        if (profile === 'grbl') {
+          if (heaters.includes(cmd)) add('error', cmd + ' not supported on GRBL (no heater control)');
+          else if (fans.includes(cmd)) add('warn', cmd + ' fan control is non-standard on GRBL');
+          else if (marlinOnly.includes(cmd)) add('error', cmd + ' is a Marlin command, not recognized by GRBL');
+        } else { // marlin
+          if (cmd === 'M6' || cmdLetter === 'T') add('warn', cmd + ' tool change is uncommon on a single-extruder Marlin setup');
+          if (['M7', 'M8', 'M9'].includes(cmd)) add('warn', cmd + ' coolant control has no effect on a standard 3D printer');
+        }
+        // kinematic sanity
+        if (kinematic === 'fdm' && (cmd === 'M3' || cmd === 'M4')) add('warn', cmd + ' spindle command unusual on a 3D printer');
+        if (kinematic === 'cnc' && heaters.includes(cmd)) add('error', cmd + ' heater command invalid for CNC milling');
+        // unknown G
+        if (cmdLetter === 'G' && !knownG.has(cmd)) add('warn', cmd + ' is not a commonly recognized G command');
+      }
+    }
+    if (sawMove && !feedSeen) {
+      // already flagged per-line; nothing extra
+    }
+    return diags;
+  }
+
+  // ================= DRAW =================
+  project(p, b, cfg) {
+    // center model
+    const cx = (b.minx + b.maxx) / 2, cy = (b.miny + b.maxy) / 2, cz = (b.minz + b.maxz) / 2;
+    let x = p.x - cx, y = p.y - cy, z = p.z - cz;
+    const cyaw = Math.cos(cfg.yaw), syaw = Math.sin(cfg.yaw);
+    const rx = x * cyaw - y * syaw;
+    const ry = x * syaw + y * cyaw;
+    const cp = Math.cos(cfg.pitch), sp = Math.sin(cfg.pitch);
+    const sy = ry * cp - z * sp;          // vertical in 3D up
+    return { X: cfg.ox + rx * cfg.s, Y: cfg.oy - sy * cfg.s };
+  }
+
+  zColor(z, b) {
+    const span = (b.maxz - b.minz) || 1;
+    const t = Math.max(0, Math.min(1, (z - b.minz) / span));
+    const a = [44, 110, 99], c = [176, 106, 35];
+    const m = a.map((v, i) => Math.round(v + (c[i] - v) * t));
+    return 'rgb(' + m[0] + ',' + m[1] + ',' + m[2] + ')';
+  }
+
+  draw() {
+    const cv = this.canvasRef.current, wrap = this.wrapRef.current; if (!cv || !wrap) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    if (W === 0 || H === 0) return;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    const data = this._data || this.parse(this.state.code, this.state.kinematic);
+    const b = data.bounds;
+
+    // fit scale
+    const spanX = Math.max(b.maxx - b.minx, 1), spanY = Math.max(b.maxy - b.miny, 1), spanZ = Math.max(b.maxz - b.minz, 1);
+    const modelSpan = Math.max(spanX, spanY, spanZ);
+    const baseS = (Math.min(W, H) * 0.62) / modelSpan;
+    const cfg = { yaw: this.state.yaw, pitch: this.state.pitch, s: baseS * this.state.zoom, ox: W / 2 + this.state.panX, oy: H / 2 + this.state.panY };
+
+    // ---- ground grid (XY plane at z=minz) ----
+    const gx0 = b.minx, gx1 = b.maxx, gy0 = b.miny, gy1 = b.maxy, gz = b.minz;
+    const pad = modelSpan * 0.12;
+    ctx.strokeStyle = '#ddd1bb'; ctx.lineWidth = 1;
+    const gstep = this._niceStep(modelSpan / 6);
+    for (let gx = Math.floor((gx0 - pad) / gstep) * gstep; gx <= gx1 + pad; gx += gstep) {
+      const p0 = this.project({ x: gx, y: gy0 - pad, z: gz }, b, cfg), p1 = this.project({ x: gx, y: gy1 + pad, z: gz }, b, cfg);
+      ctx.beginPath(); ctx.moveTo(p0.X, p0.Y); ctx.lineTo(p1.X, p1.Y); ctx.stroke();
+    }
+    for (let gy = Math.floor((gy0 - pad) / gstep) * gstep; gy <= gy1 + pad; gy += gstep) {
+      const p0 = this.project({ x: gx0 - pad, y: gy, z: gz }, b, cfg), p1 = this.project({ x: gx1 + pad, y: gy, z: gz }, b, cfg);
+      ctx.beginPath(); ctx.moveTo(p0.X, p0.Y); ctx.lineTo(p1.X, p1.Y); ctx.stroke();
+    }
+
+    // ---- axis indicator at origin-ish corner ----
+    const aOrigin = { x: gx0 - pad, y: gy0 - pad, z: gz };
+    const al = modelSpan * 0.22;
+    const axes = [
+      { to: { x: aOrigin.x + al, y: aOrigin.y, z: aOrigin.z }, c: '#c0563a', lbl: 'X' },
+      { to: { x: aOrigin.x, y: aOrigin.y + al, z: aOrigin.z }, c: '#3a7d4f', lbl: 'Y' },
+      { to: { x: aOrigin.x, y: aOrigin.y, z: aOrigin.z + al }, c: '#2f6fb0', lbl: 'Z' },
+    ];
+    const o = this.project(aOrigin, b, cfg);
+    ctx.lineWidth = 2; ctx.font = '600 12px IBM Plex Mono, monospace';
+    axes.forEach(ax => {
+      const p = this.project(ax.to, b, cfg);
+      ctx.strokeStyle = ax.c; ctx.beginPath(); ctx.moveTo(o.X, o.Y); ctx.lineTo(p.X, p.Y); ctx.stroke();
+      ctx.fillStyle = ax.c; ctx.fillText(ax.lbl, p.X + 3, p.Y + 3);
+    });
+
+    // ---- toolpath ----
+    const colorMode = this.state.colorMode;
+    const drawSegs = data.segs;
+    // travel first (under), then work
+    if (this.state.showTravel) {
+      ctx.strokeStyle = '#bdb2a1'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      drawSegs.forEach(sg => { if (sg.type !== 'travel') return; const a = this.project(sg.from, b, cfg), c = this.project(sg.to, b, cfg); ctx.moveTo(a.X, a.Y); ctx.lineTo(c.X, c.Y); });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    // work moves
+    ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (colorMode === 'type') {
+      // batch by color
+      const byColor = { extrude: '#b06a23', cut: '#b06a23', arc: '#2c6e63' };
+      ['extrude', 'cut', 'arc'].forEach(tp => {
+        ctx.strokeStyle = byColor[tp]; ctx.beginPath(); let any = false;
+        drawSegs.forEach(sg => { if (sg.type !== tp) return; any = true; const a = this.project(sg.from, b, cfg), c = this.project(sg.to, b, cfg); ctx.moveTo(a.X, a.Y); ctx.lineTo(c.X, c.Y); });
+        if (any) ctx.stroke();
+      });
+    } else {
+      drawSegs.forEach(sg => { if (sg.type === 'travel') return; const a = this.project(sg.from, b, cfg), c = this.project(sg.to, b, cfg); ctx.strokeStyle = this.zColor(sg.z, b); ctx.beginPath(); ctx.moveTo(a.X, a.Y); ctx.lineTo(c.X, c.Y); ctx.stroke(); });
+    }
+  }
+
+  _niceStep(v) {
+    const p = Math.pow(10, Math.floor(Math.log10(v || 1)));
+    const n = v / p;
+    const s = n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10;
+    return s * p;
+  }
+
+  // ---- export ----
+  exportPng = () => {
+    const cv = this.canvasRef.current; if (!cv) return;
+    // paint a solid background behind for export
+    const out = document.createElement('canvas'); out.width = cv.width; out.height = cv.height;
+    const o = out.getContext('2d'); o.fillStyle = '#f4efe6'; o.fillRect(0, 0, out.width, out.height); o.drawImage(cv, 0, 0);
+    const a = document.createElement('a'); a.href = out.toDataURL('image/png'); a.download = 'gcode-preview.png';
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  fmtTime(sec) {
+    sec = Math.round(sec);
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    if (h > 0) return h + 'h ' + String(m).padStart(2, '0') + 'm';
+    if (m > 0) return m + 'm ' + String(s).padStart(2, '0') + 's';
+    return s + 's';
+  }
+  fmtDist(mm) { return mm >= 1000 ? (mm / 1000).toFixed(2) + ' m' : Math.round(mm) + ' mm'; }
+
+  segStyle(active) {
+    return active
+      ? 'font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:600; padding:6px 12px; border:none; background:#fff; color:#1a1613; border-radius:4px; cursor:pointer; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,.12);'
+      : 'font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:500; padding:6px 12px; border:none; background:transparent; color:#b8b0a2; border-radius:4px; cursor:pointer; white-space:nowrap;';
+  }
+  miniStyle(active) {
+    return active
+      ? 'font-family:\'IBM Plex Mono\',monospace; font-size:11px; font-weight:600; padding:3px 8px; border:none; background:#b06a23; color:#fff; border-radius:4px; cursor:pointer;'
+      : 'font-family:\'IBM Plex Mono\',monospace; font-size:11px; font-weight:500; padding:3px 8px; border:none; background:transparent; color:#9a9286; border-radius:4px; cursor:pointer;';
+  }
+
+  renderVals() {
+    const s = this.state;
+    const data = this.parse(s.code, s.kinematic);
+    this._data = data;
+    const diags = this.validate(s.code, s.profile, s.kinematic);
+    const b = data.bounds;
+    const errCount = diags.filter(d => d.sev === 'error').length;
+    const warnCount = diags.filter(d => d.sev === 'warn').length;
+    const isCnc = s.kinematic === 'cnc';
+
+    const gutter = Array.from({ length: Math.max(1, s.nLines) }, (_, i) => i + 1).join('\n');
+
+    return {
+      // toggles
+      setFdm: this.setFdm, setCncK: this.setCncK, setMarlin: this.setMarlin, setGrbl: this.setGrbl,
+      fdmStyle: this.segStyle(!isCnc), cncKStyle: this.segStyle(isCnc),
+      marlinStyle: this.segStyle(s.profile === 'marlin'), grblStyle: this.segStyle(s.profile === 'grbl'),
+      exportPng: this.exportPng,
+      // editor
+      codeRef: this.codeRef, gutterRef: this.gutterRef, gutter,
+      onCodeInput: this.onCodeInput, onEditorScroll: this.onEditorScroll,
+      loadSample: this.loadSample, clearCode: this.clearCode,
+      // diagnostics
+      errCount, warnCount, clean: diags.length === 0,
+      diagnostics: diags.map(d => ({
+        lineLabel: 'L' + d.line,
+        icon: d.sev === 'error' ? '✕' : '!',
+        color: d.sev === 'error' ? '#d9694a' : '#cc9a3c',
+        bar: d.sev === 'error' ? '#d9694a' : '#cc9a3c',
+        msg: d.msg,
+        jump: () => this.jumpTo(d.line),
+      })),
+      // stats
+      timeLabel: isCnc ? 'Est. cut time' : 'Est. print time',
+      timeText: this.fmtTime(data.seconds),
+      distLabel: isCnc ? 'Cut distance' : 'Extrusion distance',
+      distText: this.fmtDist(data.workDist),
+      dimText: (b.maxx - b.minx).toFixed(0) + ' × ' + (b.maxy - b.miny).toFixed(0) + ' × ' + (b.maxz - b.minz).toFixed(0),
+      moveText: (isCnc ? (data.cutMoves + ' cut') : (data.extrudeMoves + ' print')) + ' · ' + data.travelMoves + ' travel',
+      // viewport controls
+      viewTop: this.viewTop, viewFront: this.viewFront, viewIso: this.viewIso, viewBtn: this.miniStyle(false),
+      setColorType: this.setColorType, setColorZ: this.setColorZ,
+      ctTypeStyle: this.miniStyle(s.colorMode === 'type'), ctZStyle: this.miniStyle(s.colorMode === 'z'),
+      showTravel: s.showTravel, toggleTravel: this.toggleTravel,
+      workLegend: isCnc ? 'Cut (G1)' : 'Extrude (G1)',
+      canvasRef: this.canvasRef, wrapRef: this.wrapRef,
+    };
+  }
+}
+</script>
+</body>
+</html>

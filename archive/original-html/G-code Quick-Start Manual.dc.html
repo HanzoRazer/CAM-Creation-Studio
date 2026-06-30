@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #f4efe6; }
+  .doc { box-sizing: border-box; max-width: 8.5in; margin: 0 auto; background: #ffffff;
+         padding: 64px clamp(24px, 5vw, 0.85in) 96px; }
+  .doc-frame { width: 100%; border-collapse: collapse; }
+  .doc-frame td { padding: 0; }
+  .hdr-space, .ftr-space { display: none; }
+  @page { size: letter; margin: 0; }
+  @media print {
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; padding: 0; background: #fff; }
+    .doc { max-width: none !important; margin: 0 !important;
+           padding: 0 0.7in !important; box-shadow: none !important; }
+    .hdr-space, .ftr-space { display: table-cell; height: 0.7in; }
+    .keep, table, pre, figure, tr, .card { break-inside: avoid; }
+    h1, h2, h3, h4 { break-after: avoid; }
+    p, li { orphans: 3; widows: 3; }
+    .screen-only { display: none !important; }
+  }
+</style>
+</helmet>
+<main class="doc" style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #1a1613; line-height: 1.6; -webkit-font-smoothing: antialiased;">
+  <table class="doc-frame" role="presentation">
+    <thead><tr><td class="hdr-space"></td></tr></thead>
+    <tbody><tr><td>
+
+      <!-- ===== MASTHEAD ===== -->
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px; border-bottom:2px solid #1a1613; padding-bottom:20px;">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:#b06a23; font-weight:600;">Quick-Start Manual</div>
+          <h1 style="font-size:38px; line-height:1.08; margin:10px 0 0; font-weight:700; letter-spacing:-0.02em;">Reading &amp; Writing<br>G-code</h1>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6b645c; text-align:right; line-height:1.7; padding-top:6px; white-space:nowrap;">
+          REV 1.0<br>FOR&nbsp;BEGINNERS<br>3D&nbsp;PRINT&nbsp;·&nbsp;CNC
+        </div>
+      </div>
+
+      <p style="font-size:15.5px; color:#3a342e; margin:22px 0 0; max-width:62ch;">G-code is the plain-text language that tells a machine where to move, how fast, and what to do when it gets there. Every line is one instruction. This guide covers the handful of commands you actually need, the structure of a working program, and the differences between Marlin-based 3D printers and standard CNC mills — enough to read most files and write your first one.</p>
+
+      <!-- ===== HOW A LINE IS BUILT ===== -->
+      <div style="margin-top:30px; background:#faf7f1; border:1px solid #e7ddcb; border-radius:6px; padding:20px 22px;" class="card">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#b06a23; font-weight:600; margin-bottom:12px;">Anatomy of a line</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:500; letter-spacing:0.02em;">
+          <span style="color:#b06a23;">G1</span> <span style="color:#2c6e63;">X</span>10 <span style="color:#2c6e63;">Y</span>5 <span style="color:#2c6e63;">Z</span>-0.5 <span style="color:#9a6a1e;">F</span>800 <span style="color:#a09a90;">; first cut</span>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:16px; font-size:12.5px; color:#4a443d;">
+          <div><span style="font-family:'IBM Plex Mono',monospace; color:#b06a23; font-weight:600;">G1</span> &nbsp;command — what to do</div>
+          <div><span style="font-family:'IBM Plex Mono',monospace; color:#2c6e63; font-weight:600;">X Y Z</span> &nbsp;target coordinates</div>
+          <div><span style="font-family:'IBM Plex Mono',monospace; color:#9a6a1e; font-weight:600;">F</span> &nbsp;feed rate (speed)</div>
+          <div><span style="font-family:'IBM Plex Mono',monospace; color:#a09a90; font-weight:600;">;</span> &nbsp;comment, ignored</div>
+        </div>
+      </div>
+
+      <!-- ===== SECTION 1: REFERENCE ===== -->
+      <h2 style="font-size:13px; font-family:'IBM Plex Mono',monospace; letter-spacing:0.16em; text-transform:uppercase; color:#b06a23; font-weight:600; margin:40px 0 4px;">01 — Command Reference</h2>
+      <h3 style="font-size:22px; margin:0 0 16px; font-weight:700; letter-spacing:-0.01em;">Essential commands</h3>
+
+      <table style="width:100%; border-collapse:collapse; font-size:13.5px;">
+        <thead>
+          <tr style="border-bottom:2px solid #1a1613; text-align:left;">
+            <th style="padding:8px 10px 8px 0; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#6b645c; width:80px;">Code</th>
+            <th style="padding:8px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#6b645c;">Does</th>
+            <th style="padding:8px 0 8px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#6b645c;">Typical use</th>
+          </tr>
+        </thead>
+        <tbody style="font-size:13.5px;">
+          <tr style="border-bottom:1px solid #ece6da;">
+            <td style="padding:11px 10px 11px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#b06a23; vertical-align:top;">G0</td>
+            <td style="padding:11px 10px; vertical-align:top;">Rapid move — travel at max speed, <strong>not</strong> cutting</td>
+            <td style="padding:11px 0 11px 10px; color:#4a443d; vertical-align:top; font-family:'IBM Plex Mono',monospace; font-size:12px;">G0 X0 Y0 Z5</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da;">
+            <td style="padding:11px 10px 11px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#b06a23; vertical-align:top;">G1</td>
+            <td style="padding:11px 10px; vertical-align:top;">Linear move at a set feed rate — the working move (cut / extrude)</td>
+            <td style="padding:11px 0 11px 10px; color:#4a443d; vertical-align:top; font-family:'IBM Plex Mono',monospace; font-size:12px;">G1 X10 Y5 F800</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da;">
+            <td style="padding:11px 10px 11px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#b06a23; vertical-align:top;">G2</td>
+            <td style="padding:11px 10px; vertical-align:top;">Clockwise arc to a point, radius/center via I&nbsp;J or R</td>
+            <td style="padding:11px 0 11px 10px; color:#4a443d; vertical-align:top; font-family:'IBM Plex Mono',monospace; font-size:12px;">G2 X10 Y10 I5 J0</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da;">
+            <td style="padding:11px 10px 11px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#b06a23; vertical-align:top;">G3</td>
+            <td style="padding:11px 10px; vertical-align:top;">Counter-clockwise arc — same parameters as G2</td>
+            <td style="padding:11px 0 11px 10px; color:#4a443d; vertical-align:top; font-family:'IBM Plex Mono',monospace; font-size:12px;">G3 X0 Y10 I-5 J0</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da;">
+            <td style="padding:11px 10px 11px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#2c6e63; vertical-align:top;">G21</td>
+            <td style="padding:11px 10px; vertical-align:top;">Set units to millimetres (G20 = inches)</td>
+            <td style="padding:11px 0 11px 10px; color:#4a443d; vertical-align:top; font-family:'IBM Plex Mono',monospace; font-size:12px;">G21</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da;">
+            <td style="padding:11px 10px 11px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#2c6e63; vertical-align:top;">G28</td>
+            <td style="padding:11px 10px; vertical-align:top;">Home axes — move to known reference (endstops / limit switches)</td>
+            <td style="padding:11px 0 11px 10px; color:#4a443d; vertical-align:top; font-family:'IBM Plex Mono',monospace; font-size:12px;">G28 ; all axes</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da;">
+            <td style="padding:11px 10px 11px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#2c6e63; vertical-align:top;">G90</td>
+            <td style="padding:11px 10px; vertical-align:top;">Absolute positioning — coordinates are from origin (G91 = relative)</td>
+            <td style="padding:11px 0 11px 10px; color:#4a443d; vertical-align:top; font-family:'IBM Plex Mono',monospace; font-size:12px;">G90</td>
+          </tr>
+          <tr>
+            <td style="padding:11px 10px 11px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#2c6e63; vertical-align:top;">G92</td>
+            <td style="padding:11px 10px; vertical-align:top;">Set current position — redefine coordinates without moving</td>
+            <td style="padding:11px 0 11px 10px; color:#4a443d; vertical-align:top; font-family:'IBM Plex Mono',monospace; font-size:12px;">G92 E0</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="font-size:18px; margin:30px 0 14px; font-weight:700; letter-spacing:-0.01em;">M-codes — machine actions</h3>
+      <p style="font-size:13.5px; color:#4a443d; margin:0 0 14px;">G-codes move the machine; M-codes (“miscellaneous”) switch things on and off — spindles, heaters, fans, coolant — and control program flow.</p>
+
+      <table style="width:100%; border-collapse:collapse; font-size:13.5px;" class="keep">
+        <thead>
+          <tr style="border-bottom:2px solid #1a1613; text-align:left;">
+            <th style="padding:8px 10px 8px 0; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#6b645c; width:80px;">Code</th>
+            <th style="padding:8px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#6b645c;">Does</th>
+            <th style="padding:8px 0 8px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#6b645c; width:120px;">Found on</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #ece6da;"><td style="padding:10px 10px 10px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#9a6a1e; vertical-align:top;">M3 / M4</td><td style="padding:10px;">Spindle / laser on, clockwise (M3) or counter-clockwise (M4), at speed S</td><td style="padding:10px 0 10px 10px; font-size:12px; color:#6b645c; vertical-align:top;">CNC</td></tr>
+          <tr style="border-bottom:1px solid #ece6da;"><td style="padding:10px 10px 10px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#9a6a1e; vertical-align:top;">M5</td><td style="padding:10px;">Spindle / laser off</td><td style="padding:10px 0 10px 10px; font-size:12px; color:#6b645c; vertical-align:top;">CNC</td></tr>
+          <tr style="border-bottom:1px solid #ece6da;"><td style="padding:10px 10px 10px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#9a6a1e; vertical-align:top;">M6</td><td style="padding:10px;">Tool change (often pairs with T-word, e.g. T2)</td><td style="padding:10px 0 10px 10px; font-size:12px; color:#6b645c; vertical-align:top;">CNC</td></tr>
+          <tr style="border-bottom:1px solid #ece6da;"><td style="padding:10px 10px 10px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#9a6a1e; vertical-align:top;">M8 / M9</td><td style="padding:10px;">Coolant on / off</td><td style="padding:10px 0 10px 10px; font-size:12px; color:#6b645c; vertical-align:top;">CNC</td></tr>
+          <tr style="border-bottom:1px solid #ece6da;"><td style="padding:10px 10px 10px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#9a6a1e; vertical-align:top;">M104 / M109</td><td style="padding:10px;">Set hotend temp (M104, don’t wait) / set and wait (M109)</td><td style="padding:10px 0 10px 10px; font-size:12px; color:#6b645c; vertical-align:top;">Marlin</td></tr>
+          <tr style="border-bottom:1px solid #ece6da;"><td style="padding:10px 10px 10px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#9a6a1e; vertical-align:top;">M140 / M190</td><td style="padding:10px;">Set bed temp (M140) / set and wait (M190)</td><td style="padding:10px 0 10px 10px; font-size:12px; color:#6b645c; vertical-align:top;">Marlin</td></tr>
+          <tr style="border-bottom:1px solid #ece6da;"><td style="padding:10px 10px 10px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#9a6a1e; vertical-align:top;">M106 / M107</td><td style="padding:10px;">Part-cooling fan on (with speed S0–255) / off</td><td style="padding:10px 0 10px 10px; font-size:12px; color:#6b645c; vertical-align:top;">Marlin</td></tr>
+          <tr style="border-bottom:1px solid #ece6da;"><td style="padding:10px 10px 10px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#9a6a1e; vertical-align:top;">M84</td><td style="padding:10px;">Disable steppers (release motors)</td><td style="padding:10px 0 10px 10px; font-size:12px; color:#6b645c; vertical-align:top;">Marlin</td></tr>
+          <tr><td style="padding:10px 10px 10px 0; font-family:'IBM Plex Mono',monospace; font-weight:600; color:#9a6a1e; vertical-align:top;">M2 / M30</td><td style="padding:10px;">End of program (M30 also rewinds)</td><td style="padding:10px 0 10px 10px; font-size:12px; color:#6b645c; vertical-align:top;">Both</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ===== SECTION 2: FILE STRUCTURE ===== -->
+      <h2 style="font-size:13px; font-family:'IBM Plex Mono',monospace; letter-spacing:0.16em; text-transform:uppercase; color:#b06a23; font-weight:600; margin:46px 0 4px;">02 — File Structure</h2>
+      <h3 style="font-size:22px; margin:0 0 8px; font-weight:700; letter-spacing:-0.01em;">Header, body, footer</h3>
+      <p style="font-size:14px; color:#4a443d; margin:0 0 18px; max-width:64ch;">Almost every G-code file follows the same three-part shape. The header puts the machine in a known, safe state; the body does the work; the footer powers everything down cleanly.</p>
+
+      <div style="display:grid; grid-template-columns:1fr 1.15fr; gap:20px; align-items:start;" class="keep">
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div style="border-left:3px solid #b06a23; padding:2px 0 2px 14px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:#b06a23; text-transform:uppercase; letter-spacing:0.08em;">Header</div>
+            <div style="font-size:13px; color:#4a443d; margin-top:3px;">Set units &amp; positioning mode, home the axes, heat up or start the spindle, move to a safe start point.</div>
+          </div>
+          <div style="border-left:3px solid #2c6e63; padding:2px 0 2px 14px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:#2c6e63; text-transform:uppercase; letter-spacing:0.08em;">Body</div>
+            <div style="font-size:13px; color:#4a443d; margin-top:3px;">The actual toolpath — the sequence of G0/G1/G2/G3 moves that cut or print the part.</div>
+          </div>
+          <div style="border-left:3px solid #6b645c; padding:2px 0 2px 14px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:#6b645c; text-transform:uppercase; letter-spacing:0.08em;">Footer</div>
+            <div style="font-size:13px; color:#4a443d; margin-top:3px;">Retract, turn off spindle/heaters/fans, park the head out of the way, end the program.</div>
+          </div>
+        </div>
+        <pre style="margin:0; background:#1a1613; color:#e8e1d4; border-radius:6px; padding:18px 18px; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.65; overflow-x:auto;"><span style="color:#c8924a;">; --- HEADER ---</span>
+G21          <span style="color:#7c756a;">; units = mm</span>
+G90          <span style="color:#7c756a;">; absolute coords</span>
+G28          <span style="color:#7c756a;">; home all axes</span>
+M3 S12000    <span style="color:#7c756a;">; spindle on</span>
+G0 Z5        <span style="color:#7c756a;">; safe height</span>
+
+<span style="color:#6fae9f;">; --- BODY ---</span>
+G0 X0 Y0
+G1 Z-0.5 F300
+G1 X20 Y0 F800
+G1 X20 Y20
+G2 X0 Y20 I-10 J0
+
+<span style="color:#9b938a;">; --- FOOTER ---</span>
+G0 Z5        <span style="color:#7c756a;">; retract</span>
+M5           <span style="color:#7c756a;">; spindle off</span>
+G0 X0 Y0     <span style="color:#7c756a;">; park</span>
+M30          <span style="color:#7c756a;">; end</span></pre>
+      </div>
+
+      <!-- ===== SECTION 3: MARLIN VS CNC ===== -->
+      <h2 style="font-size:13px; font-family:'IBM Plex Mono',monospace; letter-spacing:0.16em; text-transform:uppercase; color:#b06a23; font-weight:600; margin:46px 0 4px;">03 — Dialect Differences</h2>
+      <h3 style="font-size:22px; margin:0 0 14px; font-weight:700; letter-spacing:-0.01em;">Marlin 3D printers vs. CNC mills</h3>
+
+      <table style="width:100%; border-collapse:collapse; font-size:13px;" class="keep">
+        <thead>
+          <tr style="border-bottom:2px solid #1a1613; text-align:left;">
+            <th style="padding:9px 12px 9px 0; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:#6b645c; width:24%;">Topic</th>
+            <th style="padding:9px 12px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:#b06a23;">Marlin (3D printer)</th>
+            <th style="padding:9px 0 9px 12px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:#2c6e63;">CNC mill</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #ece6da; vertical-align:top;">
+            <td style="padding:11px 12px 11px 0; font-weight:600;">The “tool”</td>
+            <td style="padding:11px 12px;">Heated nozzle extruding plastic — material fed via the <span style="font-family:'IBM Plex Mono',monospace; color:#9a6a1e;">E</span> axis</td>
+            <td style="padding:11px 0 11px 12px;">Rotating cutter — controlled with <span style="font-family:'IBM Plex Mono',monospace; color:#9a6a1e;">M3/M4/M5</span> + spindle speed S</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da; vertical-align:top;">
+            <td style="padding:11px 12px 11px 0; font-weight:600;">Moving = making</td>
+            <td style="padding:11px 12px;"><span style="font-family:'IBM Plex Mono',monospace;">G1 X.. E..</span> — distance and extrusion combined on one line</td>
+            <td style="padding:11px 0 11px 12px;"><span style="font-family:'IBM Plex Mono',monospace;">G1 X.. Z..</span> — cutting happens because the spindle is already on</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da; vertical-align:top;">
+            <td style="padding:11px 12px 11px 0; font-weight:600;">Temperature</td>
+            <td style="padding:11px 12px;">Core to every job — <span style="font-family:'IBM Plex Mono',monospace;">M104/M109/M140/M190</span></td>
+            <td style="padding:11px 0 11px 12px;">No heat codes; coolant instead (<span style="font-family:'IBM Plex Mono',monospace;">M7/M8/M9</span>)</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da; vertical-align:top;">
+            <td style="padding:11px 12px 11px 0; font-weight:600;">Feed rate F</td>
+            <td style="padding:11px 12px;">mm/min (some firmware mm/s) — set per move</td>
+            <td style="padding:11px 0 11px 12px;">mm/min or in/min; rapids (G0) ignore F</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da; vertical-align:top;">
+            <td style="padding:11px 12px 11px 0; font-weight:600;">Coordinate systems</td>
+            <td style="padding:11px 12px;">Single space; origin set by homing + G92</td>
+            <td style="padding:11px 0 11px 12px;">Work offsets <span style="font-family:'IBM Plex Mono',monospace;">G54–G59</span> let you set part zero anywhere</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ece6da; vertical-align:top;">
+            <td style="padding:11px 12px 11px 0; font-weight:600;">Arcs (G2/G3)</td>
+            <td style="padding:11px 12px;">Supported only if firmware built with arc support; many slicers avoid them</td>
+            <td style="padding:11px 0 11px 12px;">Used heavily; I/J (center) or R (radius) standard</td>
+          </tr>
+          <tr style="vertical-align:top;">
+            <td style="padding:11px 12px 11px 0; font-weight:600;">Tool changes</td>
+            <td style="padding:11px 12px;">Rare — <span style="font-family:'IBM Plex Mono',monospace;">T0/T1</span> only on multi-extruder machines</td>
+            <td style="padding:11px 0 11px 12px;">Common — <span style="font-family:'IBM Plex Mono',monospace;">T2 M6</span> swaps end mills mid-program</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ===== SECTION 4: CHECKLIST ===== -->
+      <h2 style="font-size:13px; font-family:'IBM Plex Mono',monospace; letter-spacing:0.16em; text-transform:uppercase; color:#b06a23; font-weight:600; margin:46px 0 4px;">04 — Your First Program</h2>
+      <h3 style="font-size:22px; margin:0 0 16px; font-weight:700; letter-spacing:-0.01em;">A 5-step checklist</h3>
+
+      <div style="display:flex; flex-direction:column; gap:0;">
+        <div style="display:grid; grid-template-columns:42px 1fr; gap:16px; padding:14px 0; border-top:1px solid #ece6da;" class="keep">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:#b06a23; line-height:1;">1</div>
+          <div><div style="font-weight:600; font-size:15px;">Set the ground rules first</div><div style="font-size:13.5px; color:#4a443d; margin-top:3px;">Open with units (<span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">G21</span>) and positioning mode (<span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">G90</span>). Never assume the machine’s last state.</div></div>
+        </div>
+        <div style="display:grid; grid-template-columns:42px 1fr; gap:16px; padding:14px 0; border-top:1px solid #ece6da;" class="keep">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:#b06a23; line-height:1;">2</div>
+          <div><div style="font-weight:600; font-size:15px;">Home, then go to a safe height</div><div style="font-size:13.5px; color:#4a443d; margin-top:3px;">Run <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">G28</span> so the machine knows where it is, then lift Z (<span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">G0 Z5</span>) before any XY travel.</div></div>
+        </div>
+        <div style="display:grid; grid-template-columns:42px 1fr; gap:16px; padding:14px 0; border-top:1px solid #ece6da;" class="keep">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:#b06a23; line-height:1;">3</div>
+          <div><div style="font-weight:600; font-size:15px;">Write the body in small moves</div><div style="font-size:13.5px; color:#4a443d; margin-top:3px;">Use <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">G0</span> to position, <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">G1</span> to cut/print. Put a feed rate <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">F</span> on your first working move.</div></div>
+        </div>
+        <div style="display:grid; grid-template-columns:42px 1fr; gap:16px; padding:14px 0; border-top:1px solid #ece6da;" class="keep">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:#b06a23; line-height:1;">4</div>
+          <div><div style="font-weight:600; font-size:15px;">Shut down in the footer</div><div style="font-size:13.5px; color:#4a443d; margin-top:3px;">Retract Z, turn off the spindle/heaters (<span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">M5</span> / <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">M104 S0</span>), park, and end (<span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px;">M30</span>).</div></div>
+        </div>
+        <div style="display:grid; grid-template-columns:42px 1fr; gap:16px; padding:14px 0; border-top:1px solid #ece6da; border-bottom:1px solid #ece6da;" class="keep">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:#b06a23; line-height:1;">5</div>
+          <div><div style="font-weight:600; font-size:15px;">Simulate before you run</div><div style="font-size:13.5px; color:#4a443d; margin-top:3px;">Preview the toolpath in a viewer (or air-cut above the stock) to catch crashes while it’s still free.</div></div>
+        </div>
+      </div>
+
+      <!-- ===== SECTION 5: TROUBLESHOOTING ===== -->
+      <h2 style="font-size:13px; font-family:'IBM Plex Mono',monospace; letter-spacing:0.16em; text-transform:uppercase; color:#b06a23; font-weight:600; margin:46px 0 4px;">05 — Troubleshooting</h2>
+      <h3 style="font-size:22px; margin:0 0 16px; font-weight:700; letter-spacing:-0.01em;">Homing &amp; speed errors</h3>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div style="background:#faf7f1; border:1px solid #e7ddcb; border-radius:6px; padding:18px 20px;" class="keep">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:#b06a23; font-weight:600; margin-bottom:10px;">Axis homing</div>
+          <ul style="margin:0; padding-left:18px; font-size:13px; color:#3a342e; line-height:1.55;">
+            <li style="margin-bottom:9px;"><strong>“Homing failed” / head slams into frame.</strong> Endstop not triggering or wired open vs. closed — check the switch lights up before the carriage hits it.</li>
+            <li style="margin-bottom:9px;"><strong>Homes the wrong direction.</strong> Homing direction or motor wiring reversed; the axis drives away from the switch.</li>
+            <li style="margin-bottom:0;"><strong>Moves before homing are ignored or refused.</strong> Always <span style="font-family:'IBM Plex Mono',monospace; font-size:12px;">G28</span> first — with no known origin, soft limits block motion.</li>
+          </ul>
+        </div>
+        <div style="background:#faf7f1; border:1px solid #e7ddcb; border-radius:6px; padding:18px 20px;" class="keep">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:#2c6e63; font-weight:600; margin-bottom:10px;">Speed assignment</div>
+          <ul style="margin:0; padding-left:18px; font-size:13px; color:#3a342e; line-height:1.55;">
+            <li style="margin-bottom:9px;"><strong>First G1 crawls or won’t move.</strong> No <span style="font-family:'IBM Plex Mono',monospace; font-size:12px;">F</span> set yet — feed defaults to 0 or the last value. Set F on the first working move.</li>
+            <li style="margin-bottom:9px;"><strong>Everything runs 60× too fast/slow.</strong> Units mismatch — mm/min vs. mm/s, or a stray <span style="font-family:'IBM Plex Mono',monospace; font-size:12px;">G20</span> (inches) in an mm program.</li>
+            <li style="margin-bottom:0;"><strong>Skipped steps / lost position.</strong> Feed or spindle load too high — motors stall. Lower F or depth per pass.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="margin-top:22px; padding:14px 18px; border:1px dashed #c8b89a; border-radius:6px; background:#fdfbf6; font-size:12.5px; color:#6b645c;" class="keep">
+        <strong style="color:#b06a23;">Safety first.</strong> Keep a hand on the feed-hold / emergency stop the first time you run any new program. G-code does exactly what it says — including the mistakes.
+      </div>
+
+    </td></tr></tbody>
+    <tfoot><tr><td class="ftr-space"></td></tr></tfoot>
+  </table>
+</main>
+</x-dc>
+</body>
+</html>

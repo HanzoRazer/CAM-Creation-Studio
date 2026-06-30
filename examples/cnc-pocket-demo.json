@@ -1,0 +1,23 @@
+{
+  "_comment": "Sample CAM-Creation-Studio job: a small CNC square pocket outline. Pass `config` + `job` to buildProgram(config, job). Educational starting point only — verify before running.",
+  "config": {
+    "machine": "genericCnc",
+    "units": "mm",
+    "positioning": "abs",
+    "home": true,
+    "spindleOn": true,
+    "spindleRpm": 12000,
+    "safeZ": 5
+  },
+  "job": {
+    "mode": "manual",
+    "moves": [
+      { "type": "G0", "x": "0", "y": "0", "z": "", "f": "" },
+      { "type": "G1", "x": "", "y": "", "z": "-0.5", "f": "300" },
+      { "type": "G1", "x": "40", "y": "0", "z": "", "f": "800" },
+      { "type": "G1", "x": "40", "y": "30", "z": "", "f": "" },
+      { "type": "G1", "x": "0", "y": "30", "z": "", "f": "" },
+      { "type": "G1", "x": "0", "y": "0", "z": "", "f": "" }
+    ]
+  }
+}

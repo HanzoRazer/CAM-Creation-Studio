@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; background:#f4efe6; }
+  * { box-sizing:border-box; }
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb { background:#d8cdb8; border-radius:6px; }
+  input:focus, select:focus { outline:2px solid #b06a23; outline-offset:0; }
+</style>
+</helmet>
+<div style="font-family:'IBM Plex Sans',system-ui,sans-serif; color:#1a1613; min-height:100vh; background:#f4efe6;">
+
+  <!-- ===== TOP BAR ===== -->
+  <div style="position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:14px 26px; background:#1a1613; color:#e8e1d4;">
+    <div style="display:flex; align-items:baseline; gap:14px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:15px; letter-spacing:0.04em;"><span style="color:#c8924a;">G-CODE</span> CREATOR</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8a8276; letter-spacing:0.16em;">REV 1.0</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div style="display:flex; background:#2a2620; border-radius:6px; padding:3px;">
+        <button onClick="{{ setMarlin }}" style="{{ marlinTabStyle }}">Marlin · 3D Printer</button>
+        <button onClick="{{ setCnc }}" style="{{ cncTabStyle }}">CNC Mill</button>
+      </div>
+      <button onClick="{{ copyCode }}" style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500; padding:8px 14px; border:1px solid #4a443c; background:#2a2620; color:#e8e1d4; border-radius:6px; cursor:pointer;" style-hover="background:#3a352d;">{{ copyLabel }}</button>
+      <button onClick="{{ downloadCode }}" style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; padding:8px 14px; border:none; background:#b06a23; color:#fff; border-radius:6px; cursor:pointer;" style-hover="background:#c0772e;">Download .gcode</button>
+    </div>
+  </div>
+
+  <!-- ===== WORKSPACE ===== -->
+  <div style="display:grid; grid-template-columns:1fr 560px; gap:24px; max-width:1400px; margin:0 auto; padding:24px 26px 60px; align-items:start;">
+
+    <!-- ---- LEFT: BUILDER ---- -->
+    <div style="display:flex; flex-direction:column; gap:20px;">
+
+      <!-- Setup card -->
+      <div style="background:#fff; border:1px solid #e7ddcb; border-radius:8px; padding:20px 22px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#b06a23; font-weight:600; margin-bottom:16px;">Setup &amp; Header</div>
+        <div style="display:flex; flex-wrap:wrap; gap:22px;">
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Units</div>
+            <div style="display:flex; background:#f4efe6; border-radius:6px; padding:3px;">
+              <button onClick="{{ setMm }}" style="{{ mmStyle }}">mm · G21</button>
+              <button onClick="{{ setIn }}" style="{{ inStyle }}">in · G20</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Positioning</div>
+            <div style="display:flex; background:#f4efe6; border-radius:6px; padding:3px;">
+              <button onClick="{{ setAbs }}" style="{{ absStyle }}">Abs · G90</button>
+              <button onClick="{{ setRel }}" style="{{ relStyle }}">Rel · G91</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Home first</div>
+            <button onClick="{{ toggleHome }}" style="{{ homeStyle }}">{{ homeLabel }}</button>
+          </div>
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Safe Z height</div>
+            <input type="text" inputmode="decimal" value="{{ safeZ }}" data-key="safeZ" onChange="{{ setHeaderField }}" style="width:80px; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 9px; border:1px solid #ddd4c4; border-radius:5px;">
+          </div>
+        </div>
+
+        <!-- machine-specific -->
+        <sc-if value="{{ isMarlin }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-wrap:wrap; gap:22px; margin-top:18px; padding-top:18px; border-top:1px solid #f0e9da;">
+            <div>
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Hotend °C · M109</div>
+              <input type="text" inputmode="numeric" value="{{ hotend }}" data-key="hotend" onChange="{{ setHeaderField }}" style="width:80px; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 9px; border:1px solid #ddd4c4; border-radius:5px;">
+            </div>
+            <div>
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Bed °C · M190</div>
+              <input type="text" inputmode="numeric" value="{{ bed }}" data-key="bed" onChange="{{ setHeaderField }}" style="width:80px; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 9px; border:1px solid #ddd4c4; border-radius:5px;">
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isCnc }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-wrap:wrap; gap:22px; margin-top:18px; padding-top:18px; border-top:1px solid #f0e9da; align-items:flex-end;">
+            <div>
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Spindle</div>
+              <button onClick="{{ toggleSpindle }}" style="{{ spindleStyle }}">{{ spindleLabel }}</button>
+            </div>
+            <div>
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Speed RPM · S</div>
+              <input type="text" inputmode="numeric" value="{{ spindleRpm }}" data-key="spindleRpm" onChange="{{ setHeaderField }}" style="width:96px; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 9px; border:1px solid #ddd4c4; border-radius:5px;">
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- Moves card -->
+      <div style="background:#fff; border:1px solid #e7ddcb; border-radius:8px; padding:20px 22px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#b06a23; font-weight:600;">Body · Toolpath Moves</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#9a9286;">{{ moveCount }} moves</div>
+        </div>
+        <div style="display:grid; grid-template-columns:28px 84px 1fr; gap:10px; padding:0 4px 8px; font-size:10px; text-transform:uppercase; letter-spacing:0.07em; color:#9a9286;">
+          <div>#</div><div>Type</div><div>Coordinates</div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <sc-for list="{{ moves }}" as="m" hint-placeholder-count="3">
+            <div style="display:grid; grid-template-columns:28px 84px 1fr auto; gap:10px; align-items:center; background:#faf7f1; border:1px solid #efe7d7; border-radius:6px; padding:8px 10px;">
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#b06a23; font-weight:600;">{{ m.num }}</div>
+              <select data-id="{{ m.id }}" onChange="{{ setMoveType }}" value="{{ m.type }}" style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; padding:7px 6px; border:1px solid #ddd4c4; border-radius:5px; background:#fff; color:#1a1613;">
+                <option value="G0">G0 rapid</option>
+                <option value="G1">G1 cut</option>
+                <option value="G2">G2 arc cw</option>
+                <option value="G3">G3 arc ccw</option>
+              </select>
+              <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                <label style="display:flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6b645c;">X<input type="text" inputmode="decimal" data-id="{{ m.id }}" data-field="x" value="{{ m.x }}" onChange="{{ setMoveField }}" style="width:52px; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 6px; border:1px solid #ddd4c4; border-radius:4px;"></label>
+                <label style="display:flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6b645c;">Y<input type="text" inputmode="decimal" data-id="{{ m.id }}" data-field="y" value="{{ m.y }}" onChange="{{ setMoveField }}" style="width:52px; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 6px; border:1px solid #ddd4c4; border-radius:4px;"></label>
+                <label style="display:flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6b645c;">Z<input type="text" inputmode="decimal" data-id="{{ m.id }}" data-field="z" value="{{ m.z }}" onChange="{{ setMoveField }}" style="width:52px; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 6px; border:1px solid #ddd4c4; border-radius:4px;"></label>
+                <label style="display:flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#6b645c;">F<input type="text" inputmode="decimal" data-id="{{ m.id }}" data-field="f" value="{{ m.f }}" onChange="{{ setMoveField }}" style="width:60px; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 6px; border:1px solid #ddd4c4; border-radius:4px;"></label>
+                <sc-if value="{{ showE }}" hint-placeholder-val="{{ false }}">
+                  <label style="display:flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#9a6a1e;">E<input type="text" inputmode="decimal" data-id="{{ m.id }}" data-field="e" value="{{ m.e }}" onChange="{{ setMoveField }}" style="width:54px; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 6px; border:1px solid #e3d4ba; border-radius:4px;"></label>
+                </sc-if>
+                <sc-if value="{{ m.isArc }}" hint-placeholder-val="{{ false }}">
+                  <label style="display:flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#2c6e63;">I<input type="text" inputmode="decimal" data-id="{{ m.id }}" data-field="i" value="{{ m.i }}" onChange="{{ setMoveField }}" style="width:48px; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 6px; border:1px solid #c7ddd6; border-radius:4px;"></label>
+                </sc-if>
+                <sc-if value="{{ m.isArc }}" hint-placeholder-val="{{ false }}">
+                  <label style="display:flex; align-items:center; gap:4px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#2c6e63;">J<input type="text" inputmode="decimal" data-id="{{ m.id }}" data-field="j" value="{{ m.j }}" onChange="{{ setMoveField }}" style="width:48px; font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 6px; border:1px solid #c7ddd6; border-radius:4px;"></label>
+                </sc-if>
+              </div>
+              <div style="display:flex; gap:3px;">
+                <button onClick="{{ m.up }}" title="Move up" style="width:26px; height:26px; border:1px solid #e3d9c6; background:#fff; border-radius:5px; cursor:pointer; color:#6b645c; font-size:12px; line-height:1;">↑</button>
+                <button onClick="{{ m.down }}" title="Move down" style="width:26px; height:26px; border:1px solid #e3d9c6; background:#fff; border-radius:5px; cursor:pointer; color:#6b645c; font-size:12px; line-height:1;">↓</button>
+                <button onClick="{{ m.remove }}" title="Delete" style="width:26px; height:26px; border:1px solid #e6cfc0; background:#fff; border-radius:5px; cursor:pointer; color:#b0563a; font-size:14px; line-height:1;">×</button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <button onClick="{{ addMove }}" style="margin-top:12px; width:100%; padding:11px; border:1.5px dashed #c8b89a; background:#fdfbf6; color:#b06a23; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; border-radius:6px; cursor:pointer; letter-spacing:0.04em;" style-hover="background:#faf3e7;">+ Add move</button>
+      </div>
+
+      <div style="font-size:12px; color:#6b645c; padding:0 4px;">The footer is generated automatically — retract to safe Z, stop spindle / heaters, park, and end the program.</div>
+    </div>
+
+    <!-- ---- RIGHT: PREVIEW + OUTPUT ---- -->
+    <div style="position:sticky; top:84px; display:flex; flex-direction:column; gap:20px;">
+      <div style="background:#fff; border:1px solid #e7ddcb; border-radius:8px; padding:18px 18px 14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#b06a23; font-weight:600;">Toolpath · Top View (XY)</div>
+          <div style="display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:#6b645c;">
+            <span style="display:flex; align-items:center; gap:5px;"><span style="width:16px; height:0; border-top:2px dashed #b3a89a;"></span>Rapid</span>
+            <span style="display:flex; align-items:center; gap:5px;"><span style="width:16px; height:0; border-top:2px solid #b06a23;"></span>Cut</span>
+          </div>
+        </div>
+        <canvas ref="{{ canvasRef }}" width="524" height="360" style="width:100%; height:auto; display:block; background:#faf7f1; border-radius:6px;"></canvas>
+      </div>
+
+      <div style="background:#1a1613; border-radius:8px; overflow:hidden;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid #2e2a23;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:#8a8276;">program.gcode</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8a8276;">{{ lineCount }} lines</div>
+        </div>
+        <pre style="margin:0; padding:16px 18px; max-height:420px; overflow:auto; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.6; color:#e8e1d4; white-space:pre;">{{ gcode }}</pre>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  canvasRef = React.createRef();
+
+  state = {
+    machine: 'marlin',
+    units: 'mm',
+    positioning: 'abs',
+    home: true,
+    safeZ: '5',
+    hotend: '210',
+    bed: '60',
+    spindleOn: true,
+    spindleRpm: '12000',
+    seq: 4,
+    moves: [
+      { id: 1, type: 'G0', x: '0',  y: '0',  z: '',     f: '',    e: '',   i: '', j: '' },
+      { id: 2, type: 'G1', x: '',   y: '',   z: '-0.5', f: '300', e: '',   i: '', j: '' },
+      { id: 3, type: 'G1', x: '40', y: '0',  z: '',     f: '800', e: '',   i: '', j: '' },
+      { id: 4, type: 'G1', x: '40', y: '30', z: '',     f: '',    e: '',   i: '', j: '' },
+    ],
+  };
+
+  // ---- header / mode setters ----
+  setMarlin = () => this.setState({ machine: 'marlin' });
+  setCnc = () => this.setState({ machine: 'cnc' });
+  setMm = () => this.setState({ units: 'mm' });
+  setIn = () => this.setState({ units: 'in' });
+  setAbs = () => this.setState({ positioning: 'abs' });
+  setRel = () => this.setState({ positioning: 'rel' });
+  toggleHome = () => this.setState(s => ({ home: !s.home }));
+  toggleSpindle = () => this.setState(s => ({ spindleOn: !s.spindleOn }));
+  setHeaderField = (e) => {
+    const k = e.target.dataset.key; const v = e.target.value;
+    this.setState({ [k]: v });
+  };
+
+  // ---- move ops ----
+  addMove = () => this.setState(s => ({
+    seq: s.seq + 1,
+    moves: [...s.moves, { id: s.seq + 1, type: 'G1', x: '', y: '', z: '', f: '', e: '', i: '', j: '' }],
+  }));
+  removeMove = (id) => this.setState(s => ({ moves: s.moves.filter(m => m.id !== id) }));
+  setMoveType = (e) => {
+    const id = +e.target.dataset.id; const v = e.target.value;
+    this.setState(s => ({ moves: s.moves.map(m => m.id === id ? { ...m, type: v } : m) }));
+  };
+  setMoveField = (e) => {
+    const id = +e.target.dataset.id; const f = e.target.dataset.field; const v = e.target.value;
+    this.setState(s => ({ moves: s.moves.map(m => m.id === id ? { ...m, [f]: v } : m) }));
+  };
+  moveUp = (id) => this.setState(s => {
+    const i = s.moves.findIndex(m => m.id === id); if (i <= 0) return null;
+    const a = [...s.moves]; [a[i-1], a[i]] = [a[i], a[i-1]]; return { moves: a };
+  });
+  moveDown = (id) => this.setState(s => {
+    const i = s.moves.findIndex(m => m.id === id); if (i < 0 || i >= s.moves.length - 1) return null;
+    const a = [...s.moves]; [a[i+1], a[i]] = [a[i], a[i+1]]; return { moves: a };
+  });
+
+  // ---- gcode generation ----
+  buildGcode() {
+    const s = this.state;
+    const L = [];
+    L.push('; --- HEADER ---');
+    L.push(s.units === 'mm' ? 'G21          ; units = mm' : 'G20          ; units = inch');
+    L.push(s.positioning === 'abs' ? 'G90          ; absolute positioning' : 'G91          ; relative positioning');
+    if (s.home) L.push('G28          ; home all axes');
+    if (s.machine === 'marlin') {
+      if (s.bed && +s.bed > 0) { L.push('M140 S' + s.bed + '     ; set bed temp'); }
+      if (s.hotend && +s.hotend > 0) { L.push('M104 S' + s.hotend + '    ; set hotend temp'); }
+      if (s.bed && +s.bed > 0) L.push('M190 S' + s.bed + '     ; wait for bed');
+      if (s.hotend && +s.hotend > 0) L.push('M109 S' + s.hotend + '    ; wait for hotend');
+    } else {
+      if (s.spindleOn) L.push('M3 S' + (s.spindleRpm || '0') + '    ; spindle on');
+    }
+    L.push('G0 Z' + (s.safeZ || '0') + '        ; move to safe height');
+    L.push('');
+    L.push('; --- BODY ---');
+    s.moves.forEach(m => {
+      const p = [m.type];
+      if (m.x !== '') p.push('X' + m.x);
+      if (m.y !== '') p.push('Y' + m.y);
+      if (m.z !== '') p.push('Z' + m.z);
+      if ((m.type === 'G2' || m.type === 'G3')) {
+        if (m.i !== '') p.push('I' + m.i);
+        if (m.j !== '') p.push('J' + m.j);
+      }
+      if (s.machine === 'marlin' && m.e !== '') p.push('E' + m.e);
+      if (m.f !== '') p.push('F' + m.f);
+      L.push(p.join(' '));
+    });
+    L.push('');
+    L.push('; --- FOOTER ---');
+    L.push('G0 Z' + (s.safeZ || '0') + '        ; retract');
+    if (s.machine === 'marlin') {
+      L.push('M104 S0      ; hotend off');
+      if (s.bed && +s.bed > 0) L.push('M140 S0      ; bed off');
+      L.push('M84          ; disable steppers');
+    } else {
+      if (s.spindleOn) L.push('M5           ; spindle off');
+    }
+    L.push('G0 X0 Y0     ; park');
+    L.push('M30          ; end of program');
+    return L.join('\n');
+  }
+
+  copyCode = () => {
+    const txt = this.buildGcode();
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
+    this.setState({ copied: true });
+    clearTimeout(this._ct);
+    this._ct = setTimeout(() => this.setState({ copied: false }), 1500);
+  };
+  downloadCode = () => {
+    const blob = new Blob([this.buildGcode()], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'program.gcode';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  // ---- canvas preview ----
+  componentDidMount() { this.draw(); }
+  componentDidUpdate() { this.draw(); }
+
+  draw() {
+    const cv = this.canvasRef.current; if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // build segments in machine coords
+    const segs = [];
+    let cur = { x: 0, y: 0 };
+    const pts = [{ x: 0, y: 0 }];
+    this.state.moves.forEach(m => {
+      const nx = m.x === '' ? cur.x : parseFloat(m.x);
+      const ny = m.y === '' ? cur.y : parseFloat(m.y);
+      const tx = isNaN(nx) ? cur.x : nx, ty = isNaN(ny) ? cur.y : ny;
+      if (m.type === 'G2' || m.type === 'G3') {
+        const i = parseFloat(m.i), j = parseFloat(m.j);
+        if (!isNaN(i) && !isNaN(j)) {
+          const cx = cur.x + i, cy = cur.y + j;
+          const r = Math.hypot(cur.x - cx, cur.y - cy);
+          let a0 = Math.atan2(cur.y - cy, cur.x - cx);
+          let a1 = Math.atan2(ty - cy, tx - cx);
+          let d = a1 - a0;
+          if (m.type === 'G2') { if (d >= 0) d -= 2 * Math.PI; }
+          else { if (d <= 0) d += 2 * Math.PI; }
+          const N = 40; const poly = [];
+          for (let k = 0; k <= N; k++) {
+            const a = a0 + d * (k / N);
+            const px = cx + r * Math.cos(a), py = cy + r * Math.sin(a);
+            poly.push({ x: px, y: py }); pts.push({ x: px, y: py });
+          }
+          segs.push({ kind: 'cut', poly });
+          cur = { x: tx, y: ty };
+          return;
+        }
+      }
+      const seg = { kind: m.type === 'G0' ? 'rapid' : 'cut', poly: [{ x: cur.x, y: cur.y }, { x: tx, y: ty }] };
+      segs.push(seg); pts.push({ x: tx, y: ty });
+      cur = { x: tx, y: ty };
+    });
+
+    // bounds
+    let minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
+    let minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
+    if (!isFinite(minX)) { minX = 0; maxX = 1; minY = 0; maxY = 1; }
+    let spanX = maxX - minX || 1, spanY = maxY - minY || 1;
+    const pad = 38;
+    const scale = Math.min((W - 2 * pad) / spanX, (H - 2 * pad) / spanY);
+    const ox = (W - spanX * scale) / 2, oy = (H - spanY * scale) / 2;
+    const T = (p) => ({
+      X: ox + (p.x - minX) * scale,
+      Y: H - (oy + (p.y - minY) * scale), // flip Y so +Y is up
+    });
+
+    // grid
+    ctx.strokeStyle = '#ece4d2'; ctx.lineWidth = 1;
+    for (let gx = 0; gx <= 6; gx++) { const X = pad + gx * (W - 2 * pad) / 6; ctx.beginPath(); ctx.moveTo(X, pad); ctx.lineTo(X, H - pad); ctx.stroke(); }
+    for (let gy = 0; gy <= 4; gy++) { const Y = pad + gy * (H - 2 * pad) / 4; ctx.beginPath(); ctx.moveTo(pad, Y); ctx.lineTo(W - pad, Y); ctx.stroke(); }
+
+    // segments
+    segs.forEach(sg => {
+      ctx.beginPath();
+      sg.poly.forEach((p, idx) => { const t = T(p); idx === 0 ? ctx.moveTo(t.X, t.Y) : ctx.lineTo(t.X, t.Y); });
+      if (sg.kind === 'rapid') { ctx.strokeStyle = '#b3a89a'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); }
+      else { ctx.strokeStyle = '#b06a23'; ctx.lineWidth = 2.5; ctx.setLineDash([]); }
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    // origin marker
+    const o = T({ x: 0, y: 0 });
+    ctx.fillStyle = '#2c6e63';
+    ctx.beginPath(); ctx.arc(o.X, o.Y, 4, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = '#6b645c'; ctx.font = '10px IBM Plex Mono, monospace';
+    ctx.fillText('0,0', o.X + 7, o.Y - 6);
+  }
+
+  segStyle(active) {
+    return active
+      ? 'font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:600; padding:7px 12px; border:none; background:#1a1613; color:#fff; border-radius:4px; cursor:pointer; white-space:nowrap;'
+      : 'font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:500; padding:7px 12px; border:none; background:transparent; color:#6b645c; border-radius:4px; cursor:pointer; white-space:nowrap;';
+  }
+  tabStyle(active) {
+    return active
+      ? 'font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:600; padding:7px 14px; border:none; background:#b06a23; color:#fff; border-radius:4px; cursor:pointer; white-space:nowrap;'
+      : 'font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:500; padding:7px 14px; border:none; background:transparent; color:#b8b0a2; border-radius:4px; cursor:pointer; white-space:nowrap;';
+  }
+  toggleBtn(active, on, off) {
+    const base = 'font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:600; padding:8px 14px; border-radius:6px; cursor:pointer; border:1px solid ';
+    return active
+      ? base + '#b06a23; background:#b06a23; color:#fff;'
+      : base + '#ddd4c4; background:#fff; color:#6b645c;';
+  }
+
+  renderVals() {
+    const s = this.state;
+    const gcode = this.buildGcode();
+    const isMarlin = s.machine === 'marlin';
+    return {
+      // mode flags
+      isMarlin, isCnc: !isMarlin, showE: isMarlin,
+      // tab styles
+      marlinTabStyle: this.tabStyle(isMarlin),
+      cncTabStyle: this.tabStyle(!isMarlin),
+      // setters
+      setMarlin: this.setMarlin, setCnc: this.setCnc,
+      setMm: this.setMm, setIn: this.setIn, setAbs: this.setAbs, setRel: this.setRel,
+      toggleHome: this.toggleHome, toggleSpindle: this.toggleSpindle, setHeaderField: this.setHeaderField,
+      // segmented styles
+      mmStyle: this.segStyle(s.units === 'mm'), inStyle: this.segStyle(s.units === 'in'),
+      absStyle: this.segStyle(s.positioning === 'abs'), relStyle: this.segStyle(s.positioning === 'rel'),
+      homeStyle: this.toggleBtn(s.home), homeLabel: s.home ? 'G28 · ON' : 'OFF',
+      spindleStyle: this.toggleBtn(s.spindleOn), spindleLabel: s.spindleOn ? 'M3 · ON' : 'OFF',
+      // header values
+      safeZ: s.safeZ, hotend: s.hotend, bed: s.bed, spindleRpm: s.spindleRpm,
+      // moves
+      moves: s.moves.map((m, idx) => ({
+        ...m,
+        num: String(idx + 1).padStart(2, '0'),
+        isArc: m.type === 'G2' || m.type === 'G3',
+        remove: () => this.removeMove(m.id),
+        up: () => this.moveUp(m.id),
+        down: () => this.moveDown(m.id),
+      })),
+      moveCount: s.moves.length,
+      setMoveType: this.setMoveType, setMoveField: this.setMoveField, addMove: this.addMove,
+      // output
+      gcode,
+      lineCount: gcode.split('\n').length,
+      copyCode: this.copyCode, downloadCode: this.downloadCode,
+      copyLabel: s.copied ? 'Copied ✓' : 'Copy',
+      canvasRef: this.canvasRef,
+    };
+  }
+}
+</script>
+</body>
+</html>

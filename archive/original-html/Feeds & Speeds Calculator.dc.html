@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; background:#f4efe6; }
+  * { box-sizing:border-box; }
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb { background:#d8cdb8; border-radius:6px; }
+  input[type=range] { -webkit-appearance:none; appearance:none; height:4px; border-radius:3px; background:#e3d8c4; outline:none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%; background:#b06a23; cursor:pointer; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  input[type=range]::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:#b06a23; cursor:pointer; border:2px solid #fff; }
+  input[type=text]:focus { outline:2px solid #b06a23; }
+</style>
+</helmet>
+<div style="font-family:'IBM Plex Sans',system-ui,sans-serif; color:#1a1613; min-height:100vh; background:#f4efe6;">
+
+  <!-- ===== TOP BAR ===== -->
+  <div style="position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:13px 26px; background:#1a1613; color:#e8e1d4;">
+    <div style="display:flex; align-items:baseline; gap:14px;">
+      <div style="font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:15px; letter-spacing:0.04em;"><span style="color:#c8924a;">FEEDS</span> &amp; SPEEDS</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8a8276; letter-spacing:0.16em;">CALCULATOR</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; color:#8a8276; text-transform:uppercase;">Units</span>
+      <div style="display:flex; background:#2a2620; border-radius:6px; padding:3px;">
+        <button onClick="{{ setIn }}" style="{{ inStyle }}">Imperial · in</button>
+        <button onClick="{{ setMm }}" style="{{ mmStyle }}">Metric · mm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== WORKSPACE ===== -->
+  <div style="display:grid; grid-template-columns:1fr 460px; gap:24px; max-width:1380px; margin:0 auto; padding:24px 26px 64px; align-items:start;">
+
+    <!-- ---- LEFT: INPUTS ---- -->
+    <div style="display:flex; flex-direction:column; gap:20px;">
+
+      <!-- Material presets -->
+      <div style="background:#fff; border:1px solid #e7ddcb; border-radius:8px; padding:20px 22px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#b06a23; font-weight:600; margin-bottom:14px;">Material preset</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          <sc-for list="{{ materials }}" as="mat" hint-placeholder-count="7">
+            <button onClick="{{ mat.pick }}" style="{{ mat.style }}">{{ mat.name }}</button>
+          </sc-for>
+        </div>
+        <div style="margin-top:14px; font-size:12px; color:#6b645c; line-height:1.5;">{{ matBlurb }}</div>
+      </div>
+
+      <!-- Tool & cut -->
+      <div style="background:#fff; border:1px solid #e7ddcb; border-radius:8px; padding:20px 22px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#b06a23; font-weight:600; margin-bottom:18px;">Tool &amp; cutting parameters</div>
+        <div style="display:flex; flex-direction:column; gap:18px;">
+
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px;">
+              <label style="font-size:13px; font-weight:500;">Tool diameter <span style="color:#9a9286; font-family:'IBM Plex Mono',monospace; font-size:11px;">{{ unitLen }}</span></label>
+              <input type="text" inputmode="decimal" data-key="dia" value="{{ dia }}" onInput="{{ setField }}" style="width:78px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 8px; border:1px solid #ddd4c4; border-radius:5px;">
+            </div>
+            <input type="range" data-key="dia" min="{{ diaMin }}" max="{{ diaMax }}" step="{{ diaStep }}" value="{{ dia }}" onInput="{{ setField }}" style="width:100%;">
+          </div>
+
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px;">
+              <label style="font-size:13px; font-weight:500;">Flutes</label>
+              <input type="text" inputmode="numeric" data-key="flutes" value="{{ flutes }}" onInput="{{ setField }}" style="width:78px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 8px; border:1px solid #ddd4c4; border-radius:5px;">
+            </div>
+            <input type="range" data-key="flutes" min="1" max="6" step="1" value="{{ flutes }}" onInput="{{ setField }}" style="width:100%;">
+          </div>
+
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px;">
+              <label style="font-size:13px; font-weight:500;">{{ speedLabel }} <span style="color:#9a9286; font-family:'IBM Plex Mono',monospace; font-size:11px;">{{ speedUnit }}</span></label>
+              <input type="text" inputmode="decimal" data-key="speed" value="{{ speed }}" onInput="{{ setField }}" style="width:78px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 8px; border:1px solid #ddd4c4; border-radius:5px;">
+            </div>
+            <input type="range" data-key="speed" min="{{ speedMin }}" max="{{ speedMax }}" step="{{ speedStep }}" value="{{ speed }}" onInput="{{ setField }}" style="width:100%;">
+          </div>
+
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px;">
+              <label style="font-size:13px; font-weight:500;">Chip load / tooth <span style="color:#9a9286; font-family:'IBM Plex Mono',monospace; font-size:11px;">{{ unitLen }}</span></label>
+              <input type="text" inputmode="decimal" data-key="chip" value="{{ chip }}" onInput="{{ setField }}" style="width:78px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 8px; border:1px solid #ddd4c4; border-radius:5px;">
+            </div>
+            <input type="range" data-key="chip" min="{{ chipMin }}" max="{{ chipMax }}" step="{{ chipStep }}" value="{{ chip }}" onInput="{{ setField }}" style="width:100%;">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Engagement -->
+      <div style="background:#fff; border:1px solid #e7ddcb; border-radius:8px; padding:20px 22px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#b06a23; font-weight:600;">Engagement &amp; removal</div>
+          <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:#4a443d; cursor:pointer;">
+            <input type="checkbox" checked="{{ thinning }}" onChange="{{ toggleThinning }}" style="accent-color:#b06a23;"> chip thinning comp.
+          </label>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:18px;">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px;">
+              <label style="font-size:13px; font-weight:500;">Axial depth · DOC <span style="color:#9a9286; font-family:'IBM Plex Mono',monospace; font-size:11px;">{{ unitLen }}</span></label>
+              <input type="text" inputmode="decimal" data-key="doc" value="{{ doc }}" onInput="{{ setField }}" style="width:78px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 8px; border:1px solid #ddd4c4; border-radius:5px;">
+            </div>
+            <input type="range" data-key="doc" min="{{ docMin }}" max="{{ docMax }}" step="{{ docStep }}" value="{{ doc }}" onInput="{{ setField }}" style="width:100%;">
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px;">
+              <label style="font-size:13px; font-weight:500;">Radial width · WOC <span style="color:#9a9286; font-family:'IBM Plex Mono',monospace; font-size:11px;">{{ unitLen }}</span></label>
+              <input type="text" inputmode="decimal" data-key="woc" value="{{ woc }}" onInput="{{ setField }}" style="width:78px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:5px 8px; border:1px solid #ddd4c4; border-radius:5px;">
+            </div>
+            <input type="range" data-key="woc" min="{{ wocMin }}" max="{{ wocMax }}" step="{{ wocStep }}" value="{{ woc }}" onInput="{{ setField }}" style="width:100%;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Machine limits -->
+      <div style="background:#fff; border:1px solid #e7ddcb; border-radius:8px; padding:20px 22px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#b06a23; font-weight:600; margin-bottom:16px;">Machine limits</div>
+        <div style="display:flex; flex-wrap:wrap; gap:22px;">
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Max spindle RPM</div>
+            <input type="text" inputmode="numeric" data-key="maxRpm" value="{{ maxRpm }}" onInput="{{ setField }}" style="width:110px; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 9px; border:1px solid #ddd4c4; border-radius:5px;">
+          </div>
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#6b645c; margin-bottom:6px;">Max spindle power · kW</div>
+            <input type="text" inputmode="decimal" data-key="maxPower" value="{{ maxPower }}" onInput="{{ setField }}" style="width:110px; font-family:'IBM Plex Mono',monospace; font-size:13px; padding:7px 9px; border:1px solid #ddd4c4; border-radius:5px;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- RIGHT: RESULTS ---- -->
+    <div style="position:sticky; top:84px; display:flex; flex-direction:column; gap:18px;">
+
+      <!-- primary readouts -->
+      <div style="background:#1a1613; border-radius:10px; overflow:hidden;">
+        <div style="display:grid; grid-template-columns:1fr 1fr;">
+          <div style="padding:20px 22px; border-right:1px solid #2e2a23; border-bottom:1px solid #2e2a23;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:#8a8276;">Spindle speed</div>
+            <div style="display:flex; align-items:baseline; gap:6px; margin-top:6px;"><span style="font-family:'IBM Plex Mono',monospace; font-size:30px; font-weight:600; color:#e7a24a;">{{ rpmText }}</span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#8a8276;">RPM · S</span></div>
+          </div>
+          <div style="padding:20px 22px; border-bottom:1px solid #2e2a23;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:#8a8276;">Feed rate</div>
+            <div style="display:flex; align-items:baseline; gap:6px; margin-top:6px;"><span style="font-family:'IBM Plex Mono',monospace; font-size:30px; font-weight:600; color:#6fae9f;">{{ feedText }}</span><span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#8a8276;">{{ feedUnit }} · F</span></div>
+          </div>
+          <div style="padding:16px 22px; border-right:1px solid #2e2a23;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:#8a8276;">Material removal</div>
+            <div style="display:flex; align-items:baseline; gap:6px; margin-top:5px;"><span style="font-family:'IBM Plex Mono',monospace; font-size:19px; font-weight:600; color:#e8e1d4;">{{ mrrText }}</span><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8a8276;">{{ mrrUnit }}</span></div>
+          </div>
+          <div style="padding:16px 22px;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:#8a8276;">Spindle power</div>
+            <div style="display:flex; align-items:baseline; gap:6px; margin-top:5px;"><span style="font-family:'IBM Plex Mono',monospace; font-size:19px; font-weight:600; color:#e8e1d4;">{{ powerText }}</span><span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#8a8276;">kW · {{ hpText }} hp</span></div>
+          </div>
+        </div>
+        <div style="display:flex; gap:18px; padding:11px 22px; background:#211d18; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#9a9286;">
+          <span>Torque ≈ <span style="color:#cdc4b6;">{{ torqueText }} N·m</span></span>
+          <span>Chip-thin ×<span style="color:#cdc4b6;">{{ ctfText }}</span></span>
+        </div>
+      </div>
+
+      <!-- warnings -->
+      <sc-if value="{{ hasIssues }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <sc-for list="{{ issues }}" as="iss" hint-placeholder-count="0">
+            <div style="display:flex; align-items:flex-start; gap:10px; background:{{ iss.bg }}; border:1px solid {{ iss.bd }}; border-radius:7px; padding:10px 13px;">
+              <span style="color:{{ iss.fg }}; font-size:13px; line-height:1.2;">{{ iss.icon }}</span>
+              <span style="font-size:12.5px; color:#3a342e; line-height:1.45;">{{ iss.msg }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ allGood }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; align-items:center; gap:10px; background:#eef5ee; border:1px solid #cfe3cf; border-radius:7px; padding:10px 13px;">
+          <span style="color:#3a8a5a; font-size:13px;">✓</span>
+          <span style="font-size:12.5px; color:#3a342e;">Within machine limits and sensible cutting ranges.</span>
+        </div>
+      </sc-if>
+
+      <!-- send to gcode -->
+      <button onClick="{{ sendToGcode }}" style="width:100%; padding:13px; border:none; background:#b06a23; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; border-radius:8px; cursor:pointer; letter-spacing:0.03em;" style-hover="background:#c0772e;">{{ sendLabel }}</button>
+      <a href="G-code Creator.dc.html" style="text-align:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#9a7a44; text-decoration:none;">open G-code Creator →</a>
+
+      <!-- formula card -->
+      <div style="background:#faf7f1; border:1px solid #e7ddcb; border-radius:8px; padding:16px 18px;">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:#9a7a44; font-weight:600; margin-bottom:10px;">Formulas in use</div>
+        <div style="display:flex; flex-direction:column; gap:9px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#4a443d; line-height:1.5;">
+          <div><span style="color:#b06a23;">RPM</span> = {{ fRpm }}</div>
+          <div><span style="color:#2c6e63;">Feed</span> = RPM × chip load × flutes{{ fThin }}</div>
+          <div><span style="color:#6b645c;">MRR</span> = WOC × DOC × Feed</div>
+          <div><span style="color:#6b645c;">Power</span> = MRR × unit-power ({{ matName }})</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:860},&quot;defaultUnits&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;in&quot;,&quot;mm&quot;],&quot;default&quot;:&quot;in&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Defaults&quot;},&quot;defaultMaterial&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;alu&quot;,&quot;brass&quot;,&quot;mild&quot;,&quot;ss&quot;,&quot;hard&quot;,&quot;soft&quot;,&quot;acr&quot;],&quot;default&quot;:&quot;alu&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Defaults&quot;},&quot;machineMaxRpm&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:24000,&quot;min&quot;:1000,&quot;max&quot;:60000,&quot;step&quot;:500,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Defaults&quot;}}">
+class Component extends DCLogic {
+  // material presets: imperial sfm + chip(in), metric vc(m/min) + chip(mm), up = unit power (hp per in^3/min)
+  MATERIALS = [
+    { key: 'alu',   name: 'Aluminum',   sfm: 600, chipIn: 0.0020, vc: 180, chipMm: 0.050, up: 0.30, blurb: 'Aluminum 6061 — free-cutting; run high RPM, keep chips clearing.' },
+    { key: 'brass', name: 'Brass',      sfm: 400, chipIn: 0.0020, vc: 120, chipMm: 0.050, up: 0.50, blurb: 'Brass — easy machining; sharp tools, watch for grabbing on upcuts.' },
+    { key: 'mild',  name: 'Mild steel', sfm: 350, chipIn: 0.0030, vc: 105, chipMm: 0.075, up: 1.10, blurb: 'Mild / low-carbon steel (carbide) — moderate speed, use coolant.' },
+    { key: 'ss',    name: 'Stainless',  sfm: 200, chipIn: 0.0020, vc: 60,  chipMm: 0.050, up: 1.40, blurb: 'Stainless 304 — work-hardens; keep a constant feed, never dwell.' },
+    { key: 'hard',  name: 'Hardwood',   sfm: 800, chipIn: 0.0050, vc: 240, chipMm: 0.130, up: 0.10, blurb: 'Hardwood — high RPM router work; large chip load avoids burning.' },
+    { key: 'soft',  name: 'Softwood/MDF', sfm: 1000, chipIn: 0.0060, vc: 300, chipMm: 0.150, up: 0.08, blurb: 'Softwood / MDF — very high RPM; dust extraction recommended.' },
+    { key: 'acr',   name: 'Acrylic',    sfm: 500, chipIn: 0.0040, vc: 150, chipMm: 0.100, up: 0.10, blurb: 'Acrylic / PMMA — single-flute O-cutter ideal; melt is the enemy.' },
+  ];
+
+  state = {
+    units: 'in',
+    material: 'alu',
+    dia: 0.25, flutes: 2, speed: 600, chip: 0.0020,
+    doc: 0.10, woc: 0.0625,
+    maxRpm: 24000, maxPower: 2.2,
+    thinning: true,
+    sent: false,
+  };
+
+  componentDidMount() {
+    const p = this.props || {};
+    const patch = {};
+    if (p.machineMaxRpm) patch.maxRpm = p.machineMaxRpm;
+    if (p.defaultMaterial && this.MATERIALS.some(m => m.key === p.defaultMaterial)) patch.material = p.defaultMaterial;
+    if (Object.keys(patch).length) this.setState(patch, () => {
+      if (p.defaultMaterial) this.pickMaterial(p.defaultMaterial);
+      if (p.defaultUnits === 'mm') this.setMm();
+    });
+    else if (p.defaultUnits === 'mm') this.setMm();
+  }
+
+  mat() { return this.MATERIALS.find(m => m.key === this.state.material) || this.MATERIALS[0]; }
+
+  // ---- unit toggle (convert live values) ----
+  setIn = () => { if (this.state.units === 'in') return; this.convert('mm', 'in'); };
+  setMm = () => { if (this.state.units === 'mm') return; this.convert('in', 'mm'); };
+  convert(from, to) {
+    const s = this.state;
+    const L = to === 'mm' ? 25.4 : 1 / 25.4;       // length factor
+    const sp = to === 'mm' ? 0.3048 : 1 / 0.3048;  // sfm -> m/min
+    this.setState({
+      units: to,
+      dia: this.r(s.dia * L, to), chip: this.r(s.chip * L, to, true),
+      doc: this.r(s.doc * L, to), woc: this.r(s.woc * L, to),
+      speed: Math.round(s.speed * sp),
+    });
+  }
+  r(v, unit, chip) { const d = unit === 'mm' ? (chip ? 3 : 2) : (chip ? 4 : 3); return parseFloat(v.toFixed(d)); }
+
+  pickMaterial = (key) => {
+    const m = this.MATERIALS.find(x => x.key === key); if (!m) return;
+    const mm = this.state.units === 'mm';
+    this.setState({ material: key, speed: mm ? m.vc : m.sfm, chip: mm ? m.chipMm : m.chipIn });
+  };
+
+  setField = (e) => {
+    const k = e.target.dataset.key;
+    let v = e.target.value;
+    if (k === 'flutes' || k === 'maxRpm') { const n = parseInt(v, 10); this.setState({ [k]: isNaN(n) ? '' : n }); return; }
+    const n = parseFloat(v);
+    this.setState({ [k]: (v === '' || isNaN(n)) ? v : n });
+  };
+  toggleThinning = () => this.setState(s => ({ thinning: !s.thinning }));
+
+  // ---- computations ----
+  compute() {
+    const s = this.state;
+    const mm = s.units === 'mm';
+    const dia = +s.dia || 0, flutes = +s.flutes || 0, speed = +s.speed || 0, chip = +s.chip || 0;
+    const doc = +s.doc || 0, woc = +s.woc || 0;
+
+    let rpm = 0;
+    if (dia > 0) rpm = mm ? (speed * 1000) / (Math.PI * dia) : (speed * 3.82) / dia;
+
+    // chip thinning factor (radial)
+    let ctf = 1;
+    if (s.thinning && woc > 0 && dia > 0 && woc < dia / 2) {
+      const x = 1 - 2 * woc / dia;
+      const denom = Math.sqrt(Math.max(1e-6, 1 - x * x));
+      ctf = denom > 0 ? 1 / denom : 1;
+      ctf = Math.min(ctf, 4);
+    }
+    const chipEff = chip * ctf;
+    const feed = rpm * chipEff * flutes; // in/min or mm/min
+
+    // MRR
+    let mrr = woc * doc * feed; // in^3/min or mm^3/min
+    const mrrIn3 = mm ? mrr / 16387.064 : mrr; // to in^3/min
+    const mrrDisp = mm ? mrr / 1000 : mrr;     // cm^3/min or in^3/min
+
+    // power
+    const hp = mrrIn3 * this.mat().up;
+    const kW = hp * 0.7457;
+    const torque = rpm > 0 ? (kW * 9549) / rpm : 0;
+
+    return { mm, dia, flutes, speed, chip, doc, woc, rpm, ctf, feed, mrrDisp, hp, kW, torque };
+  }
+
+  issues(c) {
+    const s = this.state, out = [];
+    const W = (msg) => out.push({ sev: 'warn', msg });
+    const E = (msg) => out.push({ sev: 'error', msg });
+    if (c.rpm > (+s.maxRpm || Infinity)) E('Required ' + Math.round(c.rpm).toLocaleString() + ' RPM exceeds the ' + (+s.maxRpm).toLocaleString() + ' RPM spindle max — increase tool diameter or lower cutting speed.');
+    if ((+s.maxPower || Infinity) && c.kW > (+s.maxPower || Infinity)) E('Needs ' + c.kW.toFixed(2) + ' kW but spindle max is ' + (+s.maxPower) + ' kW — reduce DOC, WOC, or feed.');
+    if (c.dia > 0 && c.woc > c.dia) E('WOC (' + c.woc + ') is larger than the tool diameter — physically impossible; max is full slot = diameter.');
+    if (c.dia > 0 && c.doc > 2 * c.dia) W('Axial depth over 2× diameter is aggressive for one pass — consider step-downs.');
+    const chipHi = c.mm ? 0.30 : 0.012;
+    if (c.chip > chipHi) W('Chip load is unusually high for this scale — risk of tool breakage.');
+    if (c.flutes < 1) W('Flute count should be at least 1.');
+    if (c.speed <= 0 || c.dia <= 0) W('Enter a tool diameter and cutting speed to get a result.');
+    if (s.thinning && c.ctf > 1.01) out.unshift({ sev: 'info', msg: 'Chip-thinning active: feed boosted ×' + c.ctf.toFixed(2) + ' because radial width is below half the diameter.' });
+    return out;
+  }
+
+  // ---- send to creator ----
+  sendToGcode = () => {
+    const c = this.compute();
+    try {
+      localStorage.setItem('gcodeHandoff', JSON.stringify({
+        rpm: Math.round(c.rpm),
+        feed: Math.round(c.feed),
+        units: c.mm ? 'mm' : 'in',
+        material: this.mat().name,
+        ts: Date.now(),
+      }));
+    } catch (e) {}
+    this.setState({ sent: true });
+    clearTimeout(this._st);
+    this._st = setTimeout(() => this.setState({ sent: false }), 2200);
+  };
+
+  // ---- style helpers ----
+  seg(active) {
+    return active
+      ? 'font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:600; padding:7px 14px; border:none; background:#b06a23; color:#fff; border-radius:4px; cursor:pointer; white-space:nowrap;'
+      : 'font-family:\'IBM Plex Mono\',monospace; font-size:12px; font-weight:500; padding:7px 14px; border:none; background:transparent; color:#b8b0a2; border-radius:4px; cursor:pointer; white-space:nowrap;';
+  }
+  chipBtn(active) {
+    return active
+      ? 'font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px; font-weight:600; padding:8px 14px; border:1px solid #b06a23; background:#b06a23; color:#fff; border-radius:20px; cursor:pointer;'
+      : 'font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px; font-weight:500; padding:8px 14px; border:1px solid #ddd4c4; background:#fff; color:#5a534a; border-radius:20px; cursor:pointer;';
+  }
+
+  // slider ranges per unit
+  ranges() {
+    const mm = this.state.units === 'mm';
+    return mm ? {
+      diaMin: 1, diaMax: 25, diaStep: 0.1,
+      speedMin: 10, speedMax: 500, speedStep: 5,
+      chipMin: 0.01, chipMax: 0.4, chipStep: 0.005,
+      docMin: 0.2, docMax: 50, docStep: 0.5,
+      wocMin: 0.1, wocMax: 25, wocStep: 0.1,
+    } : {
+      diaMin: 0.03, diaMax: 1, diaStep: 0.005,
+      speedMin: 50, speedMax: 1500, speedStep: 10,
+      chipMin: 0.0005, chipMax: 0.015, chipStep: 0.0005,
+      docMin: 0.01, docMax: 2, docStep: 0.01,
+      wocMin: 0.005, wocMax: 1, wocStep: 0.005,
+    };
+  }
+
+  fmtRpm(v) { return Math.round(v).toLocaleString(); }
+  fmtFeed(v) { return this.state.units === 'mm' ? Math.round(v).toLocaleString() : v.toFixed(1); }
+
+  renderVals() {
+    const s = this.state;
+    const mm = s.units === 'mm';
+    const c = this.compute();
+    const iss = this.issues(c);
+    const errsWarns = iss.filter(i => i.sev !== 'info');
+    const R = this.ranges();
+
+    return {
+      // units
+      setIn: this.setIn, setMm: this.setMm,
+      inStyle: this.seg(!mm), mmStyle: this.seg(mm),
+      unitLen: mm ? 'mm' : 'in',
+      speedLabel: mm ? 'Cutting speed Vc' : 'Cutting speed SFM',
+      speedUnit: mm ? 'm/min' : 'sfm',
+      feedUnit: mm ? 'mm/min' : 'in/min',
+      mrrUnit: mm ? 'cm³/min' : 'in³/min',
+      // materials
+      materials: this.MATERIALS.map(m => ({ name: m.name, style: this.chipBtn(m.key === s.material), pick: () => this.pickMaterial(m.key) })),
+      matBlurb: this.mat().blurb, matName: this.mat().name,
+      // fields
+      dia: s.dia, flutes: s.flutes, speed: s.speed, chip: s.chip, doc: s.doc, woc: s.woc,
+      maxRpm: s.maxRpm, maxPower: s.maxPower, thinning: s.thinning,
+      setField: this.setField, toggleThinning: this.toggleThinning,
+      diaMin: R.diaMin, diaMax: R.diaMax, diaStep: R.diaStep,
+      speedMin: R.speedMin, speedMax: R.speedMax, speedStep: R.speedStep,
+      chipMin: R.chipMin, chipMax: R.chipMax, chipStep: R.chipStep,
+      docMin: R.docMin, docMax: R.docMax, docStep: R.docStep,
+      wocMin: R.wocMin, wocMax: R.wocMax, wocStep: R.wocStep,
+      // results
+      rpmText: this.fmtRpm(c.rpm),
+      feedText: this.fmtFeed(c.feed),
+      mrrText: c.mrrDisp >= 100 ? Math.round(c.mrrDisp).toLocaleString() : c.mrrDisp.toFixed(2),
+      powerText: c.kW.toFixed(2), hpText: c.hp.toFixed(2),
+      torqueText: c.torque.toFixed(2), ctfText: c.ctf.toFixed(2),
+      // issues
+      hasIssues: errsWarns.length > 0 || iss.some(i => i.sev === 'info'),
+      allGood: errsWarns.length === 0 && !iss.some(i => i.sev === 'info'),
+      issues: iss.map(i => ({
+        msg: i.msg,
+        icon: i.sev === 'error' ? '✕' : i.sev === 'warn' ? '!' : 'ℹ',
+        fg: i.sev === 'error' ? '#c0563a' : i.sev === 'warn' ? '#b07a1e' : '#2c6e8a',
+        bg: i.sev === 'error' ? '#fbeee9' : i.sev === 'warn' ? '#fbf4e6' : '#eaf2f6',
+        bd: i.sev === 'error' ? '#eccabc' : i.sev === 'warn' ? '#ecdcb6' : '#cce0e8',
+      })),
+      // send
+      sendToGcode: this.sendToGcode,
+      sendLabel: s.sent ? '✓ Sent — open Creator to apply' : '→ Send S & F to G-code Creator',
+      // formula card
+      fRpm: mm ? '(Vc × 1000) ÷ (π × Ø)' : '(SFM × 3.82) ÷ Ø',
+      fThin: s.thinning ? ' × thinning' : '',
+    };
+  }
+}
+</script>
+</body>
+</html>

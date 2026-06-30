@@ -1,0 +1,22 @@
+{
+  "_comment": "Sample CAM-Creation-Studio laser-etch job: a triangle outline burned at fixed beam power. `paths` are neutral toolpath segments ({poly:[{x,y}]}). Educational starting point only — verify before running.",
+  "config": {
+    "machine": "laserGrbl",
+    "units": "mm",
+    "positioning": "abs",
+    "home": true,
+    "safeZ": 5,
+    "etch": {
+      "strategy": "outline",
+      "control": "power",
+      "feed": 600,
+      "power": 200
+    }
+  },
+  "job": {
+    "mode": "etch",
+    "paths": [
+      { "poly": [ { "x": 10, "y": 10 }, { "x": 40, "y": 10 }, { "x": 25, "y": 35 }, { "x": 10, "y": 10 } ] }
+    ]
+  }
+}
