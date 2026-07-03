@@ -1,103 +1,318 @@
-# CAM-Creation-Studio
+# CAM Creation Studio
 
-**A standalone learning and authoring environment for simple CNC, laser, and Marlin-style G-code.**
+> **A Python-first manufacturing execution laboratory for learning, authoring, validating, and understanding G-code.**
 
-CAM-Creation-Studio helps you *understand* G-code, *generate* starter programs,
-*preview* motion, and *calculate advisory* feeds and speeds. It is built for
-beginners and small shops who want to read a file, write their first program,
-and see the toolpath before committing to a cut.
+CAM Creation Studio is a standalone application focused on **manufacturing execution**, not manufacturing governance.
 
-> ⚠️ **Educational tool.** The output is a starting point, not certified machine
-> output. Preview is **not** simulation. Always verify a program — and air-cut
-> above the stock — before running it on real hardware.
+It began as a G-code tutorial and has evolved into a broader environment for developing machining knowledge through G-code authoring, feeds & speeds calculation, toolpath analysis, validation, and operator education.
 
-> 🧭 **Architecture note.** The **Python package** in [`python/`](python/) is the
-> primary source of truth for the project's logic. The browser app in
-> [`app/`](app/) + [`src/`](src/) is preserved as a prototype and behavioral
-> reference. See [docs/architecture.md](docs/architecture.md).
+Unlike traditional CAM systems, CAM Creation Studio is **not intended to replace commercial CAM software**. Its purpose is to help users understand and refine machining operations while remaining independent of any specific CAD system, CAM package, or CNC controller.
 
 ---
 
-## What it is
+# Project Goals
 
-- A **browser-first** app for authoring simple G-code by hand or from an image.
-- A place to **learn** the handful of G/M-codes you actually need.
-- A **preview** of travel/cut/burn motion in the XY plane.
-- An **advisory** feeds-and-speeds helper (in progress) with conservative presets.
-- A small, **testable**, modular codebase you can read and extend.
+CAM Creation Studio provides a practical environment for:
 
-## What it is **not**
+* Manual G-code authoring
+* G-code learning and education
+* G-code parsing and validation
+* Feeds & speeds calculations
+* Tool and material libraries
+* Machine profiles
+* Toolpath visualization
+* Manufacturing diagnostics
+* Operator training
+* Manufacturing experimentation
 
-- ❌ A certified post-processor or "production-ready" machine output.
-- ❌ A guarantee that generated code is *safe to run*.
-- ❌ A real collision/material simulator.
-- ❌ A machine sender/streamer.
-- ❌ A CAM engine, and **not** a module of CAM Assist (see below).
+The project emphasizes **understanding manufacturing execution**, rather than automating it.
 
-## Current features
+---
 
-- Manual G-code authoring: G0/G1/G2/G3 moves with X/Y/Z/F (+ I/J arcs, E on Marlin).
-- Machine families: **Marlin 3D printer**, **generic CNC mill**, **GRBL laser** (starter dialect profiles).
-- Header/footer generation: units, positioning, homing, heaters/spindle/beam, safe-Z retract, park, end.
-- **Image → etch** workflows: raster fill and vector outline (marching squares), by beam power or Z depth.
-- Live XY toolpath **preview** with depth shading and travel vs. cut/burn styling.
-- **Feeds/speeds handoff**: detects an advisory `gcodeHandoff` payload (written by the
-  Feeds & Speeds calculator) and offers to apply the suggested spindle RPM and feed.
-- Copy / download `.gcode`.
+# Constitutional Purpose
 
-## Roadmap
+CAM Creation Studio answers questions such as:
 
-This phase converts the original single-file concept into a structured,
-browser-first foundation. Planned next:
+* What feed rate should I start with?
+* What spindle speed is appropriate?
+* What does this G-code actually do?
+* Is this program internally consistent?
+* What warnings should I review before machining?
+* How will this toolpath move?
+* How can I improve this operation?
 
-- Non-blocking **validator** with safety warnings (missing safe Z, cut without feed, spindle off, …).
-- Advisory **feeds/speeds** calculator + material/tool/machine presets.
-- Extracted **preview** and **image** modules with their own tests.
-- Documentation set and a tagged `v0.1.0-browser-alpha` release.
+It is designed to make machining knowledge understandable, reviewable, and reusable.
 
-See [docs/product-scope.md](docs/product-scope.md) for the full scope.
+---
 
-## Quick start
+# What This Project Is
 
-**Python core (primary):**
+CAM Creation Studio is:
+
+* A Python application
+* A manufacturing execution workspace
+* A G-code learning environment
+* A feeds & speeds calculator
+* A G-code validator
+* A toolpath analysis framework
+* A machining education platform
+* A foundation for future CNC utilities
+
+---
+
+# What This Project Is Not
+
+CAM Creation Studio is **not**:
+
+* A commercial CAM replacement
+* A certified post-processor
+* A CNC machine controller
+* A machine sender
+* A production simulator
+* A machine safety certification system
+
+Generated information should always be reviewed by a qualified operator before machining.
+
+---
+
+# Relationship to CAM Assist Blueprint
+
+Although the repositories are related, they serve different constitutional responsibilities.
+
+## CAM Assist Blueprint
+
+Owns:
+
+* Manufacturing intent
+* Design assumptions
+* Review
+* Risk
+* Approval
+* Traceability
+* Manufacturing strategy
+* Human authority
+
+Produces:
+
+> Manufacturing Knowledge
+
+---
+
+## CAM Creation Studio
+
+Owns:
+
+* G-code
+* Feeds & speeds
+* Toolpath analysis
+* Machine profiles
+* Material profiles
+* Validation
+* Operator education
+* Manufacturing execution support
+
+Produces:
+
+> Manufacturing Execution Information
+
+---
+
+The repositories intentionally remain separate.
+
+CAM Assist explains **why** a machining strategy exists.
+
+CAM Creation Studio helps determine **how** that strategy is executed.
+
+---
+
+# Design Philosophy
+
+The project follows several core principles:
+
+## Python First
+
+Python is the primary implementation language.
+
+Archived HTML prototypes serve as behavioral references only.
+
+Future interfaces (desktop or web) will use the Python core rather than duplicate business logic.
+
+---
+
+## Machine Independence
+
+The application avoids dependence on any specific controller whenever practical.
+
+Machine-specific behavior is represented through configurable profiles rather than hard-coded implementations.
+
+---
+
+## Educational First
+
+Every feature should help users better understand machining.
+
+The software should explain—not simply generate.
+
+---
+
+## Advisory Authority
+
+Feeds, speeds, diagnostics, and recommendations are advisory.
+
+The operator remains responsible for:
+
+* Machine setup
+* Workholding
+* Tool selection
+* Safe operation
+* Final verification
+
+---
+
+# Planned Architecture
+
+```text
+CAM Creation Studio
+
+├── G-code Generation
+├── G-code Parser
+├── G-code Validator
+├── Feeds & Speeds
+├── Tool Library
+├── Material Library
+├── Machine Profiles
+├── Toolpath Model
+├── Image Processing
+├── Preview Engine
+└── Future UI
+```
+
+The Python core remains independent of any user interface.
+
+---
+
+# Repository Structure
+
+The Python core lives under `python/cam_creation_studio/`:
+
+```text
+cam_creation_studio/
+│
+├── gcode/
+│   ├── generator.py
+│   ├── parser.py
+│   ├── validator.py
+│   ├── formatter.py
+│   └── dialects.py
+│
+├── feeds_speeds/
+│   ├── calculator.py
+│   ├── materials.py
+│   ├── machines.py
+│   └── tools.py
+│
+├── preview/
+│   └── toolpath_model.py
+│
+├── image/
+│   ├── field.py
+│   ├── marching_squares.py
+│   ├── raster_etch.py
+│   └── outline_etch.py
+│
+├── safety/
+│   └── rules.py
+│
+├── handoff/
+│   └── handoff.py
+│
+└── shared/
+    ├── numbers.py
+    └── units.py
+```
+
+The archived HTML prototypes and the browser reference app live under
+`archive/original-html/`, `app/`, and `src/`. See `docs/architecture.md`.
+
+---
+
+# Getting Started
+
+The core is a headless Python package with no third-party runtime dependencies.
 
 ```bash
 cd python
-python -m pytest      # run the core test suite (standard library only)
+python -m pytest        # run the full test suite
+pip install -e .[dev]   # optional: editable install with dev tools
 ```
 
-See [python/README.md](python/README.md) for the module map and API taste.
+Example:
 
-**Browser prototype (reference):**
+```python
+from cam_creation_studio.gcode.generator import build_program
+from cam_creation_studio.gcode.validator import validate_program
+from cam_creation_studio.feeds_speeds.calculator import calculate_feeds
 
-```bash
-npm install
-npm run dev      # serve the prototype app at the printed localhost URL
-npm test         # run the JS test suite (Vitest)
+cfg = {"machine": "genericCnc", "units": "mm", "positioning": "abs",
+       "home": True, "spindleOn": True, "spindleRpm": 12000, "safeZ": 5}
+job = {"mode": "manual", "moves": [
+    {"type": "G0", "x": "0", "y": "0"},
+    {"type": "G1", "z": "-0.5", "f": "300"},
+    {"type": "G1", "x": "40", "f": "800"},
+]}
+
+program = build_program(cfg, job)
+warnings = validate_program(program, machine="genericCnc")   # advisory only
+feeds = calculate_feeds(tool_diameter_mm=6.0, flutes=2, spindle_rpm=12000, material="mdf")
 ```
 
-The prototype app lives in [app/](app/) and imports shared logic from
-[src/](src/). See [docs/quick-start.md](docs/quick-start.md) and
-[docs/architecture.md](docs/architecture.md).
+---
 
-## Relationship to CAM Assist
+# Future Roadmap
 
-CAM-Creation-Studio is a **standalone** repository. It is **not** a CAM Assist
-module and introduces **no** dependency on CAM Assist in this phase.
+Planned development includes:
 
-- **CAM Assist** owns manufacturing intent, review, risk, assumptions, and traceability.
-- **CAM-Creation-Studio** owns execution-adjacent authoring, education, feeds/speeds, preview, and G-code learning.
+* G-code editing tools
+* Interactive toolpath visualization
+* DXF import
+* Image-to-toolpath utilities
+* Drag knife support
+* Laser engraving support
+* Tool libraries
+* Material databases
+* Machine profile expansion
+* Machining calculators
+* Cutting parameter optimization
+* Manufacturing diagnostics
+* Educational tutorials
 
-A future, optional one-way relationship may exist
-(`CAM Assist → Production Shop Handoff → CAM-Creation-Studio`), but **no
-dependency exists today**. See
-[docs/future-cam-assist-relationship.md](docs/future-cam-assist-relationship.md).
+---
 
-## Safety
+# Safety Notice
 
-Read [docs/safety-disclaimer.md](docs/safety-disclaimer.md) before using any
-generated output. G-code does exactly what it says — including the mistakes.
+CAM Creation Studio produces **educational and advisory manufacturing information**.
 
-## License
+It does **not** guarantee:
 
-MIT — see [LICENSE](LICENSE).
+* machine safety
+* machining success
+* collision avoidance
+* proper workholding
+* suitable tooling
+* correct cutting parameters
+
+Always verify generated programs through simulation, dry runs, and established shop safety procedures before machining.
+
+---
+
+# License
+
+This project is released under the MIT License.
+
+See `LICENSE` for details.
+
+---
+
+# Vision
+
+The long-term vision is to establish **CAM Creation Studio** as an open, modular environment where machinists, makers, educators, and CNC programmers can learn, experiment, validate, and refine manufacturing execution while remaining independent of any single CAD, CAM, or CNC ecosystem. It complements manufacturing governance tools such as CAM Assist Blueprint while maintaining a clear focus on the practical aspects of machining execution and operator education.
