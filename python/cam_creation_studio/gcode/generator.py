@@ -1,136 +1,41 @@
-"""Pure G-code generation.
+"""Pure G-code generation — orchestration only.
 
-Ported from the browser prototype's buildManualGcode/buildEtchGcode, as
-composable functions that take plain dict-like config + job objects:
+The actual construction of each section lives in :mod:`header`, :mod:`body`, and
+:mod:`footer`. This module just composes them into a whole program, in two ways:
 
-    build_header(config)            -> list[str]
-    build_manual_body(moves, config) -> list[str]
-    build_etch_body(paths, config)  -> list[str]
-    build_footer(config)            -> list[str]
-    build_program(config, job)      -> str
+* :func:`build_program` — the dict adapter (config + job mappings), preserved so
+  existing callers and the browser-prototype behavior stay identical.
+* :func:`program_to_text` — the object path, rendering a typed
+  :class:`~cam_creation_studio.models.GCodeProgram`.
 
-Output is an EDUCATIONAL starting point. It is NOT a certified post-processor
-and is NOT guaranteed safe to run. Always verify before use.
+Output is an EDUCATIONAL starting point. It is NOT a certified post-processor and
+is NOT guaranteed safe to run. Always verify before use.
 """
 
 from __future__ import annotations
 
-from typing import Any, List, Mapping, Sequence
+from typing import Any, Mapping
 
-from ..shared.numbers import parse_number_or_none, round_for_gcode
-from .dialects import LineSpec, get_dialect
-from .formatter import format_line, section_line
+from ..models import GCodeProgram
+from .body import body_lines_from_moves, build_etch_body, build_manual_body
+from .dialects import get_dialect
+from .footer import build_footer, footer_from_config, footer_lines
+from .formatter import render
+from .header import build_header, header_from_config, header_lines
 
-
-def _render_extra(spec: LineSpec) -> str:
-    return format_line(spec.cmd, spec.words, spec.comment)
-
-
-def _safe_z(config: Mapping[str, Any]):
-    z = parse_number_or_none(config.get("safeZ"))
-    return 0 if z is None else z
-
-
-def build_header(config: Mapping[str, Any]) -> List[str]:
-    """units, positioning, optional home, dialect startup, rapid to safe Z."""
-    dialect = get_dialect(config.get("machine"))
-    lines = [section_line("HEADER")]
-
-    if config.get("units") == "in":
-        lines.append(format_line("G20", {}, "units = inch"))
-    else:
-        lines.append(format_line("G21", {}, "units = mm"))
-
-    if config.get("positioning") == "rel":
-        lines.append(format_line("G91", {}, "relative positioning"))
-    else:
-        lines.append(format_line("G90", {}, "absolute positioning"))
-
-    if config.get("home"):
-        lines.append(format_line("G28", {}, "home all axes"))
-
-    for extra in dialect.header_extras(config):
-        lines.append(_render_extra(extra))
-
-    lines.append(format_line("G0", {"Z": _safe_z(config)}, "move to safe height"))
-    return lines
-
-
-def build_manual_body(moves: Sequence[Mapping[str, Any]], config: Mapping[str, Any]) -> List[str]:
-    """Manual-move body. Each move is a dict with type/x/y/z/f/e/i/j fields."""
-    dialect = get_dialect(config.get("machine"))
-    is_marlin = dialect.id == "marlin"
-    lines = [section_line("BODY")]
-
-    for m in moves:
-        move_type = m.get("type", "G1")
-        is_arc = move_type in ("G2", "G3")
-        words: dict = {"X": m.get("x", ""), "Y": m.get("y", ""), "Z": m.get("z", "")}
-        if is_arc:
-            words["I"] = m.get("i", "")
-            words["J"] = m.get("j", "")
-        if is_marlin:
-            words["E"] = m.get("e", "")
-        words["F"] = m.get("f", "")
-        lines.append(format_line(move_type, words))
-    return lines
-
-
-def build_etch_body(paths: Sequence[Mapping[str, Any]], config: Mapping[str, Any]) -> List[str]:
-    """Image-etch body from neutral path segments ({'poly': [{'x','y'}, ...]}).
-
-    control 'power': beam toggled per segment via M3 S / M5.
-    control 'depth': plunge to engraveZ, cut, retract to safe Z.
-    """
-    etch = config.get("etch", {})
-    power = etch.get("control") != "depth"
-    feed = etch.get("feed", 600)
-    s_power = etch.get("power", 200)
-    engrave_z = etch.get("engraveZ", -0.2)
-    z = _safe_z(config)
-
-    def r(n):
-        return round_for_gcode(n, 3)
-
-    lines = [section_line("TOOLPATH")]
-    if not paths:
-        lines.append("; (no burn regions — load an image or lower the cutoff)")
-        return lines
-
-    for seg in paths:
-        poly = seg["poly"]
-        a = poly[0]
-        if power:
-            lines.append(format_line("G0", {"X": r(a["x"]), "Y": r(a["y"])}))
-            lines.append(format_line("M3", {"S": s_power}))
-        else:
-            lines.append(format_line("G0", {"Z": z}))
-            lines.append(format_line("G0", {"X": r(a["x"]), "Y": r(a["y"])}))
-            lines.append(format_line("G1", {"Z": engrave_z, "F": 300}))
-        for k in range(1, len(poly)):
-            p = poly[k]
-            words = {"X": r(p["x"]), "Y": r(p["y"])}
-            if k == 1:
-                words["F"] = feed
-            lines.append(format_line("G1", words))
-        lines.append(format_line("M5") if power else format_line("G0", {"Z": z}))
-    return lines
-
-
-def build_footer(config: Mapping[str, Any]) -> List[str]:
-    """retract to safe Z, dialect shutdown, park at origin, end the program."""
-    dialect = get_dialect(config.get("machine"))
-    lines = [section_line("FOOTER")]
-    lines.append(format_line("G0", {"Z": _safe_z(config)}, "retract"))
-    for extra in dialect.footer_extras(config):
-        lines.append(_render_extra(extra))
-    lines.append(format_line("G0", {"X": 0, "Y": 0}, "park"))
-    lines.append(format_line("M30", {}, "end of program"))
-    return lines
+__all__ = [
+    "build_header",
+    "build_manual_body",
+    "build_etch_body",
+    "build_footer",
+    "build_program",
+    "program_to_text",
+    "program_from_config",
+]
 
 
 def build_program(config: Mapping[str, Any], job: Mapping[str, Any]) -> str:
-    """Assemble a complete program from a config + a job.
+    """Assemble a complete program from a config + a job (dict adapter).
 
     job = {"mode": "manual", "moves": [...]}
     job = {"mode": "etch",   "paths": [...]}   (etch settings on config['etch'])
@@ -141,3 +46,21 @@ def build_program(config: Mapping[str, Any], job: Mapping[str, Any]) -> str:
         body = build_manual_body(job.get("moves", []), config)
 
     return "\n".join([*build_header(config), "", *body, "", *build_footer(config)])
+
+
+def program_to_text(program: GCodeProgram) -> str:
+    """Render a typed :class:`GCodeProgram` to G-code text (object path)."""
+    is_marlin = get_dialect(program.header.machine).id == "marlin"
+    header = [render(ln) for ln in header_lines(program.header)]
+    body = [render(ln) for ln in body_lines_from_moves(program.moves, is_marlin)]
+    footer = [render(ln) for ln in footer_lines(program.footer)]
+    return "\n".join([*header, "", *body, "", *footer])
+
+
+def program_from_config(config: Mapping[str, Any], moves) -> GCodeProgram:
+    """Build a typed :class:`GCodeProgram` from a legacy config + typed moves."""
+    return GCodeProgram(
+        header=header_from_config(config),
+        moves=list(moves),
+        footer=footer_from_config(config),
+    )

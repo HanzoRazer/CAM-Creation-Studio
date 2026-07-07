@@ -18,15 +18,22 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Mapping, Optional, Sequence
+from typing import Any, List, Mapping, Optional, Sequence
 
+from ..shared import geometry as geom
 from ..shared.numbers import parse_number_or_none
 
 TRAVEL = "travel"
 CUT = "cut"
 BURN = "burn"
+EXTRUDE = "extrude"
+ARC = "arc"
 
 _ARC_STEPS = 40
+
+# Laser/power dialects: on these, a feed move marks material by beam power, so
+# the canonical model classifies it as a burn segment rather than a cut.
+_LASER_MACHINES = {"laser", "laserGrbl"}
 
 
 @dataclass(frozen=True)
@@ -43,6 +50,47 @@ class Segment:
     to: Point
     feed: Optional[float] = None
     source_line: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class ToolpathSegment:
+    """A richer, renderer-agnostic motion segment (CS-003 canonical shape).
+
+    Unlike :class:`Segment` (a minimal from/to pair), this carries everything a
+    future renderer, report, or inspector needs without re-deriving it:
+
+      type            'travel' | 'cut' | 'extrude' | 'arc' | 'burn'
+      start / end     Point(x, y, z) endpoints
+      feed            F word in effect (mm/min), or None for travel
+      z               end-point Z (convenience; == end.z)
+      line            originating source line/index (1-based)
+      source_command  the G-word that produced it ('G0'..'G3')
+      distance        segment length in mm (arc length for arcs)
+
+    ``frm``/``to``/``source_line`` properties mirror :class:`Segment` so the two
+    are interchangeable to consumers that only read endpoints.
+    """
+
+    type: str
+    start: Point
+    end: Point
+    feed: Optional[float] = None
+    z: float = 0.0
+    line: Optional[int] = None
+    source_command: str = ""
+    distance: float = 0.0
+
+    @property
+    def frm(self) -> Point:
+        return self.start
+
+    @property
+    def to(self) -> Point:
+        return self.end
+
+    @property
+    def source_line(self) -> Optional[int]:
+        return self.line
 
 
 def _num(value, fallback):
@@ -137,8 +185,11 @@ def model_from_etch_paths(paths: Sequence[Mapping], control: str = "power",
     return segs
 
 
-def bounds(segments: Sequence[Segment]):
-    """Return (min_x, min_y, max_x, max_y) over all segment endpoints, or None."""
+def bounds(segments: Sequence) -> Optional[tuple]:
+    """Return (min_x, min_y, max_x, max_y) over all segment endpoints, or None.
+
+    Accepts :class:`Segment` or :class:`ToolpathSegment` (both expose frm/to).
+    """
     xs: List[float] = []
     ys: List[float] = []
     for s in segments:
@@ -147,3 +198,147 @@ def bounds(segments: Sequence[Segment]):
     if not xs:
         return None
     return (min(xs), min(ys), max(xs), max(ys))
+
+
+# --------------------------------------------------------------------------- #
+# Canonical bridge: parsed program -> ToolpathSegment list (CS-003)
+# --------------------------------------------------------------------------- #
+def _normalize_move(item: Any, index: int) -> Optional[dict]:
+    """Coerce one parsed element into a flat move dict, or None if not motion.
+
+    Accepts domain moves (Move/ArcMove), ParsedLine, or a plain mapping.
+    """
+    # Domain Move / ArcMove (have a MoveType ``type`` and axis attributes).
+    mtype = getattr(item, "type", None)
+    if mtype is not None and hasattr(mtype, "value") and not isinstance(item, Mapping):
+        cmd = mtype.value
+        if cmd not in ("G0", "G1", "G2", "G3"):
+            return None
+        return {
+            "cmd": cmd,
+            "x": getattr(item, "x", None), "y": getattr(item, "y", None),
+            "z": getattr(item, "z", None), "f": getattr(item, "feed", None),
+            "e": getattr(item, "e", None), "i": getattr(item, "i", None),
+            "j": getattr(item, "j", None), "r": getattr(item, "r", None),
+            "line": getattr(item, "line", None) or (index + 1),
+        }
+
+    # ParsedLine (lexical view): has a ``motion`` property and word()/number.
+    if hasattr(item, "motion") and hasattr(item, "word"):
+        cmd = item.motion
+        if cmd is None:
+            return None
+        return {
+            "cmd": cmd,
+            "x": item.word("X"), "y": item.word("Y"), "z": item.word("Z"),
+            "f": item.word("F"), "e": item.word("E"),
+            "i": item.word("I"), "j": item.word("J"), "r": item.word("R"),
+            "line": getattr(item, "number", index + 1),
+        }
+
+    # Plain mapping (dict) — same shape model_from_moves accepts.
+    if isinstance(item, Mapping):
+        cmd = item.get("type", "G1")
+        return {
+            "cmd": cmd,
+            "x": item.get("x"), "y": item.get("y"), "z": item.get("z"),
+            "f": item.get("f", item.get("feed")), "e": item.get("e"),
+            "i": item.get("i"), "j": item.get("j"), "r": item.get("r"),
+            "line": item.get("line", index + 1),
+        }
+    return None
+
+
+def _moves_and_laser(parsed_program: Any) -> tuple:
+    """Return (iterable_of_moves, laser_flag) for the many accepted input forms."""
+    # Raw text -> parse into a typed program.
+    if isinstance(parsed_program, str):
+        from ..gcode.parser import parse_program_model
+        prog = parse_program_model(parsed_program)
+        return prog.moves, prog.header.machine in _LASER_MACHINES
+
+    # A typed GCodeProgram (duck-typed: has .moves and a .header.machine).
+    moves = getattr(parsed_program, "moves", None)
+    if moves is not None:
+        header = getattr(parsed_program, "header", None)
+        machine = getattr(header, "machine", None)
+        return moves, machine in _LASER_MACHINES
+
+    # Already a sequence of moves / ParsedLine / dicts.
+    return parsed_program, False
+
+
+def build_toolpath_model(parsed_program: Any, *, laser: Optional[bool] = None) -> List[ToolpathSegment]:
+    """Build canonical :class:`ToolpathSegment`s from parsed G-code.
+
+    ``parsed_program`` may be raw G-code text, a :class:`GCodeProgram`, or a
+    sequence of moves / ParsedLine / move-dicts. Motion is classified into
+    travel / cut / extrude / arc / burn, and each segment carries its distance,
+    end Z, source line, and originating command.
+
+    Pass ``laser=True`` to force burn classification when the input form does not
+    carry machine context (a bare move list). This never renders.
+    """
+    moves, inferred_laser = _moves_and_laser(parsed_program)
+    is_laser = inferred_laser if laser is None else laser
+
+    segs: List[ToolpathSegment] = []
+    cur = Point(0.0, 0.0, 0.0)
+    feed: Optional[float] = None
+
+    for idx, item in enumerate(moves):
+        m = _normalize_move(item, idx)
+        if m is None:
+            continue
+        cmd = m["cmd"]
+        tx = _num(m["x"], cur.x)
+        ty = _num(m["y"], cur.y)
+        tz = _num(m["z"], cur.z)
+        f = parse_number_or_none(m["f"])
+        if f is not None:
+            feed = f
+        end = Point(tx, ty, tz)
+        line = m["line"]
+
+        if cmd in ("G2", "G3"):
+            i = parse_number_or_none(m["i"])
+            j = parse_number_or_none(m["j"])
+            r = parse_number_or_none(m["r"])
+            dist = _arc_distance(cur, end, i, j, r)
+            segs.append(ToolpathSegment(
+                ARC, cur, end, feed, tz, line, cmd, dist))
+            cur = end
+            continue
+
+        if cmd == "G0":
+            seg_type = TRAVEL
+            seg_feed: Optional[float] = None
+        elif parse_number_or_none(m["e"]) is not None:
+            seg_type = EXTRUDE
+            seg_feed = feed
+        else:
+            seg_type = BURN if is_laser else CUT
+            seg_feed = feed
+
+        dist = geom.distance(geom.Point(cur.x, cur.y, cur.z),
+                             geom.Point(end.x, end.y, end.z))
+        segs.append(ToolpathSegment(seg_type, cur, end, seg_feed, tz, line, cmd, dist))
+        cur = end
+
+    return segs
+
+
+def _arc_distance(start: Point, end: Point, i, j, r) -> float:
+    """Arc length when I/J center is known, else the chord length as a fallback."""
+    if i is not None and j is not None:
+        cx, cy = start.x + i, start.y + j
+        radius = math.hypot(start.x - cx, start.y - cy)
+        a0 = math.atan2(start.y - cy, start.x - cx)
+        a1 = math.atan2(end.y - cy, end.x - cx)
+        sweep = a1 - a0
+        # Normalize to the shorter positive sweep for a length estimate.
+        while sweep <= 0:
+            sweep += 2 * math.pi
+        return geom.arc_length(radius, sweep)
+    return geom.distance(geom.Point(start.x, start.y, start.z),
+                         geom.Point(end.x, end.y, end.z))

@@ -3,6 +3,14 @@
 Turns G-code text into structured lines so the validator and preview model can
 reason about a program. This is a lexical parser — it understands words and
 comments, not machine semantics. It does not execute or validate.
+
+Two levels are available:
+
+* :func:`parse_line` / :func:`parse_program` produce :class:`ParsedLine` objects
+  (raw words + comment), the low-level lexical view.
+* :func:`parse_moves` / :func:`parse_program_model` lift motion lines into the
+  domain model (:class:`Move` / :class:`ArcMove` / :class:`GCodeProgram`), so a
+  generated program round-trips back into typed objects.
 """
 
 from __future__ import annotations
@@ -10,6 +18,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
+
+from ..enums import MoveType, Units
+from ..models import ArcMove, GCodeProgram, Move, ProgramFooter, ProgramHeader
 
 # One word = a letter followed by a (signed, optional-decimal) number.
 _WORD_RE = re.compile(r"([A-Za-z])\s*(-?\d*\.?\d+)")
@@ -101,3 +112,91 @@ def parse_program(text: str) -> List[ParsedLine]:
     for i, raw in enumerate(text.splitlines(), start=1):
         lines.append(parse_line(raw, i))
     return lines
+
+
+# --------------------------------------------------------------------------- #
+# Domain-model parsing: ParsedLine -> Move / ArcMove / GCodeProgram
+# --------------------------------------------------------------------------- #
+def move_from_line(line: ParsedLine):
+    """Lift a single :class:`ParsedLine` into a Move/ArcMove, or ``None``.
+
+    Returns ``None`` for non-motion lines. Feed is taken from the line itself (no
+    modal carry-over), which is what round-tripping generated output expects.
+    """
+    motion = line.motion
+    if motion is None:
+        return None
+    mtype = MoveType(motion)
+    feed = line.word("F")
+    if mtype.is_arc:
+        return ArcMove(
+            type=mtype,
+            x=line.word("X"), y=line.word("Y"), z=line.word("Z"),
+            i=line.word("I"), j=line.word("J"), r=line.word("R"),
+            feed=feed, comment=line.comment,
+        )
+    return Move(
+        type=mtype,
+        x=line.word("X"), y=line.word("Y"), z=line.word("Z"),
+        feed=feed, e=line.word("E"), comment=line.comment,
+    )
+
+
+def parse_moves(text: str) -> List:
+    """Parse a program's motion lines into a list of Move/ArcMove."""
+    moves = []
+    for line in parse_program(text):
+        m = move_from_line(line)
+        if m is not None:
+            moves.append(m)
+    return moves
+
+
+def _infer_header(lines: List[ParsedLine]) -> ProgramHeader:
+    units = Units.MM
+    absolute = True
+    home = False
+    for ln in lines:
+        if ln.gword(20):
+            units = Units.INCH
+        elif ln.gword(21):
+            units = Units.MM
+        if ln.gword(90):
+            absolute = True
+        elif ln.gword(91):
+            absolute = False
+        if ln.gword(28):
+            home = True
+    return ProgramHeader(units=units, absolute=absolute, home=home)
+
+
+def _infer_footer(lines: List[ParsedLine]) -> ProgramFooter:
+    units = Units.MM
+    end_code = "M30"
+    for ln in lines:
+        if ln.gword(20):
+            units = Units.INCH
+        elif ln.gword(21):
+            units = Units.MM
+        if ln.mword(2):
+            end_code = "M2"
+        elif ln.mword(30):
+            end_code = "M30"
+    return ProgramFooter(units=units, end_code=end_code)
+
+
+def parse_program_model(text: str) -> GCodeProgram:
+    """Parse G-code text into a typed :class:`GCodeProgram`.
+
+    Motion lines become Move/ArcMove; units, positioning, home, and the end code
+    are inferred where the text declares them. Machine dialect is not encoded in
+    plain G-code, so it is left at the model default — round-trip fidelity is at
+    the move level.
+    """
+    lines = parse_program(text)
+    moves = [m for m in (move_from_line(ln) for ln in lines) if m is not None]
+    return GCodeProgram(
+        header=_infer_header(lines),
+        moves=moves,
+        footer=_infer_footer(lines),
+    )
