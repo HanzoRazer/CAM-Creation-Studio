@@ -1,7 +1,13 @@
-"""Numeric sanitizers shared across the core. All helpers are pure."""
+"""Numeric sanitizers and math helpers shared across the core.
+
+All helpers are pure. This module also owns the small reusable math utilities
+(``clamp``, ``lerp``, ``round_gcode``, ``normalize_angle``) — the core keeps a
+single home for numeric responsibility rather than a separate ``mathutils``.
+"""
 
 from __future__ import annotations
 
+import math
 from typing import Any, Optional
 
 
@@ -56,3 +62,28 @@ def is_positive_number(value: Any) -> bool:
 def format_number(n: float, decimals: int = 3) -> str:
     """Format a number for G-code output: rounded, no trailing ``.0``."""
     return str(round_for_gcode(n, decimals))
+
+
+# --- reusable math utilities (mathutils responsibility lives here) ---
+
+def lerp(a: float, b: float, t: float) -> float:
+    """Linear interpolation from ``a`` to ``b`` by fraction ``t``.
+
+    ``t`` is not clamped: ``t=0`` -> ``a``, ``t=1`` -> ``b``, and values outside
+    ``[0, 1]`` extrapolate.
+    """
+    return a + (b - a) * t
+
+
+def normalize_angle(radians: float) -> float:
+    """Wrap an angle (radians) into the half-open range ``[-pi, pi)``."""
+    two_pi = 2.0 * math.pi
+    wrapped = (radians + math.pi) % two_pi
+    return wrapped - math.pi
+
+
+# Short aliases matching the domain-facing vocabulary. ``clamp`` and
+# ``round_gcode`` are the canonical names used by the geometry/model layer;
+# the longer originals remain for existing callers.
+clamp = clamp_number
+round_gcode = round_for_gcode

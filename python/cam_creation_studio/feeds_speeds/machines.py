@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple
 
 
 @dataclass(frozen=True)
-class Machine:
+class MachineProfile:
     id: str
     label: str
     # Work envelope in mm (x, y, z); None if unspecified.
@@ -25,8 +25,12 @@ class Machine:
     notes: str = ""
 
 
-_MACHINES: List[Machine] = [
-    Machine(
+# Deprecated alias: the profile was named ``Machine`` before CS-002.
+Machine = MachineProfile
+
+
+_MACHINES: List[MachineProfile] = [
+    MachineProfile(
         id="genericCncRouter",
         label="Generic CNC router",
         work_area_mm=(300.0, 300.0, 80.0),
@@ -34,7 +38,7 @@ _MACHINES: List[Machine] = [
         suggested_dialect="genericCnc",
         notes="Generic hobby/benchtop router envelope; adjust to your machine.",
     ),
-    Machine(
+    MachineProfile(
         id="desktop3018",
         label="Desktop 3018 CNC",
         work_area_mm=(300.0, 180.0, 45.0),
@@ -42,7 +46,7 @@ _MACHINES: List[Machine] = [
         suggested_dialect="genericCnc",
         notes="Small desktop engraver; light cuts only.",
     ),
-    Machine(
+    MachineProfile(
         id="bcam2030ca_placeholder",
         label="BCAMCNC 2030CA (placeholder)",
         work_area_mm=(2000.0, 3000.0, 200.0),
@@ -58,7 +62,7 @@ _MACHINES: List[Machine] = [
             "acceleration, and post behavior are NOT asserted here."
         ),
     ),
-    Machine(
+    MachineProfile(
         id="genericLaser",
         label="Generic laser engraver",
         work_area_mm=(400.0, 400.0, 0.0),
@@ -66,7 +70,7 @@ _MACHINES: List[Machine] = [
         suggested_dialect="laserGrbl",
         notes="Diode/CO2 engraver; 'feed' is travel speed, power via S.",
     ),
-    Machine(
+    MachineProfile(
         id="marlinPrinter",
         label="Marlin 3D printer",
         work_area_mm=(220.0, 220.0, 250.0),
@@ -76,14 +80,14 @@ _MACHINES: List[Machine] = [
     ),
 ]
 
-_BY_ID: Dict[str, Machine] = {m.id: m for m in _MACHINES}
+_BY_ID: Dict[str, MachineProfile] = {m.id: m for m in _MACHINES}
 
 
-def get_machine(machine_id: str) -> Machine:
+def get_machine(machine_id: str) -> MachineProfile:
     if machine_id not in _BY_ID:
         raise ValueError(f"Unknown machine: {machine_id}")
     return _BY_ID[machine_id]
 
 
-def list_machines() -> List[Machine]:
+def list_machines() -> List[MachineProfile]:
     return list(_MACHINES)

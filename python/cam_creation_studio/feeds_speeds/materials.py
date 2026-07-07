@@ -33,6 +33,8 @@ _MATERIALS: List[Material] = [
     Material("acrylic", "Acrylic", (0.05, 0.13), "Melts if too slow; keep the chip moving, single flute helps."),
     Material("aluminum", "Aluminum", (0.025, 0.08), "Needs lube/air; risk of welding chips, go shallow."),
     Material("brass", "Brass", (0.02, 0.06), "Free-cutting but grabby; light passes."),
+    Material("mild_steel", "Mild steel", (0.02, 0.05), "Rigid setup + coolant; slow, shallow, sharp tooling."),
+    Material("stainless", "Stainless", (0.015, 0.04), "Work-hardens fast; keep the tool cutting, never rub."),
     Material("plastic", "Plastic (general)", (0.05, 0.13), "Varies widely by polymer; test first."),
 ]
 
