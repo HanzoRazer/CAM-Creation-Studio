@@ -30,6 +30,9 @@ EXTRUDE = "extrude"
 ARC = "arc"
 
 _ARC_STEPS = 40
+# A chord may legitimately equal 2*R (a semicircle); this relative slack lets
+# float drift past 2*R still count as a semicircle rather than "impossible".
+_ARC_CHORD_TOL = 1e-9
 
 # Laser/power dialects: on these, a feed move marks material by beam power, so
 # the canonical model classifies it as a burn segment rather than a cut.
@@ -356,6 +359,13 @@ def _arc_distance(start: Point, end: Point, i, j, r, clockwise: bool) -> float:
     convention that a **negative** ``R`` selects the major (>180 degree) arc
     does. The center is not reconstructed — the chord and radius fully determine
     the swept angle.
+
+    Malformed-geometry policy: preview length is best-effort. An ``R`` arc can
+    only span a chord up to ``2*R``; if the endpoints are farther apart than
+    that (inconsistent program, not mere float drift) no real arc exists, so
+    this returns the straight-line chord rather than fabricating a semicircle.
+    A chord that merely touches or drifts just past ``2*R`` is treated as a
+    genuine semicircle.
     """
     if i is not None and j is not None:
         cx, cy = start.x + i, start.y + j
@@ -367,9 +377,13 @@ def _arc_distance(start: Point, end: Point, i, j, r, clockwise: bool) -> float:
         radius = abs(r)
         chord = geom.distance_2d(geom.Point(start.x, start.y, start.z),
                                  geom.Point(end.x, end.y, end.z))
-        # chord = 2 R sin(sweep/2); clamp guards float drift / impossible input.
-        minor = 2 * math.asin(min(1.0, chord / (2 * radius)))
-        sweep = (2 * math.pi - minor) if r < 0 else minor
-        return geom.arc_length(radius, sweep)
+        ratio = chord / (2 * radius)
+        if ratio <= 1.0 + _ARC_CHORD_TOL:
+            # chord = 2 R sin(sweep/2); minor arc has sweep in [0, pi]. The
+            # min() absorbs drift so an exact semicircle stays a semicircle.
+            minor = 2 * math.asin(min(1.0, ratio))
+            sweep = (2 * math.pi - minor) if r < 0 else minor
+            return geom.arc_length(radius, sweep)
+        # Impossible geometry (chord > 2R): fall through to the chord length.
     return geom.distance(geom.Point(start.x, start.y, start.z),
                          geom.Point(end.x, end.y, end.z))

@@ -16,6 +16,7 @@ from cam_creation_studio.preview.toolpath_model import (
     EXTRUDE,
     TRAVEL,
     ToolpathSegment,
+    _signed_sweep,
     build_toolpath_model,
 )
 
@@ -167,6 +168,46 @@ def test_arc_without_center_or_radius_falls_back_to_chord():
     arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
                     {"type": "G2", "x": "0", "y": "10"}])
     assert arc.distance == pytest.approx(math.hypot(10, 10), rel=1e-9)
+
+
+def test_r_impossible_geometry_falls_back_to_chord():
+    # Endpoints 20 apart but radius only 5: no arc of radius 5 spans a chord of
+    # 20, so the length must be the straight-line chord, not a fabricated arc.
+    arc = _arc_seg([{"type": "G0", "x": "0", "y": "0"},
+                    {"type": "G2", "x": "20", "y": "0", "r": "5"}])
+    assert arc.distance == pytest.approx(20.0, rel=1e-9)
+
+
+def test_r_exact_semicircle_is_pi_r_not_chord():
+    # Chord exactly 2R (=20) is a valid semicircle; must be pi*R, not the chord.
+    arc = _arc_seg([{"type": "G0", "x": "0", "y": "0"},
+                    {"type": "G2", "x": "20", "y": "0", "r": "10"}])
+    assert arc.distance == pytest.approx(math.pi * 10, rel=1e-9)
+
+
+# --- _signed_sweep() direct unit tests --------------------------------------
+
+def test_signed_sweep_g3_ccw_is_positive():
+    # 0 -> +90 deg counter-clockwise is a positive quarter turn.
+    assert _signed_sweep(0.0, math.pi / 2, clockwise=False) == pytest.approx(math.pi / 2)
+
+
+def test_signed_sweep_g2_cw_is_negative_long_way():
+    # 0 -> +90 deg but clockwise is the negative 270-degree long way.
+    assert _signed_sweep(0.0, math.pi / 2, clockwise=True) == pytest.approx(-3 * math.pi / 2)
+
+
+def test_signed_sweep_coincident_is_full_turn_in_direction():
+    # Equal angles: a full circle, signed by direction.
+    assert _signed_sweep(1.0, 1.0, clockwise=False) == pytest.approx(2 * math.pi)
+    assert _signed_sweep(1.0, 1.0, clockwise=True) == pytest.approx(-2 * math.pi)
+
+
+def test_signed_sweep_directions_are_complementary():
+    # For the same endpoints the two directions sum to a full circle.
+    cw = _signed_sweep(0.0, math.pi / 2, clockwise=True)
+    ccw = _signed_sweep(0.0, math.pi / 2, clockwise=False)
+    assert abs(cw) + abs(ccw) == pytest.approx(2 * math.pi)
 
 
 def test_distance_is_populated():
