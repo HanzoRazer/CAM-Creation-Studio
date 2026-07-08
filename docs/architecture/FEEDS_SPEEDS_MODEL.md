@@ -63,7 +63,10 @@ errors, not advisory conditions.
 ## Presets
 
 - **Materials** (`materials.py`) — conservative chipload ranges (mm/tooth) for
-  softwood, hardwood, plywood, MDF, acrylic, aluminum, brass, and general plastic.
+  softwood, hardwood, plywood, MDF, acrylic, aluminum, brass, mild steel,
+  stainless, and general plastic. Aluminum, brass, mild steel, stainless,
+  hardwood, softwood/MDF, and acrylic are the seven original HTML-calculator
+  materials.
 - **Machines** (`machines.py`) — starter profiles (generic router, desktop 3018,
   generic laser, Marlin printer, and a fact-limited BCAMCNC 2030CA placeholder)
   supplying RPM ceilings and work envelopes for bounds-checking.
