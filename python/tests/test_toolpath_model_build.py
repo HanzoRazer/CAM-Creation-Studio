@@ -92,6 +92,8 @@ def test_g2_reflex_large_sweep_arc():
     arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
                     {"type": "G2", "x": "0", "y": "10", "i": "-10", "j": "0"}])
     assert arc.distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-6)
+    # A clockwise (negative) sweep must still produce a positive length.
+    assert arc.distance > 0
 
 
 def test_g3_reflex_large_sweep_arc():
@@ -122,6 +124,49 @@ def test_full_circle_arc_preserves_two_pi_sweep():
                    {"type": "G3", "x": "10", "y": "0", "i": "-10", "j": "0"}])
     assert g2.distance == pytest.approx(2 * math.pi * 10, rel=1e-6)
     assert g3.distance == pytest.approx(2 * math.pi * 10, rel=1e-6)
+
+
+def test_near_full_circle_is_almost_two_pi_not_tiny():
+    # End one hundredth of a radian short of the start, swept the long way round.
+    ang = -0.01
+    ex, ey = 10 * math.cos(ang), 10 * math.sin(ang)
+    # G3 (CCW) from angle 0 must go nearly all the way around, not a tiny hop.
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G3", "x": str(ex), "y": str(ey), "i": "-10", "j": "0"}])
+    full = 2 * math.pi * 10
+    assert arc.distance == pytest.approx(full - 0.1, rel=1e-3)
+    assert arc.distance < full
+
+
+# --- R-mode arcs (no I/J center) --------------------------------------------
+# (10,0) -> (0,10): chord = sqrt(200); with radius 10 the minor arc is 90 deg.
+
+def test_r_positive_is_minor_arc():
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "10", "r": "10"}])
+    assert arc.distance == pytest.approx(math.pi * 10 / 2, rel=1e-6)
+
+
+def test_r_negative_is_major_arc():
+    # Negative R selects the >180-degree (270-degree here) arc.
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G3", "x": "0", "y": "10", "r": "-10"}])
+    assert arc.distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-6)
+
+
+def test_r_arc_no_longer_falls_back_to_chord():
+    # The chord here is sqrt(200) ~ 14.14; the real minor arc is ~15.71.
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "10", "r": "10"}])
+    chord = math.hypot(10, 10)
+    assert arc.distance > chord
+    assert arc.distance == pytest.approx(math.pi * 10 / 2, rel=1e-6)
+
+
+def test_arc_without_center_or_radius_falls_back_to_chord():
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "10"}])
+    assert arc.distance == pytest.approx(math.hypot(10, 10), rel=1e-9)
 
 
 def test_distance_is_populated():
