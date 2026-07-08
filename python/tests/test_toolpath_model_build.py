@@ -57,9 +57,71 @@ def test_arc_is_a_single_arc_segment():
     segs = build_toolpath_model(PROGRAM)
     arcs = [s for s in segs if s.type == ARC]
     assert len(arcs) == 1
-    # quarter circle, radius 10 -> arc length pi*10/2
-    assert arcs[0].distance == pytest.approx(math.pi * 10 / 2, rel=1e-3)
+    # G2 from (30,0) to (40,10) about center (30,10): clockwise, the sweep is the
+    # 270-degree long way, not the 90-degree counter-clockwise short way.
+    assert arcs[0].distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-3)
     assert arcs[0].source_command == "G2"
+
+
+def _arc_seg(moves):
+    segs = build_toolpath_model(moves)
+    arcs = [s for s in segs if s.type == ARC]
+    assert len(arcs) == 1
+    return arcs[0]
+
+
+# Each arc below is centered on (0,0) via I/J relative to a start on the +X axis
+# at radius 10, so the expected lengths are exact fractions of 2*pi*10.
+
+def test_g2_clockwise_quarter_arc():
+    # (10,0) -> (0,-10) clockwise is the 90-degree short way through (7,-7).
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "-10", "i": "-10", "j": "0"}])
+    assert arc.distance == pytest.approx(math.pi * 10 / 2, rel=1e-6)
+
+
+def test_g3_counter_clockwise_quarter_arc():
+    # (10,0) -> (0,10) counter-clockwise is the 90-degree short way through (7,7).
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G3", "x": "0", "y": "10", "i": "-10", "j": "0"}])
+    assert arc.distance == pytest.approx(math.pi * 10 / 2, rel=1e-6)
+
+
+def test_g2_reflex_large_sweep_arc():
+    # (10,0) -> (0,10) clockwise is the 270-degree long way (through the bottom).
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "10", "i": "-10", "j": "0"}])
+    assert arc.distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-6)
+
+
+def test_g3_reflex_large_sweep_arc():
+    # (10,0) -> (0,-10) counter-clockwise is the 270-degree long way (through the top).
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G3", "x": "0", "y": "-10", "i": "-10", "j": "0"}])
+    assert arc.distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-6)
+
+
+def test_direction_not_silently_using_ccw_sweep():
+    # Same endpoints and center, opposite directions must give different lengths
+    # that sum to the full circle. The old code returned the CCW sweep for both,
+    # so the G2 value would wrongly equal the G3 (short) value.
+    start = {"type": "G0", "x": "10", "y": "0"}
+    g2 = _arc_seg([start, {"type": "G2", "x": "0", "y": "10", "i": "-10", "j": "0"}])
+    g3 = _arc_seg([start, {"type": "G3", "x": "0", "y": "10", "i": "-10", "j": "0"}])
+    assert g2.distance != pytest.approx(g3.distance, rel=1e-6)
+    assert g2.distance + g3.distance == pytest.approx(2 * math.pi * 10, rel=1e-6)
+    # G2 here is the long way; it must not collapse to the CCW quarter length.
+    assert g2.distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-6)
+
+
+def test_full_circle_arc_preserves_two_pi_sweep():
+    # start == end with an I/J center is a full circle in either direction.
+    g2 = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                   {"type": "G2", "x": "10", "y": "0", "i": "-10", "j": "0"}])
+    g3 = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                   {"type": "G3", "x": "10", "y": "0", "i": "-10", "j": "0"}])
+    assert g2.distance == pytest.approx(2 * math.pi * 10, rel=1e-6)
+    assert g3.distance == pytest.approx(2 * math.pi * 10, rel=1e-6)
 
 
 def test_distance_is_populated():

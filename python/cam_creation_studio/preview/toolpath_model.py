@@ -304,7 +304,7 @@ def build_toolpath_model(parsed_program: Any, *, laser: Optional[bool] = None) -
             i = parse_number_or_none(m["i"])
             j = parse_number_or_none(m["j"])
             r = parse_number_or_none(m["r"])
-            dist = _arc_distance(cur, end, i, j, r)
+            dist = _arc_distance(cur, end, i, j, r, clockwise=cmd == "G2")
             segs.append(ToolpathSegment(
                 ARC, cur, end, feed, tz, line, cmd, dist))
             cur = end
@@ -328,17 +328,30 @@ def build_toolpath_model(parsed_program: Any, *, laser: Optional[bool] = None) -
     return segs
 
 
-def _arc_distance(start: Point, end: Point, i, j, r) -> float:
-    """Arc length when I/J center is known, else the chord length as a fallback."""
+def _arc_distance(start: Point, end: Point, i, j, r, clockwise: bool) -> float:
+    """Arc length when I/J center is known, else the chord length as a fallback.
+
+    The swept angle must respect the arc direction: ``G2`` (``clockwise``) sweeps
+    the negative direction and ``G3`` the positive one. Taking the raw
+    ``atan2`` difference (or always folding it positive) silently returns the
+    counter-clockwise sweep for every arc, which is wrong for clockwise arcs and
+    for any sweep that is not the shorter of the two. When start and end coincide
+    (a full circle) the swept angle is a full ``2*pi`` in the given direction.
+    """
     if i is not None and j is not None:
         cx, cy = start.x + i, start.y + j
         radius = math.hypot(start.x - cx, start.y - cy)
         a0 = math.atan2(start.y - cy, start.x - cx)
         a1 = math.atan2(end.y - cy, end.x - cx)
         sweep = a1 - a0
-        # Normalize to the shorter positive sweep for a length estimate.
-        while sweep <= 0:
-            sweep += 2 * math.pi
+        if clockwise:
+            # G2: sweep the negative (clockwise) direction; 0 -> full circle.
+            if sweep >= 0:
+                sweep -= 2 * math.pi
+        else:
+            # G3: sweep the positive (counter-clockwise) direction.
+            if sweep <= 0:
+                sweep += 2 * math.pi
         return geom.arc_length(radius, sweep)
     return geom.distance(geom.Point(start.x, start.y, start.z),
                          geom.Point(end.x, end.y, end.z))
