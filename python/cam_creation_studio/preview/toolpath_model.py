@@ -30,6 +30,9 @@ EXTRUDE = "extrude"
 ARC = "arc"
 
 _ARC_STEPS = 40
+# A chord may legitimately equal 2*R (a semicircle); this relative slack lets
+# float drift past 2*R still count as a semicircle rather than "impossible".
+_ARC_CHORD_TOL = 1e-9
 
 # Laser/power dialects: on these, a feed move marks material by beam power, so
 # the canonical model classifies it as a burn segment rather than a cut.
@@ -132,19 +135,32 @@ def model_from_moves(moves: Sequence[Mapping], laser: bool = False) -> List[Segm
     return segs
 
 
+def _signed_sweep(a0: float, a1: float, clockwise: bool) -> float:
+    """Swept angle from ``a0`` to ``a1`` respecting the arc direction.
+
+    ``G2`` (``clockwise``) sweeps the negative direction, ``G3`` the positive
+    one. A zero raw difference (coincident start/end) becomes a full ``2*pi``
+    turn in the given direction. This is the single source of truth for arc
+    direction, shared by the flattener and the distance estimate so the two
+    cannot drift apart.
+    """
+    sweep = a1 - a0
+    if clockwise:
+        if sweep >= 0:
+            sweep -= 2 * math.pi
+    else:
+        if sweep <= 0:
+            sweep += 2 * math.pi
+    return sweep
+
+
 def _emit_arc(segs, start: Point, end: Point, i: float, j: float, mtype: str,
               feed, idx: int, laser: bool) -> Point:
     cx, cy = start.x + i, start.y + j
     rad = math.hypot(start.x - cx, start.y - cy)
     a0 = math.atan2(start.y - cy, start.x - cx)
     a1 = math.atan2(end.y - cy, end.x - cx)
-    d = a1 - a0
-    if mtype == "G2":
-        if d >= 0:
-            d -= 2 * math.pi
-    else:
-        if d <= 0:
-            d += 2 * math.pi
+    d = _signed_sweep(a0, a1, mtype == "G2")
 
     seg_type = BURN if laser else CUT
     prev = start
@@ -304,7 +320,7 @@ def build_toolpath_model(parsed_program: Any, *, laser: Optional[bool] = None) -
             i = parse_number_or_none(m["i"])
             j = parse_number_or_none(m["j"])
             r = parse_number_or_none(m["r"])
-            dist = _arc_distance(cur, end, i, j, r)
+            dist = _arc_distance(cur, end, i, j, r, clockwise=cmd == "G2")
             segs.append(ToolpathSegment(
                 ARC, cur, end, feed, tz, line, cmd, dist))
             cur = end
@@ -328,17 +344,46 @@ def build_toolpath_model(parsed_program: Any, *, laser: Optional[bool] = None) -
     return segs
 
 
-def _arc_distance(start: Point, end: Point, i, j, r) -> float:
-    """Arc length when I/J center is known, else the chord length as a fallback."""
+def _arc_distance(start: Point, end: Point, i, j, r, clockwise: bool) -> float:
+    """Arc length for a G2/G3 move.
+
+    Uses the ``I/J`` center when present, else the signed ``R`` radius, else the
+    chord length as a last resort. The swept angle must respect the arc
+    direction: taking the raw ``atan2`` difference (or always folding it
+    positive) silently returns the counter-clockwise sweep for every arc, which
+    is wrong for clockwise arcs and for any sweep that is not the shorter of the
+    two. ``geom.arc_length`` takes the magnitude, so a negative (clockwise)
+    sweep still yields a non-negative length.
+
+    For ``R``-mode arcs the direction does not change the length; the G-code
+    convention that a **negative** ``R`` selects the major (>180 degree) arc
+    does. The center is not reconstructed — the chord and radius fully determine
+    the swept angle.
+
+    Malformed-geometry policy: preview length is best-effort. An ``R`` arc can
+    only span a chord up to ``2*R``; if the endpoints are farther apart than
+    that (inconsistent program, not mere float drift) no real arc exists, so
+    this returns the straight-line chord rather than fabricating a semicircle.
+    A chord that merely touches or drifts just past ``2*R`` is treated as a
+    genuine semicircle.
+    """
     if i is not None and j is not None:
         cx, cy = start.x + i, start.y + j
         radius = math.hypot(start.x - cx, start.y - cy)
         a0 = math.atan2(start.y - cy, start.x - cx)
         a1 = math.atan2(end.y - cy, end.x - cx)
-        sweep = a1 - a0
-        # Normalize to the shorter positive sweep for a length estimate.
-        while sweep <= 0:
-            sweep += 2 * math.pi
-        return geom.arc_length(radius, sweep)
+        return geom.arc_length(radius, _signed_sweep(a0, a1, clockwise))
+    if r is not None and r != 0:
+        radius = abs(r)
+        chord = geom.distance_2d(geom.Point(start.x, start.y, start.z),
+                                 geom.Point(end.x, end.y, end.z))
+        ratio = chord / (2 * radius)
+        if ratio <= 1.0 + _ARC_CHORD_TOL:
+            # chord = 2 R sin(sweep/2); minor arc has sweep in [0, pi]. The
+            # min() absorbs drift so an exact semicircle stays a semicircle.
+            minor = 2 * math.asin(min(1.0, ratio))
+            sweep = (2 * math.pi - minor) if r < 0 else minor
+            return geom.arc_length(radius, sweep)
+        # Impossible geometry (chord > 2R): fall through to the chord length.
     return geom.distance(geom.Point(start.x, start.y, start.z),
                          geom.Point(end.x, end.y, end.z))

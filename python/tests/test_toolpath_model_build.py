@@ -16,6 +16,7 @@ from cam_creation_studio.preview.toolpath_model import (
     EXTRUDE,
     TRAVEL,
     ToolpathSegment,
+    _signed_sweep,
     build_toolpath_model,
 )
 
@@ -57,9 +58,156 @@ def test_arc_is_a_single_arc_segment():
     segs = build_toolpath_model(PROGRAM)
     arcs = [s for s in segs if s.type == ARC]
     assert len(arcs) == 1
-    # quarter circle, radius 10 -> arc length pi*10/2
-    assert arcs[0].distance == pytest.approx(math.pi * 10 / 2, rel=1e-3)
+    # G2 from (30,0) to (40,10) about center (30,10): clockwise, the sweep is the
+    # 270-degree long way, not the 90-degree counter-clockwise short way.
+    assert arcs[0].distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-3)
     assert arcs[0].source_command == "G2"
+
+
+def _arc_seg(moves):
+    segs = build_toolpath_model(moves)
+    arcs = [s for s in segs if s.type == ARC]
+    assert len(arcs) == 1
+    return arcs[0]
+
+
+# Each arc below is centered on (0,0) via I/J relative to a start on the +X axis
+# at radius 10, so the expected lengths are exact fractions of 2*pi*10.
+
+def test_g2_clockwise_quarter_arc():
+    # (10,0) -> (0,-10) clockwise is the 90-degree short way through (7,-7).
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "-10", "i": "-10", "j": "0"}])
+    assert arc.distance == pytest.approx(math.pi * 10 / 2, rel=1e-6)
+
+
+def test_g3_counter_clockwise_quarter_arc():
+    # (10,0) -> (0,10) counter-clockwise is the 90-degree short way through (7,7).
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G3", "x": "0", "y": "10", "i": "-10", "j": "0"}])
+    assert arc.distance == pytest.approx(math.pi * 10 / 2, rel=1e-6)
+
+
+def test_g2_reflex_large_sweep_arc():
+    # (10,0) -> (0,10) clockwise is the 270-degree long way (through the bottom).
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "10", "i": "-10", "j": "0"}])
+    assert arc.distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-6)
+    # A clockwise (negative) sweep must still produce a positive length.
+    assert arc.distance > 0
+
+
+def test_g3_reflex_large_sweep_arc():
+    # (10,0) -> (0,-10) counter-clockwise is the 270-degree long way (through the top).
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G3", "x": "0", "y": "-10", "i": "-10", "j": "0"}])
+    assert arc.distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-6)
+
+
+def test_direction_not_silently_using_ccw_sweep():
+    # Same endpoints and center, opposite directions must give different lengths
+    # that sum to the full circle. The old code returned the CCW sweep for both,
+    # so the G2 value would wrongly equal the G3 (short) value.
+    start = {"type": "G0", "x": "10", "y": "0"}
+    g2 = _arc_seg([start, {"type": "G2", "x": "0", "y": "10", "i": "-10", "j": "0"}])
+    g3 = _arc_seg([start, {"type": "G3", "x": "0", "y": "10", "i": "-10", "j": "0"}])
+    assert g2.distance != pytest.approx(g3.distance, rel=1e-6)
+    assert g2.distance + g3.distance == pytest.approx(2 * math.pi * 10, rel=1e-6)
+    # G2 here is the long way; it must not collapse to the CCW quarter length.
+    assert g2.distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-6)
+
+
+def test_full_circle_arc_preserves_two_pi_sweep():
+    # start == end with an I/J center is a full circle in either direction.
+    g2 = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                   {"type": "G2", "x": "10", "y": "0", "i": "-10", "j": "0"}])
+    g3 = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                   {"type": "G3", "x": "10", "y": "0", "i": "-10", "j": "0"}])
+    assert g2.distance == pytest.approx(2 * math.pi * 10, rel=1e-6)
+    assert g3.distance == pytest.approx(2 * math.pi * 10, rel=1e-6)
+
+
+def test_near_full_circle_is_almost_two_pi_not_tiny():
+    # End one hundredth of a radian short of the start, swept the long way round.
+    ang = -0.01
+    ex, ey = 10 * math.cos(ang), 10 * math.sin(ang)
+    # G3 (CCW) from angle 0 must go nearly all the way around, not a tiny hop.
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G3", "x": str(ex), "y": str(ey), "i": "-10", "j": "0"}])
+    full = 2 * math.pi * 10
+    assert arc.distance == pytest.approx(full - 0.1, rel=1e-3)
+    assert arc.distance < full
+
+
+# --- R-mode arcs (no I/J center) --------------------------------------------
+# (10,0) -> (0,10): chord = sqrt(200); with radius 10 the minor arc is 90 deg.
+
+def test_r_positive_is_minor_arc():
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "10", "r": "10"}])
+    assert arc.distance == pytest.approx(math.pi * 10 / 2, rel=1e-6)
+
+
+def test_r_negative_is_major_arc():
+    # Negative R selects the >180-degree (270-degree here) arc.
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G3", "x": "0", "y": "10", "r": "-10"}])
+    assert arc.distance == pytest.approx(3 * math.pi * 10 / 2, rel=1e-6)
+
+
+def test_r_arc_no_longer_falls_back_to_chord():
+    # The chord here is sqrt(200) ~ 14.14; the real minor arc is ~15.71.
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "10", "r": "10"}])
+    chord = math.hypot(10, 10)
+    assert arc.distance > chord
+    assert arc.distance == pytest.approx(math.pi * 10 / 2, rel=1e-6)
+
+
+def test_arc_without_center_or_radius_falls_back_to_chord():
+    arc = _arc_seg([{"type": "G0", "x": "10", "y": "0"},
+                    {"type": "G2", "x": "0", "y": "10"}])
+    assert arc.distance == pytest.approx(math.hypot(10, 10), rel=1e-9)
+
+
+def test_r_impossible_geometry_falls_back_to_chord():
+    # Endpoints 20 apart but radius only 5: no arc of radius 5 spans a chord of
+    # 20, so the length must be the straight-line chord, not a fabricated arc.
+    arc = _arc_seg([{"type": "G0", "x": "0", "y": "0"},
+                    {"type": "G2", "x": "20", "y": "0", "r": "5"}])
+    assert arc.distance == pytest.approx(20.0, rel=1e-9)
+
+
+def test_r_exact_semicircle_is_pi_r_not_chord():
+    # Chord exactly 2R (=20) is a valid semicircle; must be pi*R, not the chord.
+    arc = _arc_seg([{"type": "G0", "x": "0", "y": "0"},
+                    {"type": "G2", "x": "20", "y": "0", "r": "10"}])
+    assert arc.distance == pytest.approx(math.pi * 10, rel=1e-9)
+
+
+# --- _signed_sweep() direct unit tests --------------------------------------
+
+def test_signed_sweep_g3_ccw_is_positive():
+    # 0 -> +90 deg counter-clockwise is a positive quarter turn.
+    assert _signed_sweep(0.0, math.pi / 2, clockwise=False) == pytest.approx(math.pi / 2)
+
+
+def test_signed_sweep_g2_cw_is_negative_long_way():
+    # 0 -> +90 deg but clockwise is the negative 270-degree long way.
+    assert _signed_sweep(0.0, math.pi / 2, clockwise=True) == pytest.approx(-3 * math.pi / 2)
+
+
+def test_signed_sweep_coincident_is_full_turn_in_direction():
+    # Equal angles: a full circle, signed by direction.
+    assert _signed_sweep(1.0, 1.0, clockwise=False) == pytest.approx(2 * math.pi)
+    assert _signed_sweep(1.0, 1.0, clockwise=True) == pytest.approx(-2 * math.pi)
+
+
+def test_signed_sweep_directions_are_complementary():
+    # For the same endpoints the two directions sum to a full circle.
+    cw = _signed_sweep(0.0, math.pi / 2, clockwise=True)
+    ccw = _signed_sweep(0.0, math.pi / 2, clockwise=False)
+    assert abs(cw) + abs(ccw) == pytest.approx(2 * math.pi)
 
 
 def test_distance_is_populated():
