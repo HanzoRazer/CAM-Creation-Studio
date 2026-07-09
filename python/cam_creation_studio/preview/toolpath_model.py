@@ -34,6 +34,10 @@ _ARC_STEPS = 40
 # float drift past 2*R still count as a semicircle rather than "impossible".
 _ARC_CHORD_TOL = 1e-9
 
+# Intent markers that mark a raw program as a laser/beam ('burn') job when no
+# machine profile is available to say so. Matched only inside comments.
+_BURN_TEXT_MARKERS = ("laser", "beam", "burn")
+
 # Laser/power dialects: on these, a feed move marks material by beam power, so
 # the canonical model classifies it as a burn segment rather than a cut.
 _LASER_MACHINES = {"laser", "laserGrbl"}
@@ -265,13 +269,47 @@ def _normalize_move(item: Any, index: int) -> Optional[dict]:
     return None
 
 
+def _comment_text(line: str) -> str:
+    """The comment portion of a G-code line: after ``;`` and inside ``(...)``."""
+    text = ""
+    if ";" in line:
+        text += " " + line.split(";", 1)[1]
+    open_paren = line.find("(")
+    if open_paren != -1:
+        close = line.find(")", open_paren + 1)
+        text += " " + (line[open_paren + 1:close] if close != -1 else line[open_paren + 1:])
+    return text
+
+
+def infer_burn_mode_from_text(gcode: str) -> bool:
+    """Best-effort guess: is this raw G-code a laser/beam ('burn') job?
+
+    Raw text carries no machine profile, so intent can only be read from the
+    program itself. This looks for ``laser`` / ``beam`` / ``burn`` in **comments**
+    — a distinctive, low-false-positive signal. A bare ``M3``/``M4`` + ``S`` is
+    deliberately NOT treated as laser: that is exactly how a CNC spindle starts,
+    so keying off it would misclassify ordinary router programs. Conservative by
+    design — when unsure it returns ``False`` (cut). It never infers machine
+    readiness, only cut-vs-burn intent for preview classification.
+    """
+    for raw_line in gcode.splitlines():
+        comment = _comment_text(raw_line).lower()
+        if comment and any(marker in comment for marker in _BURN_TEXT_MARKERS):
+            return True
+    return False
+
+
 def _moves_and_laser(parsed_program: Any) -> tuple:
     """Return (iterable_of_moves, laser_flag) for the many accepted input forms."""
-    # Raw text -> parse into a typed program.
+    # Raw text -> parse into a typed program. Raw text has no machine profile, so
+    # fall back to a comment-based burn-intent heuristic when the (default)
+    # machine does not already declare a laser.
     if isinstance(parsed_program, str):
         from ..gcode.parser import parse_program_model
         prog = parse_program_model(parsed_program)
-        return prog.moves, prog.header.machine in _LASER_MACHINES
+        is_laser = (prog.header.machine in _LASER_MACHINES
+                    or infer_burn_mode_from_text(parsed_program))
+        return prog.moves, is_laser
 
     # A typed GCodeProgram (duck-typed: has .moves and a .header.machine).
     moves = getattr(parsed_program, "moves", None)

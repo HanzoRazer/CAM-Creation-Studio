@@ -79,6 +79,25 @@ plain G-code encodes (units, positioning, home, end code) are inferred on parse;
 the machine *dialect* is not encoded in G-code text, so it is left at the model
 default when reading a file back.
 
+## Golden parity fixtures
+
+The round-trip guarantee protects *move* fidelity, but not the exact formatting
+of a full program — line ordering, header/footer wording, comments, and spacing.
+Golden fixtures lock that. Canonical programs (a CNC square, a Marlin square, and
+a laser/etch job) are frozen byte-for-byte under
+[`tests/fixtures/golden/`](../../python/tests/fixtures/golden/) and compared
+against fresh generator output by
+[`tests/test_golden_parity.py`](../../python/tests/test_golden_parity.py).
+
+Only line endings are normalized (`\r\n → \n`); whitespace is compared exactly.
+Their purpose is to make **silent formatting drift a failing test**: a generator
+refactor that changes output must update the fixtures deliberately, which forces
+the change to be seen and justified in review. Regenerate intentionally with:
+
+```bash
+python tests/test_golden_parity.py --write
+```
+
 ## What the pipeline is not
 
 Generated output is an **educational starting point**, not a certified
