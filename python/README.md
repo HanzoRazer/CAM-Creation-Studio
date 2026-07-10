@@ -53,6 +53,47 @@ warnings = validate_program(program, machine="genericCnc")  # advisory only
 feeds = calculate_feeds(tool_diameter_mm=6.0, flutes=2, spindle_rpm=12000, material="mdf")
 ```
 
+## Command-line interface
+
+The `camstudio` CLI exposes the core as a scriptable app. It is a thin
+presentation layer — argument parsing, formatting, and exit codes only — and
+never duplicates business logic.
+
+```bash
+cd python
+pip install -e .          # provides the `camstudio` command
+camstudio --help
+```
+
+Commands (every command takes `--json` for machine-readable output; human text
+is the default):
+
+```bash
+# Generate G-code from a {config, job} JSON job (file or stdin).
+camstudio generate ../examples/cnc-pocket-demo.json -o out.gcode
+camstudio generate ../examples/cnc-pocket-demo.json --machine marlin   # override config
+cat job.json | camstudio generate -
+
+# Validate (advisory). Exit 1 if any warning/danger diagnostic is present.
+camstudio validate out.gcode --machine genericCnc
+camstudio validate out.gcode --json
+
+# Parse: move counts, inferred header, bounds, travel distance.
+camstudio parse out.gcode --json
+
+# Preview: toolpath summary (counts + distances per motion type; no rendering).
+camstudio preview out.gcode
+
+# Feeds & speeds (ADVISORY — verify before cutting).
+camstudio feeds -d 6 -n 2 -r 18000 --material aluminum --woc 1.5 --doc 6
+camstudio feeds -d 6 -n 2 -r 18000 --chipload 0.05 --json
+
+camstudio version
+```
+
+Exit codes: `0` success · `1` validation failure · `2` bad arguments/input ·
+`3` file error.
+
 ## Design rules
 
 - **DOM-free, dependency-free core.** Standard library only; image input is a
