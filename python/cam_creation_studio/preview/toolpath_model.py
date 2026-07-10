@@ -17,6 +17,7 @@ material, or collisions.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from typing import Any, List, Mapping, Optional, Sequence
 
@@ -35,8 +36,13 @@ _ARC_STEPS = 40
 _ARC_CHORD_TOL = 1e-9
 
 # Intent markers that mark a raw program as a laser/beam ('burn') job when no
-# machine profile is available to say so. Matched only inside comments.
+# machine profile is available to say so. Matched as **whole words** inside
+# comments only: a substring match would misfire on ordinary machining terms
+# that merely contain a marker — 'burnish' (a finishing op), a structural 'beam'
+# in a part name, 'laserjet' — and wrongly call a router job a laser burn.
 _BURN_TEXT_MARKERS = ("laser", "beam", "burn")
+_BURN_TEXT_PATTERN = re.compile(
+    r"\b(?:" + "|".join(_BURN_TEXT_MARKERS) + r")\b", re.IGNORECASE)
 
 # Laser/power dialects: on these, a feed move marks material by beam power, so
 # the canonical model classifies it as a burn segment rather than a cut.
@@ -285,16 +291,19 @@ def infer_burn_mode_from_text(gcode: str) -> bool:
     """Best-effort guess: is this raw G-code a laser/beam ('burn') job?
 
     Raw text carries no machine profile, so intent can only be read from the
-    program itself. This looks for ``laser`` / ``beam`` / ``burn`` in **comments**
-    — a distinctive, low-false-positive signal. A bare ``M3``/``M4`` + ``S`` is
-    deliberately NOT treated as laser: that is exactly how a CNC spindle starts,
-    so keying off it would misclassify ordinary router programs. Conservative by
-    design — when unsure it returns ``False`` (cut). It never infers machine
-    readiness, only cut-vs-burn intent for preview classification.
+    program itself. This looks for the whole words ``laser`` / ``beam`` / ``burn``
+    in **comments** — a distinctive, low-false-positive signal. Whole-word
+    matching keeps ordinary machining terms that merely contain a marker
+    (``burnish``, a structural ``beam`` in a part name, ``laserjet``) from
+    misfiring. A bare ``M3``/``M4`` + ``S`` is deliberately NOT treated as laser:
+    that is exactly how a CNC spindle starts, so keying off it would misclassify
+    ordinary router programs. Conservative by design — when unsure it returns
+    ``False`` (cut). It never infers machine readiness, only cut-vs-burn intent
+    for preview classification.
     """
     for raw_line in gcode.splitlines():
-        comment = _comment_text(raw_line).lower()
-        if comment and any(marker in comment for marker in _BURN_TEXT_MARKERS):
+        comment = _comment_text(raw_line)
+        if comment and _BURN_TEXT_PATTERN.search(comment):
             return True
     return False
 
