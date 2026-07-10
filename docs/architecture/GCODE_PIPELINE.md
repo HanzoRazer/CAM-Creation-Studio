@@ -98,6 +98,27 @@ the change to be seen and justified in review. Regenerate intentionally with:
 python tests/test_golden_parity.py --write
 ```
 
+## Cut-vs-burn classification in preview
+
+`build_toolpath_model` labels each feed move `cut` or `burn`. The signal it uses
+depends on how much context the input carries:
+
+* **Explicit context wins.** A `laser=True/False` kwarg, or a typed
+  `GCodeProgram` whose `header.machine` is a laser dialect, decides directly.
+* **Raw text has no machine profile.** Parsed-back text always lands on the
+  `genericCnc` default (dialect is not encoded in G-code — see *Round-trip
+  guarantee* above), so before any heuristic it would classify every feed move as
+  `cut`. To recover burn intent, `infer_burn_mode_from_text` scans **comments**
+  for the whole words `laser` / `beam` / `burn`. Whole-word matching is
+  deliberate: a substring match would misread ordinary machining terms
+  (`burnish`, a structural `beam`, `laserjet`) as a burn.
+* **Conservative by default.** No marker → `cut`. A bare `M3`/`M4` + `S` is *not*
+  treated as laser — that is exactly how a CNC spindle starts.
+
+This only affects **preview classification**; it never infers machine readiness
+and never changes generated output. Contract and cases live in
+[`tests/test_laser_classification.py`](../../python/tests/test_laser_classification.py).
+
 ## What the pipeline is not
 
 Generated output is an **educational starting point**, not a certified
