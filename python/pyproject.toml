@@ -16,6 +16,7 @@ camstudio = "cam_creation_studio.cli.main:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "pytest-cov>=4"]
+dxf = ["ezdxf>=1.4,<2"]
 
 [tool.setuptools.packages.find]
 where = ["."]

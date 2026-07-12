@@ -15,6 +15,7 @@ cam_creation_studio/
   shared/        numbers, units
   gcode/         formatter, dialects, generator, parser, validator
   feeds_speeds/  calculator, materials, tools, machines (advisory)
+  geometry/      DXF import -> neutral 2D geometry model (optional: ezdxf)
   preview/       toolpath_model (neutral travel/cut/burn segments)
   image/         field, marching_squares, raster_etch, outline_etch
   safety/        rules (standing safety reminders + checklist)
@@ -52,6 +53,33 @@ program = build_program(cfg, job)
 warnings = validate_program(program, machine="genericCnc")  # advisory only
 feeds = calculate_feeds(tool_diameter_mm=6.0, flutes=2, spindle_rpm=12000, material="mdf")
 ```
+
+## DXF import (optional `dxf` extra)
+
+Import 2D DXF geometry into a neutral, machine-independent model — *what geometry
+exists*, never how it will be machined. This is the one place a third-party
+dependency is used, and it stays **optional**: the core still installs with zero
+required runtime deps.
+
+```bash
+pip install -e .[dxf]      # pulls in ezdxf (>=1.4,<2)
+```
+
+```python
+from cam_creation_studio.geometry import import_dxf, summarize
+
+collection = import_dxf("part.dxf")   # -> GeometryCollection (coords in mm)
+print(summarize(collection))          # counts, bounds, layers
+for d in collection.diagnostics:      # advisory: nothing discarded silently
+    print(d.severity.value, d.code, d.message)
+
+text = collection.to_json()                        # serialize (source order kept)
+restored = collection.__class__.from_json(text)    # kind-dispatched round-trip
+```
+
+Calling `import_dxf` without `ezdxf` installed raises `EzdxfNotInstalled` with an
+install hint. See [../docs/GEOMETRY_IMPORT.md](../docs/GEOMETRY_IMPORT.md) for the
+full architecture and public API.
 
 ## Command-line interface
 
@@ -100,8 +128,10 @@ Exit codes: `0` success · `1` validation failure · `2` bad arguments/input ·
 
 ## Design rules
 
-- **DOM-free, dependency-free core.** Standard library only; image input is a
-  neutral `DarknessField`, not a specific image library.
+- **DOM-free, dependency-free core.** Standard library only for the core; the DXF
+  importer is the sole optional dependency (`ezdxf`, behind the `dxf` extra) and
+  is never required to import or test the package. Image input is a neutral
+  `DarknessField`, not a specific image library.
 - **Advisory, not authoritative.** Feeds/speeds and dialects are starting points;
   the validator warns but never blocks.
 - **No CAM Assist dependency.** See [../docs/future-cam-assist-relationship.md](../docs/future-cam-assist-relationship.md).

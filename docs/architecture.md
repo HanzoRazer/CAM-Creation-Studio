@@ -32,6 +32,7 @@ Python architecture. New feature work targets the Python core.
 - `shared/` — numbers, units (pure helpers)
 - `gcode/` — `formatter`, `dialects`, `generator`, `parser`, `validator`
 - `feeds_speeds/` — `calculator` + `materials` / `tools` / `machines` presets (advisory)
+- `geometry/` — DXF import → neutral 2D geometry model (`import_dxf` → `GeometryCollection`); geometry only, no machining. Uses the optional `ezdxf` dependency behind the `dxf` extra. See [GEOMETRY_IMPORT.md](GEOMETRY_IMPORT.md)
 - `preview/` — `toolpath_model` (neutral travel/cut/burn segments; a model, not a simulation)
 - `image/` — `field`, `marching_squares`, `raster_etch`, `outline_etch`
 - `safety/` — `rules` (standing reminders + machine-tailored checklist)
