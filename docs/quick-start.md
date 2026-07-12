@@ -45,6 +45,33 @@ npm run preview  # serve the built bundle
 > Remember: the preview is not a simulation, and the output is a starting point.
 > See [safety-disclaimer.md](safety-disclaimer.md).
 
+## Command-line interface (Python core)
+
+Prefer the terminal or scripting? The Python core ships a `camstudio` CLI that
+generates, parses, validates, and inspects G-code, and computes advisory
+feeds/speeds. It calls the same core the app does — no separate logic.
+
+```bash
+cd python
+pip install -e .          # provides the `camstudio` command
+camstudio --help
+
+# Generate G-code from a {config, job} JSON job, then inspect it.
+camstudio generate ../examples/cnc-pocket-demo.json -o square.gcode
+camstudio validate square.gcode --machine genericCnc     # advisory
+camstudio parse square.gcode --json
+camstudio preview square.gcode
+
+# Advisory feeds & speeds (a starting point — verify before cutting).
+camstudio feeds -d 6 -n 2 -r 18000 --material aluminum --woc 1.5 --doc 6
+```
+
+Add `--json` to any command for machine-readable output. Exit codes: `0` success,
+`1` validation failure, `2` bad arguments, `3` file error, `70` internal error.
+`validate` fails on any warning by default; use `--fail-on danger` (or `never`)
+to relax that in scripts. Full command reference in
+[python/README.md](../python/README.md#command-line-interface).
+
 ## Learn the language
 
 New to G-code? Start with [gcode-basics.md](gcode-basics.md).

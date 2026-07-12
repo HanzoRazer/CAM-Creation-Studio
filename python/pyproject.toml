@@ -11,8 +11,11 @@ requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = []
 
+[project.scripts]
+camstudio = "cam_creation_studio.cli.main:main"
+
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "pytest-cov>=4"]
 dxf = ["ezdxf>=1.4,<2"]
 
 [tool.setuptools.packages.find]
