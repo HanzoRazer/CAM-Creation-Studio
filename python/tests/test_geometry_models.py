@@ -179,6 +179,10 @@ def test_unsupported_entity_returns_none_with_diagnostic():
     (4, "mm", 1.0),
     (5, "cm", 10.0),
     (6, "m", 1000.0),
+    # Correctness-critical codes that are easy to confuse:
+    (8, "microinch", 25.4e-6),   # NOT micron
+    (9, "mil", 0.0254),          # 0.001 inch, NOT a mm variant
+    (13, "micron", 0.001),       # micron is code 13, not 8
 ])
 def test_dxf_unit_table(code, name, scale):
     assert dxf_units_name(code) == name
@@ -188,6 +192,53 @@ def test_dxf_unit_table(code, name, scale):
 def test_unknown_dxf_units_are_none():
     assert dxf_scale_to_mm(999) is None
     assert dxf_units_name(None) is None
+
+
+# --------------------------------------------------------------------------- #
+# Near-degenerate geometry: tolerance, not exact == 0
+# --------------------------------------------------------------------------- #
+def test_near_zero_length_line_still_warns():
+    # Sub-nanometre length (float noise, not an exact 0) must still be flagged.
+    entity, diags = translate(_line(0, 0, 1e-12, 0), scale=1.0)
+    assert isinstance(entity, Line2D)
+    assert diag.ZERO_LENGTH_LINE in [d.code for d in diags]
+
+
+def test_near_zero_radius_circle_still_warns():
+    ent = FakeEntity("CIRCLE", dxf={"center": Point(0, 0), "radius": 1e-12,
+                                    "layer": "0", "handle": "7"})
+    _, diags = translate(ent, scale=1.0)
+    assert diag.ZERO_RADIUS in [d.code for d in diags]
+
+
+# --------------------------------------------------------------------------- #
+# Polyline bulges are flattened but never silent
+# --------------------------------------------------------------------------- #
+def test_lwpolyline_bulge_is_flagged_not_silent():
+    ent = FakeEntity("LWPOLYLINE", dxf={"layer": "0", "handle": "8"},
+                     closed=False,
+                     get_points=lambda fmt: [(0, 0, 0.5), (10, 0, 0.0)])
+    entity, diags = translate(ent, scale=1.0)
+    assert isinstance(entity, Polyline2D)                 # geometry still kept
+    assert [p.x for p in entity.vertices] == [0.0, 10.0]  # vertices preserved
+    assert diag.POLYLINE_BULGE_IGNORED in [d.code for d in diags]
+
+
+def test_lwpolyline_without_bulge_has_no_bulge_diag():
+    ent = FakeEntity("LWPOLYLINE", dxf={"layer": "0", "handle": "8b"},
+                     closed=False,
+                     get_points=lambda fmt: [(0, 0, 0.0), (10, 0, 0.0)])
+    _, diags = translate(ent, scale=1.0)
+    assert diag.POLYLINE_BULGE_IGNORED not in [d.code for d in diags]
+
+
+def test_old_style_polyline_bulge_is_flagged():
+    verts = [FakeEntity("VERTEX", dxf={"location": Point(0, 0), "bulge": 0.4}),
+             FakeEntity("VERTEX", dxf={"location": Point(5, 0), "bulge": 0.0})]
+    ent = FakeEntity("POLYLINE", dxf={"layer": "0", "handle": "8c"},
+                     is_closed=False, vertices=verts)
+    _, diags = translate(ent, scale=1.0)
+    assert diag.POLYLINE_BULGE_IGNORED in [d.code for d in diags]
 
 
 # --------------------------------------------------------------------------- #

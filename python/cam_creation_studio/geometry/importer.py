@@ -92,6 +92,7 @@ def import_dxf(path: str) -> GeometryCollection:
     entities = []
     seen_handles: set = set()
     raw_count = 0
+    unsupported_count = 0
 
     for entity in msp:
         raw_count += 1
@@ -109,6 +110,9 @@ def import_dxf(path: str) -> GeometryCollection:
         diagnostics.extend(ediags)
         if model is not None:
             entities.append(model)
+        else:
+            # translate() returns None only for unsupported entity types.
+            unsupported_count += 1
 
     if raw_count == 0:
         diagnostics.append(diag.info(
@@ -120,6 +124,8 @@ def import_dxf(path: str) -> GeometryCollection:
         unit_scale=float(scale),
         dxf_version=_dxf_version(doc),
         entity_count=len(entities),
+        raw_entity_count=raw_count,
+        unsupported_entity_count=unsupported_count,
     )
     return GeometryCollection(
         entities=entities, metadata=metadata, diagnostics=diagnostics)

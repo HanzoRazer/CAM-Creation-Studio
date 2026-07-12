@@ -45,13 +45,35 @@ DXF `LINE`, `ARC`, `CIRCLE`, `LWPOLYLINE`, `POLYLINE`, and `SPLINE` are supporte
 Any other entity type produces an `UNSUPPORTED_ENTITY` diagnostic and is **not**
 represented as geometry — but it is never dropped silently.
 
+### What is *not* preserved yet (fidelity limits)
+
+A **successful import is not a guarantee of full geometric fidelity.** These are
+surfaced as diagnostics (or an unsupported-entity drop), never silent — but a
+consumer that needs faithful geometry must check them:
+
+| Source construct | Behavior | Signal |
+|------------------|----------|--------|
+| Polyline **bulges** (arc segments) | Flattened to straight chords; vertices kept | `POLYLINE_BULGE_IGNORED` |
+| **SPLINE** knot vectors, weights, fit points | Dropped; only control points + degree kept | (documented; hull-bounded) |
+| **ELLIPSE**, **TEXT**, **MTEXT**, **HATCH**, **DIMENSION** | Not represented | `UNSUPPORTED_ENTITY` |
+| **INSERT** / block references | Not expanded; block contents do not appear | `UNSUPPORTED_ENTITY` |
+| 3D solids / meshes / Z-depth beyond point Z | Not represented | `UNSUPPORTED_ENTITY` |
+
+To detect an incomplete import at a glance, read
+`collection.metadata.has_lossy_import` (True when any entity was dropped), or the
+`raw_entity_count` / `unsupported_entity_count` / `entity_count` fields for the
+exact breakdown.
+
 ## Design guarantees
 
 - **Neutral geometry.** ezdxf entities never leak outside the importer; only
   internal dataclasses cross the boundary.
-- **Millimetres internally.** `$INSUNITS` is read and applied as a scale factor;
-  the *original* unit name is preserved in `ImportMetadata.source_units`. Absent
-  or unitless drawings raise `UNKNOWN_UNITS` and assume a 1:1 mm scale.
+- **Millimetres internally.** `$INSUNITS` is read and applied as a scale factor
+  per the AutoCAD unit enumeration (including inch/mil/microinch/micron, which are
+  easy to confuse); the *original* unit name is preserved in
+  `ImportMetadata.source_units`. Absent, unitless, or unrecognized codes raise
+  `UNKNOWN_UNITS` and assume a 1:1 mm scale — so an unmapped unit is flagged, not
+  silently mis-scaled.
 - **Immutable & read-only.** Imported geometry is frozen; future operations
   derive new geometry rather than mutating imports.
 - **Advisory import.** No entity is silently discarded. Zero-length lines, zero
@@ -65,7 +87,9 @@ represented as geometry — but it is never dropped silently.
 
 Stable codes in `geometry/diagnostics.py`: `UNSUPPORTED_ENTITY`, `MISSING_LAYER`,
 `ZERO_LENGTH_LINE`, `ZERO_RADIUS`, `INVALID_SPLINE`, `UNKNOWN_UNITS`,
-`EMPTY_FILE`, `DUPLICATE_HANDLE`, `DEGENERATE_POLYLINE`.
+`EMPTY_FILE`, `DUPLICATE_HANDLE`, `DEGENERATE_POLYLINE`, `POLYLINE_BULGE_IGNORED`.
+Degeneracy checks (zero length/radius, bulge) use a small tolerance, so float
+noise from CAD exports is caught rather than slipping past an exact `== 0`.
 
 ## Serialization
 

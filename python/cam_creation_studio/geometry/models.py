@@ -130,13 +130,27 @@ _KIND_TO_CLASS = {
 
 @dataclass(frozen=True, slots=True)
 class ImportMetadata:
-    """Provenance for an imported collection. Source evidence, not interpretation."""
+    """Provenance for an imported collection. Source evidence, not interpretation.
+
+    ``entity_count`` is the number of entities *preserved as geometry* — not the
+    number in the file. ``raw_entity_count`` is what the modelspace actually held,
+    and ``unsupported_entity_count`` is how many were dropped as unsupported. Use
+    :attr:`has_lossy_import` to tell at a glance whether a "successful" import
+    silently omitted geometry, rather than having to scan the diagnostics.
+    """
 
     source_path: str
     source_units: str          # original unit name ("in", "mm", "unknown", ...)
     unit_scale: float          # factor applied to reach millimetres
     dxf_version: Optional[str] = None
-    entity_count: int = 0
+    entity_count: int = 0                # entities preserved as geometry
+    raw_entity_count: int = 0            # entities present in the DXF modelspace
+    unsupported_entity_count: int = 0    # entities dropped as unsupported
+
+    @property
+    def has_lossy_import(self) -> bool:
+        """True when one or more source entities produced no geometry at all."""
+        return self.unsupported_entity_count > 0
 
 
 @dataclass(frozen=True, slots=True)

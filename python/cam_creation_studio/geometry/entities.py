@@ -7,8 +7,14 @@ ezdxf entities expose — so it stays importable in a dep-free environment.
 
 Coordinates are normalized to millimetres here by applying the importer-supplied
 ``scale``. Per-entity issues (zero-length line, zero radius, degenerate polyline,
-invalid spline) become advisory diagnostics; the geometry is still kept, so no
-entity is ever lost silently.
+invalid spline, flattened bulge) become advisory diagnostics; the geometry is
+still kept, so no entity is ever lost silently.
+
+Fidelity limits (surfaced as diagnostics, never silent): polyline *bulges* are
+flattened to chords (:data:`~geometry.diagnostics.POLYLINE_BULGE_IGNORED`);
+splines keep only control points + degree (knot vectors, weights, and fit points
+are dropped); ELLIPSE, TEXT, HATCH, DIMENSION, and INSERT/block references are
+unsupported (:data:`~geometry.diagnostics.UNSUPPORTED_ENTITY`).
 """
 
 from __future__ import annotations
@@ -26,6 +32,16 @@ TranslationResult = Tuple[Optional[Entity], List[GeometryDiagnostic]]
 SUPPORTED_TYPES = frozenset(
     {"LINE", "ARC", "CIRCLE", "LWPOLYLINE", "POLYLINE", "SPLINE"}
 )
+
+# Degeneracy tolerance (millimetres, applied post-scale). Small enough that no
+# real feature trips it, large enough to catch float noise from CAD exports that
+# an exact ``== 0`` comparison would miss.
+_DEGENERATE_EPS_MM = 1e-9
+
+
+def _has_bulge(bulges) -> bool:
+    """True if any bulge value is non-negligible (an arc, not a straight chord)."""
+    return any(abs(float(b)) > _DEGENERATE_EPS_MM for b in bulges)
 
 
 def _pt(vec, scale: float) -> Point:
@@ -68,7 +84,7 @@ def translate(entity, scale: float) -> TranslationResult:
         start = _pt(entity.dxf.start, scale)
         end = _pt(entity.dxf.end, scale)
         diags: List[GeometryDiagnostic] = []
-        if start == end:
+        if start.distance_to(end) <= _DEGENERATE_EPS_MM:
             diags.append(diag.warning(
                 diag.ZERO_LENGTH_LINE, "Line has zero length.", **loc))
         return Line2D(start=start, end=end, layer=layer), diags
@@ -77,7 +93,7 @@ def translate(entity, scale: float) -> TranslationResult:
         center = _pt(entity.dxf.center, scale)
         radius = float(entity.dxf.radius) * scale
         diags = []
-        if radius == 0.0:
+        if abs(radius) <= _DEGENERATE_EPS_MM:
             diags.append(diag.warning(
                 diag.ZERO_RADIUS, "Arc has zero radius.", **loc))
         return (
@@ -95,27 +111,42 @@ def translate(entity, scale: float) -> TranslationResult:
         center = _pt(entity.dxf.center, scale)
         radius = float(entity.dxf.radius) * scale
         diags = []
-        if radius == 0.0:
+        if abs(radius) <= _DEGENERATE_EPS_MM:
             diags.append(diag.warning(
                 diag.ZERO_RADIUS, "Circle has zero radius.", **loc))
         return Circle2D(center=center, radius=radius, layer=layer), diags
 
     if dxftype == "LWPOLYLINE":
-        verts = [Point(x * scale, y * scale) for x, y in entity.get_points("xy")]
+        # "xyb" yields (x, y, bulge); a non-zero bulge is an arc we flatten to a
+        # chord, so record it rather than change the shape silently.
+        pts = list(entity.get_points("xyb"))
+        verts = [Point(p[0] * scale, p[1] * scale) for p in pts]
+        bulges = [p[2] for p in pts if len(p) > 2]
         diags = []
         if len(verts) < 2:
             diags.append(diag.warning(
                 diag.DEGENERATE_POLYLINE,
                 f"Polyline has {len(verts)} vertex/vertices.", **loc))
+        if _has_bulge(bulges):
+            diags.append(diag.warning(
+                diag.POLYLINE_BULGE_IGNORED,
+                "Polyline has bulge (arc) segments; flattened to straight chords.",
+                **loc))
         return Polyline2D(vertices=verts, closed=bool(entity.closed), layer=layer), diags
 
     if dxftype == "POLYLINE":
         verts = [_pt(v.dxf.location, scale) for v in entity.vertices]
+        bulges = [getattr(v.dxf, "bulge", 0.0) for v in entity.vertices]
         diags = []
         if len(verts) < 2:
             diags.append(diag.warning(
                 diag.DEGENERATE_POLYLINE,
                 f"Polyline has {len(verts)} vertex/vertices.", **loc))
+        if _has_bulge(bulges):
+            diags.append(diag.warning(
+                diag.POLYLINE_BULGE_IGNORED,
+                "Polyline has bulge (arc) segments; flattened to straight chords.",
+                **loc))
         return (
             Polyline2D(vertices=verts, closed=bool(entity.is_closed), layer=layer),
             diags,

@@ -51,17 +51,27 @@ def units_code(units: str) -> str:
 # the original unit *name* as import metadata. The table below maps the codes we
 # recognize to (human name, scale-to-mm). Codes outside the table are treated as
 # unknown by the importer, which records a diagnostic and assumes a 1.0 scale.
+#
+# Codes follow the AutoCAD DXF ``$INSUNITS`` enumeration exactly — getting them
+# wrong silently rescales the whole drawing. In particular code 8 is *microinches*
+# (not microns, which is code 13) and code 9 is *mils* = 0.001 inch (not a
+# millimetre variant). A drawing authored in mils imported at 1:1 mm would be off
+# by ~39x, so these are correctness-critical, not cosmetic.
 # --------------------------------------------------------------------------- #
 DXF_INSUNITS: dict[int, tuple[str, float]] = {
     0: ("unitless", 1.0),
     1: ("in", MM_PER_INCH),
     2: ("ft", MM_PER_INCH * 12.0),
+    3: ("mi", MM_PER_INCH * 63360.0),
     4: ("mm", 1.0),
     5: ("cm", 10.0),
     6: ("m", 1000.0),
-    8: ("micron", 0.001),
-    9: ("mm", 1.0),          # $INSUNITS 9 == decimillimeters historically; treat as mm-family
+    7: ("km", 1_000_000.0),
+    8: ("microinch", MM_PER_INCH * 1e-6),
+    9: ("mil", MM_PER_INCH * 1e-3),          # mil = 0.001 inch
     10: ("yd", MM_PER_INCH * 36.0),
+    13: ("micron", 0.001),
+    14: ("dm", 100.0),
 }
 
 

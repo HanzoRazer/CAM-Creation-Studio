@@ -28,6 +28,9 @@ UNKNOWN_UNITS = "UNKNOWN_UNITS"
 EMPTY_FILE = "EMPTY_FILE"
 DUPLICATE_HANDLE = "DUPLICATE_HANDLE"
 DEGENERATE_POLYLINE = "DEGENERATE_POLYLINE"
+# A polyline segment carried a non-zero bulge (an arc). We keep the vertices but
+# flatten the arc to a chord, so the shape changes — surfaced, never silent.
+POLYLINE_BULGE_IGNORED = "POLYLINE_BULGE_IGNORED"
 
 CANONICAL_CODES = (
     UNSUPPORTED_ENTITY,
@@ -39,6 +42,7 @@ CANONICAL_CODES = (
     EMPTY_FILE,
     DUPLICATE_HANDLE,
     DEGENERATE_POLYLINE,
+    POLYLINE_BULGE_IGNORED,
 )
 
 

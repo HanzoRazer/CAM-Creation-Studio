@@ -188,6 +188,37 @@ def test_unsupported_entity_is_reported_not_dropped_silently(tmp_path):
     col = import_dxf(_save(doc, tmp_path))
     assert len(col.entities) == 1                 # only the line survives as geometry
     assert diag.UNSUPPORTED_ENTITY in _codes(col)  # but TEXT is not silent
+    # Metadata makes the lossy import detectable without scanning diagnostics.
+    assert col.metadata.raw_entity_count == 2
+    assert col.metadata.entity_count == 1
+    assert col.metadata.unsupported_entity_count == 1
+    assert col.metadata.has_lossy_import is True
+
+
+def test_clean_import_is_not_flagged_lossy(tmp_path):
+    col = import_dxf(_save(_mixed_doc(), tmp_path))
+    assert col.metadata.has_lossy_import is False
+    assert col.metadata.unsupported_entity_count == 0
+    assert col.metadata.raw_entity_count == col.metadata.entity_count
+
+
+def test_lwpolyline_bulge_is_reported(tmp_path):
+    doc = ezdxf.new()
+    doc.header["$INSUNITS"] = 4
+    # First vertex carries a bulge (an arc segment) -> flattened, but flagged.
+    doc.modelspace().add_lwpolyline([(0, 0, 0.5), (10, 0, 0.0)], format="xyb")
+    col = import_dxf(_save(doc, tmp_path))
+    assert diag.POLYLINE_BULGE_IGNORED in _codes(col)
+    assert isinstance(col.entities[0], Polyline2D)  # geometry still present
+
+
+def test_mils_drawing_scales_by_0_0254(tmp_path):
+    doc = ezdxf.new()
+    doc.header["$INSUNITS"] = 9  # mils = 0.001 inch
+    doc.modelspace().add_line((0, 0), (1000, 0))  # 1000 mil = 1 inch = 25.4 mm
+    col = import_dxf(_save(doc, tmp_path))
+    assert col.metadata.source_units == "mil"
+    assert col.entities[0].end.x == pytest.approx(25.4)
 
 
 def test_missing_file_raises(tmp_path):
