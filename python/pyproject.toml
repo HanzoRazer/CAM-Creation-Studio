@@ -13,6 +13,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
+dxf = ["ezdxf>=1.4,<2"]
 
 [tool.setuptools.packages.find]
 where = ["."]

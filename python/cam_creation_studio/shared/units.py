@@ -41,3 +41,45 @@ def format_unit_value(value: Any, units: str, decimals: Optional[int] = None) ->
 def units_code(units: str) -> str:
     """The G-code word that declares these units: G21 (mm) or G20 (inch)."""
     return "G20" if units == "in" else "G21"
+
+
+# --------------------------------------------------------------------------- #
+# DXF unit normalization (CS-008)
+#
+# A DXF header carries ``$INSUNITS``, an integer enumerating the drawing's
+# insertion units. We normalize all imported geometry to millimetres and keep
+# the original unit *name* as import metadata. The table below maps the codes we
+# recognize to (human name, scale-to-mm). Codes outside the table are treated as
+# unknown by the importer, which records a diagnostic and assumes a 1.0 scale.
+# --------------------------------------------------------------------------- #
+DXF_INSUNITS: dict[int, tuple[str, float]] = {
+    0: ("unitless", 1.0),
+    1: ("in", MM_PER_INCH),
+    2: ("ft", MM_PER_INCH * 12.0),
+    4: ("mm", 1.0),
+    5: ("cm", 10.0),
+    6: ("m", 1000.0),
+    8: ("micron", 0.001),
+    9: ("mm", 1.0),          # $INSUNITS 9 == decimillimeters historically; treat as mm-family
+    10: ("yd", MM_PER_INCH * 36.0),
+}
+
+
+def dxf_units_name(insunits: Optional[int]) -> Optional[str]:
+    """Human unit name for a DXF ``$INSUNITS`` code, or ``None`` if unrecognized."""
+    if insunits is None:
+        return None
+    entry = DXF_INSUNITS.get(int(insunits))
+    return entry[0] if entry else None
+
+
+def dxf_scale_to_mm(insunits: Optional[int]) -> Optional[float]:
+    """Scale factor to convert DXF ``$INSUNITS`` lengths to millimetres.
+
+    Returns ``None`` for an unknown/absent code so the caller can raise a
+    diagnostic and fall back to a 1.0 (identity) scale explicitly.
+    """
+    if insunits is None:
+        return None
+    entry = DXF_INSUNITS.get(int(insunits))
+    return entry[1] if entry else None
