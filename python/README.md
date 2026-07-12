@@ -73,9 +73,13 @@ is the default):
 camstudio generate ../examples/cnc-pocket-demo.json -o out.gcode
 camstudio generate ../examples/cnc-pocket-demo.json --machine marlin   # override config
 cat job.json | camstudio generate -
+# Note: adding --json writes a JSON envelope ({"gcode": "..."}), not raw
+# G-code — don't combine it with -o unless you want the JSON on disk.
 
-# Validate (advisory). Exit 1 if any warning/danger diagnostic is present.
+# Validate (advisory). Default exit 1 if any warning/danger diagnostic is present;
+# relax with --fail-on danger (ignore warnings) or --fail-on never (always exit 0).
 camstudio validate out.gcode --machine genericCnc
+camstudio validate out.gcode --fail-on danger
 camstudio validate out.gcode --json
 
 # Parse: move counts, inferred header, bounds, travel distance.
@@ -92,7 +96,7 @@ camstudio version
 ```
 
 Exit codes: `0` success · `1` validation failure · `2` bad arguments/input ·
-`3` file error.
+`3` file error · `70` internal error (an unexpected bug — please report it).
 
 ## Design rules
 

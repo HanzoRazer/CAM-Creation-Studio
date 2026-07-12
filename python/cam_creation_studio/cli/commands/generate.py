@@ -10,6 +10,7 @@ writes.
 from __future__ import annotations
 
 import argparse
+import sys
 
 from ...gcode.generator import build_program
 from ..common import add_json_flag, read_json, write_text
@@ -63,6 +64,16 @@ def run(args: argparse.Namespace) -> int:
         gcode = build_program(config, job)
     except (KeyError, TypeError, ValueError) as exc:
         raise UsageError(f"could not generate G-code: {exc}") from exc
+
+    if args.json and args.output:
+        # The file will hold a JSON envelope, not raw G-code — easy to miss when
+        # the path looks machine-ready (e.g. -o part.gcode). Say so on stderr;
+        # stdout/exit code are unaffected so scripts that mean it are fine.
+        print(
+            f"note: --json writes a JSON envelope to {args.output}, not raw "
+            "G-code; drop --json for a runnable program.",
+            file=sys.stderr,
+        )
 
     payload = dump_json({"gcode": gcode}) if args.json else gcode
     write_text(payload, args.output)

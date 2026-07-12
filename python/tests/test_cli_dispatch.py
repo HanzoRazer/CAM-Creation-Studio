@@ -35,6 +35,22 @@ def test_version_command_json(capsys):
     assert payload["version"]
 
 
+def test_version_fallback_is_marked_when_uninstalled(monkeypatch):
+    # When distribution metadata is missing (a bare source tree), the version
+    # is a clearly non-authoritative marker, not a real-looking release number.
+    import importlib.metadata as md
+
+    from cam_creation_studio.cli.commands import version as version_cmd
+
+    def _not_found(_dist):
+        raise md.PackageNotFoundError
+
+    monkeypatch.setattr(md, "version", _not_found)
+    v = version_cmd.get_version()
+    assert v == version_cmd._FALLBACK
+    assert "+source" in v  # obviously not an installed release
+
+
 def test_no_command_is_usage_error(capsys):
     with pytest.raises(SystemExit) as exc:
         main([])

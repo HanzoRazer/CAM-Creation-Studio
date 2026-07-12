@@ -58,6 +58,15 @@ def test_machine_override_changes_dialect(tmp_path, capsys):
     assert marlin_out != default_out
 
 
+def test_generate_json_to_file_warns_on_stderr(tmp_path, capsys):
+    out_path = tmp_path / "part.gcode"
+    assert main(["generate", _write_job(tmp_path), "--json", "-o", str(out_path)]) == 0
+    captured = capsys.readouterr()
+    # The file holds the JSON envelope; the user is warned it isn't raw G-code.
+    assert json.loads(out_path.read_text(encoding="utf-8"))["gcode"]
+    assert "note:" in captured.err and "not raw" in captured.err
+
+
 def test_generate_missing_job_key_is_usage_error(tmp_path, capsys):
     bad = _write_job(tmp_path, {"config": {}})
     assert main(["generate", bad]) == 2

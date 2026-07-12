@@ -22,12 +22,15 @@ from .preview import summarize_segments
 def _bounds_dict(bounds) -> Optional[Dict[str, float]]:
     if bounds is None:
         return None
+    # Round every coordinate (not just the spans) so the JSON contract has a
+    # single, stable precision and float noise never leaks into output.
+    r = lambda v: round(v, 3)
     return {
-        "min_x": bounds.min_x, "min_y": bounds.min_y,
-        "max_x": bounds.max_x, "max_y": bounds.max_y,
-        "min_z": bounds.min_z, "max_z": bounds.max_z,
-        "width": round(bounds.width, 3), "height": round(bounds.height, 3),
-        "depth": round(bounds.depth, 3),
+        "min_x": r(bounds.min_x), "min_y": r(bounds.min_y),
+        "max_x": r(bounds.max_x), "max_y": r(bounds.max_y),
+        "min_z": r(bounds.min_z), "max_z": r(bounds.max_z),
+        "width": r(bounds.width), "height": r(bounds.height),
+        "depth": r(bounds.depth),
     }
 
 

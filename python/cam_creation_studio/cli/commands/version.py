@@ -11,11 +11,15 @@ from ..errors import EXIT_OK
 from ..output import render
 
 _DISTRIBUTION = "cam-creation-studio"
-_FALLBACK = "0.1.0"
+# When the distribution metadata is unavailable (running from a source tree that
+# was never installed), report a clearly non-authoritative version. The
+# ``+source`` local-version segment (PEP 440) makes it obvious in bug reports
+# that this is not an installed release, rather than silently claiming one.
+_FALLBACK = "0+source"
 
 
 def get_version() -> str:
-    """Installed distribution version, or a fallback for source checkouts."""
+    """Installed distribution version, or a marked fallback for source checkouts."""
     try:
         from importlib.metadata import PackageNotFoundError, version
         try:

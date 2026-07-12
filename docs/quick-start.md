@@ -67,8 +67,10 @@ camstudio feeds -d 6 -n 2 -r 18000 --material aluminum --woc 1.5 --doc 6
 ```
 
 Add `--json` to any command for machine-readable output. Exit codes: `0` success,
-`1` validation failure, `2` bad arguments, `3` file error. Full command reference
-in [python/README.md](../python/README.md#command-line-interface).
+`1` validation failure, `2` bad arguments, `3` file error, `70` internal error.
+`validate` fails on any warning by default; use `--fail-on danger` (or `never`)
+to relax that in scripts. Full command reference in
+[python/README.md](../python/README.md#command-line-interface).
 
 ## Learn the language
 

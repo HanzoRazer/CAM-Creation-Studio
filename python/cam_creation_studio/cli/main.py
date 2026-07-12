@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from .commands import COMMANDS
 from .commands.version import get_version
-from .errors import EXIT_USAGE, exit_code_for
+from .errors import EXIT_INTERNAL, EXIT_USAGE, exit_code_for
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -45,8 +45,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("interrupted", file=sys.stderr)
         return EXIT_USAGE
     except Exception as exc:  # noqa: BLE001 - top-level boundary maps to exit code
-        print(f"error: {exc}", file=sys.stderr)
-        return exit_code_for(exc)
+        code = exit_code_for(exc)
+        if code == EXIT_INTERNAL:
+            print(f"internal error: {type(exc).__name__}: {exc}", file=sys.stderr)
+            print("this is a bug — please report it with the command you ran.",
+                  file=sys.stderr)
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return code
 
 
 if __name__ == "__main__":

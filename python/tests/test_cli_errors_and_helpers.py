@@ -18,9 +18,12 @@ def test_exit_code_for_cli_errors():
 def test_exit_code_for_builtin_exceptions():
     assert errors.exit_code_for(FileNotFoundError()) == errors.EXIT_FILE
     assert errors.exit_code_for(PermissionError()) == errors.EXIT_FILE
+    # Malformed JSON is genuinely bad input.
     assert errors.exit_code_for(json.JSONDecodeError("m", "d", 0)) == errors.EXIT_USAGE
-    assert errors.exit_code_for(ValueError()) == errors.EXIT_USAGE
-    assert errors.exit_code_for(RuntimeError()) == errors.EXIT_VALIDATION
+    # A bare ValueError or any other unanticipated exception is an internal
+    # defect, not user error — commands wrap the input ValueErrors they expect.
+    assert errors.exit_code_for(ValueError()) == errors.EXIT_INTERNAL
+    assert errors.exit_code_for(RuntimeError()) == errors.EXIT_INTERNAL
 
 
 def test_generate_write_to_bad_path_is_file_error(tmp_path, capsys):
@@ -67,3 +70,19 @@ def test_generate_core_failure_is_usage_error(tmp_path, capsys):
                    encoding="utf-8")
     assert main(["generate", str(job)]) == 2
     assert "could not generate" in capsys.readouterr().err
+
+
+def test_unexpected_exception_is_internal_error(tmp_path, monkeypatch, capsys):
+    # An exception a command does not anticipate (here a RuntimeError from the
+    # core) is reported as an internal error (70), not disguised as bad input.
+    def boom(*_a, **_k):
+        raise RuntimeError("core exploded")
+
+    monkeypatch.setattr("cam_creation_studio.cli.commands.generate.build_program",
+                        boom)
+    job = tmp_path / "job.json"
+    job.write_text(json.dumps({"job": {"mode": "manual", "moves": []}}),
+                   encoding="utf-8")
+    assert main(["generate", str(job)]) == errors.EXIT_INTERNAL
+    err = capsys.readouterr().err
+    assert "internal error" in err and "RuntimeError" in err
