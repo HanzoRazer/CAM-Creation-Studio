@@ -1,26 +1,28 @@
-# CAM Creation Studio — Provisional Product Boundary
+# CAM Creation Studio — Product Boundary
 
-**Status:** Provisional. Subject to the migration study. Not a final architecture.
+**Status:** **RATIFIED** 2026-08-05. Binding until superseded or a §9.5 trigger fires.
 **Supersedes:** the design-versus-manufacturing split asserted in CAM-CS-01 §3.
 **Evidence:** [`CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md`](../migration/CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md)
 **Last verified:** 2026-08-04 · CS `0442feb0` · Toolbox `ffd155e4`
 
 ```text
-Review status:        NOT SIGNED OFF
+Review status:        RATIFIED
 Architecture owner:   Project Owner
-Merged on:            2026-08-05
-Review deadline:      2026-10-04            (merged-on + 60 days; see §9.4)
-Ratification record:  None — merged to preserve the evidence record.
-                      Merging is not ratification (§9.3).
+Ratified by:          HanzoRazer (Project Owner)
+Ratified on:          2026-08-05
+Ratified at:          merge commit 831680f (PR #8)
+Next review trigger:  See §9.5
 ```
 
-> ⚠️ This document introduces concrete prohibitions (§7) on the strength of a
-> single investigation. That is deliberate — the prohibitions exist to stop
-> duplication *while* the boundary is being decided, not to settle it. It
-> **expires 60 days after it lands on `main`** if not ratified; see §9.4 for
-> what expiry does and does not mean. If this document is still governing work
-> past its deadline without a sign-off, that is a process failure, not a
-> ratification.
+> **What ratification settled — and what it did not.** The §7 prohibitions are
+> now binding architecture, not a temporary holding pattern, and they no longer
+> expire. But ratification approved *the investigation record and the
+> guardrails* — see §9.6. It did not authorize shared-package extraction, any
+> Toolbox runtime change, CAM migration, or removing an incumbent; each still
+> needs its own reviewed increment. It also did not convert evidence into
+> knowledge: the fifteen `UNKNOWN` rows in the comparison matrix remain
+> unknown, and the 90-day inventory-staleness limit (§9.5 item 7) still runs
+> from the 2026-08-04 evidence date.
 
 ---
 
@@ -48,7 +50,7 @@ on it would have produced a second CAM spine rather than a product boundary.
 
 ---
 
-## 2. Provisional relationship
+## 2. The ratified relationship
 
 ```text
 Luthiers Toolbox
@@ -63,11 +65,12 @@ CNC Creation Studio
     educational interaction, and artifact assembly
 ```
 
-This is a **provisional** boundary. It is explicitly **not** permission to couple
-the two applications directly to each other's internal modules. Creation Studio
-must not import from `services/api/app/**`, and the Toolbox must not import from
-`python/cam_creation_studio/**`. Any sharing happens through a reviewed contract
-or an extracted, repository-neutral package.
+This boundary is **ratified**, but it describes a *relationship*, not a frozen
+end state — §9.5 lists the events that reopen it. It is explicitly **not**
+permission to couple the two applications directly to each other's internal
+modules. Creation Studio must not import from `services/api/app/**`, and the
+Toolbox must not import from `python/cam_creation_studio/**`. Any sharing happens
+through a reviewed contract or an extracted, repository-neutral package.
 
 ---
 
@@ -227,17 +230,21 @@ regardless of which repository produced the underlying toolpath.
 
 ## 9. Architectural review and ratification
 
-Provisional pending architectural review of Increment 1. The open questions that
-would firm it up are listed in
+**Ratified 2026-08-05** by the Project Owner, at merge commit `831680f` (PR #8).
+Ratification covers Increment 1's investigation record and the §7 guardrails —
+see §9.6 for the limits.
+
+Ratification did not answer the open questions. Those remain listed in
 [`CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md`](../migration/CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md) §7,
-and the bounded next steps in
+with the bounded next steps in
 [`CAM_CS_01_NEXT_INCREMENT_OPTIONS.md`](../migration/CAM_CS_01_NEXT_INCREMENT_OPTIONS.md).
 
 ### 9.1 Review authority
 
 The required architectural approver is the **Project Owner / Architecture
-Owner**. For this documentation-only increment, the owner's explicit approval is
-sufficient to ratify the provisional boundary. No second reviewer is required.
+Owner**. For a documentation-only increment, the owner's explicit approval is
+sufficient to ratify the boundary. No second reviewer is required — this is how
+Increment 1 was ratified.
 
 A **second named reviewer** becomes required before approving any
 cross-repository implementation that:
@@ -288,14 +295,26 @@ preceding comment explicitly says the architecture is approved. A PR can land
 for other reasons — keeping the evidence record available, unblocking unrelated
 docs — without anyone having agreed to the boundary.
 
+*Increment 1 was ratified by route 2:* PR #8 merged at `831680f` recording
+`NOT SIGNED OFF`, and the Project Owner then confirmed the merge was the
+sign-off. The header was updated in a follow-up commit rather than backdated,
+so the sequence stays legible in history.
+
 ### 9.4 Provisional expiration
 
-This boundary **expires 60 days after the commit that merges it to `main`** —
-not 60 days after the evidence review that produced it. The clock starts when
-the guardrails begin governing work, so time spent waiting for review does not
-consume the review window.
+> **Not in effect for Increment 1.** This clause governs a boundary that is
+> merged but unratified. Increment 1 was ratified on 2026-08-05, so no
+> expiration applies and the §7 guardrails do not lapse. The clause is retained
+> because it governs any future increment that lands before sign-off, and any
+> state that returns to `NOT SIGNED OFF` or `EXPIRED — REVIEW REQUIRED`.
 
-**Required at merge.** Whoever merges fills in the header block:
+An unratified boundary **expires 60 days after the commit that merges it to
+`main`** — not 60 days after the evidence review that produced it. The clock
+starts when the guardrails begin governing work, so time spent waiting for
+review does not consume the review window.
+
+**Required at merge, when merging without ratification.** Whoever merges fills
+in the header block:
 
 ```text
 Merged on:        YYYY-MM-DD          <- the merge commit's date
@@ -308,10 +327,12 @@ procedure was not completed, and the omission should be fixed rather than
 relied on.
 
 Note that the 90-day inventory-staleness trigger (§9.5 item 7) runs from each
-document's own *Last verified* date — 2026-08-04 — and is unaffected by when
-this merges. The two clocks are independent: one bounds how long unratified
-guardrails govern, the other bounds how long an external-repository snapshot
-may be cited as justification.
+document's own *Last verified* date — 2026-08-04 — and is unaffected by merge
+timing **or by ratification**. The two clocks are independent: one bounds how
+long unratified guardrails govern, the other bounds how long an
+external-repository snapshot may be cited as justification. Ratification stopped
+the first clock; it did not stop the second, which reaches 90 days on
+**2026-11-02**.
 
 Expiration neither silently ratifies the boundary nor erases it. At expiration:
 
@@ -352,14 +373,18 @@ Routine filename changes, internal refactors, and refreshed file counts do
 **not** require ratification unless they alter an authority or a contract
 boundary.
 
-### 9.6 What ratification would and would not authorize
+### 9.6 What ratification did and did not authorize
 
-Ratifying this document approves **the investigation record and the provisional
-guardrails**. By itself it does not authorize:
+The 2026-08-05 ratification approved **the investigation record and the §7
+guardrails**. By itself it did not authorize:
 
 - shared-package extraction;
 - any Toolbox runtime change;
 - CAM migration;
 - removal of an incumbent implementation.
 
-Each of those requires its own reviewed increment.
+Each of those requires its own reviewed increment. Nor did it resolve anything
+the investigation left open: the seven open questions in the audit, the fifteen
+`UNKNOWN` rows in the comparison matrix, and the recommended dispositions all
+retain exactly the status they had before ratification. Ratification settled
+**where the line is**, not **what lies on either side of it**.

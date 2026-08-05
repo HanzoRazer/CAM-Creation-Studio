@@ -5,15 +5,16 @@
 **Related:** [`../safety-disclaimer.md`](../safety-disclaimer.md), `python/cam_creation_studio/safety/rules.py`
 **Last verified:** 2026-08-04 · CS `0442feb0`
 
-> **This document is not provisional and does not expire.** Unlike
-> [`CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md`](CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md),
-> which is unratified and lapses 60 days after merge, this ruling introduces no new
-> policy. It restates constraints already binding under `docs/product-scope.md`
-> and already reflected throughout the codebase, and names the alternative term.
-> If the boundary study is rejected wholesale — or lapses unratified — this
-> ruling still stands, because its authority is the product constitution rather
-> than the CAM-CS-01 investigation. Changing it requires the separate governance
-> decision described in §8.
+> **This ruling stands on its own authority.** It introduces no new policy: it
+> restates constraints already binding under `docs/product-scope.md` and already
+> reflected throughout the codebase, and names the alternative term.
+>
+> [`CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md`](CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md)
+> was ratified on 2026-08-05, but this document never depended on that outcome
+> and does not depend on it now. If the boundary is later superseded, reopened
+> by a §9.5 trigger, or rejected outright, this ruling is unaffected — its
+> authority is the product constitution, not the CAM-CS-01 investigation.
+> Changing it requires the separate governance decision described in §8.
 
 ---
 

@@ -51,21 +51,23 @@ the standard library only.
 
 ## Relationship to the Luthiers Toolbox
 
-> ⚠️ **PROVISIONAL — NOT SIGNED OFF. Expires 60 days after merge.** Everything in this
-> section and the documents it links to is the output of one investigation
-> (CAM-CS-01 Increment 1). It has **not** been ratified, and it may change.
-> Do not treat it as settled architecture, and do not freeze downstream work
-> around it. Ratification requires explicit Project Owner approval — merging a
-> PR is not ratification. The review states, expiry behavior, and re-review
-> triggers are in
+> ✅ **RATIFIED 2026-08-05** by the Project Owner at merge commit `831680f`
+> (PR #8). The boundary and its §7 prohibitions are binding architecture until
+> superseded or a re-review trigger fires; they no longer expire.
+>
+> Ratification approved the investigation record and the guardrails. It did
+> **not** authorize shared-package extraction, Toolbox runtime changes, CAM
+> migration, or removing an incumbent — each needs its own reviewed increment —
+> and it did not resolve the open questions or the fifteen `UNKNOWN` rows in the
+> comparison matrix. Review states and the nine re-review triggers are in
 > [CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md §9](architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md).
 >
-> The one exception is the terminology rule in the previous section, which is
-> **not** provisional and **does not expire** — it restates
-> [product-scope.md](product-scope.md), which was already constitutional.
+> The terminology rule in the previous section stands on separate authority —
+> it restates [product-scope.md](product-scope.md) and was already
+> constitutional, so it is unaffected either way.
 
 The Toolbox is the incumbent design **and** manufacturing runtime; Creation
-Studio does not independently reimplement its CAM algorithms. The provisional
+Studio does not independently reimplement its CAM algorithms. The ratified
 boundary and the prohibited-duplication list are in
 [architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md](architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md),
 backed by the evidence in [migration/](migration/):

@@ -18,8 +18,11 @@ build in CNC Creation Studio, whether an incumbent implementation already exists
 > Authority Evidence* are **observed**. *Duplication Risk* is **inference**.
 > *Recommended Disposition* is a **proposal for review**, not policy — policy
 > lives only in
-> [`CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md`](../architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md) §7,
-> and that document is itself provisional.
+> [`CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md`](../architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md) §7.
+> That document was ratified on 2026-08-05, but ratification approved its §7
+> prohibitions and this investigation record — **not** the dispositions in this
+> table. A row reading `REUSE` or `EXTRACT_SHARED` is still a recommendation
+> awaiting its own increment.
 
 All Toolbox paths below are relative to `services/api/` unless stated otherwise.
 
