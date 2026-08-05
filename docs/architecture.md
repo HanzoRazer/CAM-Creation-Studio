@@ -46,3 +46,37 @@ the standard library only.
 - Educational framing: starter profiles, advisory feeds/speeds, "preview is not
   simulation," nothing "safe to run." See [safety-disclaimer.md](safety-disclaimer.md).
 - **No CAM Assist dependency.** See [future-cam-assist-relationship.md](future-cam-assist-relationship.md).
+- **No machine-readiness or certification claims.** Export gating is called
+  *preflight*. See [architecture/EXPORT_PREFLIGHT_SEMANTICS.md](architecture/EXPORT_PREFLIGHT_SEMANTICS.md).
+
+## Relationship to the Luthiers Toolbox
+
+> ⚠️ **PROVISIONAL — NOT SIGNED OFF. Expires 60 days after merge.** Everything in this
+> section and the documents it links to is the output of one investigation
+> (CAM-CS-01 Increment 1). It has **not** been ratified, and it may change.
+> Do not treat it as settled architecture, and do not freeze downstream work
+> around it. Ratification requires explicit Project Owner approval — merging a
+> PR is not ratification. The review states, expiry behavior, and re-review
+> triggers are in
+> [CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md §9](architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md).
+>
+> The one exception is the terminology rule in the previous section, which is
+> **not** provisional and **does not expire** — it restates
+> [product-scope.md](product-scope.md), which was already constitutional.
+
+The Toolbox is the incumbent design **and** manufacturing runtime; Creation
+Studio does not independently reimplement its CAM algorithms. The provisional
+boundary and the prohibited-duplication list are in
+[architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md](architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md),
+backed by the evidence in [migration/](migration/):
+
+- [CAM_CS_01_REPOSITORY_MAPPING.md](migration/CAM_CS_01_REPOSITORY_MAPPING.md) — real topology; handoff paths mapped or marked nonexistent
+- [CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md](migration/CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md) — capability-by-capability incumbent inventory
+- [CAM_CS_01_REFERENCE_ARTIFACT_SEARCH.md](migration/CAM_CS_01_REFERENCE_ARTIFACT_SEARCH.md) — `REFERENCE_ARTIFACT_NOT_LOCATED`
+- [FRETBOARD_IMPLEMENTATION_COMPARISON_MATRIX.md](migration/FRETBOARD_IMPLEMENTATION_COMPARISON_MATRIX.md) — comparison matrix with explicit unknowns
+- [CAM_CS_01_NEXT_INCREMENT_OPTIONS.md](migration/CAM_CS_01_NEXT_INCREMENT_OPTIONS.md) — bounded options for review
+
+Those documents contain **point-in-time inventories** of another repository —
+file counts, module paths, test names. They were verified against one commit and
+will drift. Each carries an *Evidence freshness* section; re-verify before
+relying on a specific count or path.
