@@ -4,13 +4,20 @@
 **Supersedes:** the design-versus-manufacturing split asserted in CAM-CS-01 §3.
 **Evidence:** [`CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md`](../migration/CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md)
 **Last verified:** 2026-08-04 · CS `0442feb0` · Toolbox `ffd155e4`
-**Review status:** **NOT SIGNED OFF.** Awaiting architectural review of Increment 1.
+
+```text
+Review status:        NOT SIGNED OFF
+Architecture owner:   Project Owner
+Review deadline:      2026-10-03
+Ratification record:  None
+```
 
 > ⚠️ This document introduces concrete prohibitions (§7) on the strength of a
 > single investigation. That is deliberate — the prohibitions exist to stop
-> duplication *while* the boundary is being decided, not to settle it. If this
-> document is still governing work months from now without a sign-off, that is a
-> process failure, not a ratification. §9 records what would firm it up.
+> duplication *while* the boundary is being decided, not to settle it. It
+> **expires on 2026-10-03** if not ratified; see §9 for what expiry does and
+> does not mean. If this document is still governing work after that date
+> without a sign-off, that is a process failure, not a ratification.
 
 ---
 
@@ -215,10 +222,121 @@ regardless of which repository produced the underlying toolpath.
 
 ---
 
-## 9. Review status
+## 9. Architectural review and ratification
 
 Provisional pending architectural review of Increment 1. The open questions that
 would firm it up are listed in
 [`CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md`](../migration/CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md) §7,
 and the bounded next steps in
 [`CAM_CS_01_NEXT_INCREMENT_OPTIONS.md`](../migration/CAM_CS_01_NEXT_INCREMENT_OPTIONS.md).
+
+### 9.1 Review authority
+
+The required architectural approver is the **Project Owner / Architecture
+Owner**. For this documentation-only increment, the owner's explicit approval is
+sufficient to ratify the provisional boundary. No second reviewer is required.
+
+A **second named reviewer** becomes required before approving any
+cross-repository implementation that:
+
+- moves an existing authority;
+- extracts a shared package;
+- deprecates a Toolbox implementation;
+- changes a serialized inter-product contract;
+- changes both repositories' runtime behavior.
+
+That reviewer should be the maintainer responsible for the affected Toolbox
+subsystem. **Do not name an individual here until that responsibility is
+formally assigned** — an unassigned name is worse than an open slot.
+
+### 9.2 Review states
+
+Use exactly one of these states. Ambiguous states — "reviewed", "accepted",
+"mostly approved" — are not valid and must not appear.
+
+```text
+NOT SIGNED OFF
+RATIFIED
+RATIFIED WITH CONDITIONS
+SUPERSEDED
+EXPIRED — REVIEW REQUIRED
+```
+
+### 9.3 Ratification record
+
+The header block above carries the current state. On approval, replace it with:
+
+```text
+Review status:        RATIFIED
+Architecture owner:   <approving owner>
+Ratified by:          <GitHub username or recorded owner identity>
+Ratified on:          YYYY-MM-DD
+Ratified at:          <merge commit or approving PR review>
+Next review trigger:  See §9.5
+```
+
+Approval is represented by either:
+
+1. an explicit GitHub `APPROVE` review on the ratifying PR; or
+2. a recorded owner decision in the PR discussion, followed by merge.
+
+**Merging is not ratification.** A merge ratifies only if the merge record or a
+preceding comment explicitly says the architecture is approved. A PR can land
+for other reasons — keeping the evidence record available, unblocking unrelated
+docs — without anyone having agreed to the boundary.
+
+### 9.4 Provisional expiration
+
+This boundary **expires on 2026-10-03**, sixty days after the evidence review of
+2026-08-04.
+
+Expiration neither silently ratifies the boundary nor erases it. At expiration:
+
+- the review status becomes `EXPIRED — REVIEW REQUIRED`;
+- **existing code remains unchanged** — expiry is not a rollback;
+- the constitutional terminology rule in
+  [`EXPORT_PREFLIGHT_SEMANTICS.md`](EXPORT_PREFLIGHT_SEMANTICS.md) **remains
+  fully effective**, because its authority is `product-scope.md` rather than
+  this document;
+- no new cross-repository architecture may cite the expired boundary as
+  justification;
+- the §7 anti-duplication safeguards drop from binding to **advisory** until
+  reviewed;
+- **Increment 2 (export preflight) may continue** — it is Creation
+  Studio-local and constitutionally grounded, so it does not depend on this
+  document;
+- **shared-package extraction and authority migration must pause** until
+  ratification or replacement.
+
+### 9.5 Architectural review triggers
+
+After ratification, re-review is required when any of these occur:
+
+1. Creation Studio begins consuming a Toolbox-produced contract.
+2. A shared package is created.
+3. Authority for a calculation or CAM operation moves between repositories.
+4. A duplicate incumbent is deprecated or removed.
+5. `fretboard_ecosphere.py` — or another model — becomes a public inter-product
+   contract.
+6. Creation Studio begins generating a capability currently attributed
+   exclusively to the Toolbox.
+7. A relevant external-repository inventory is **more than 90 days old** when
+   used to justify implementation.
+8. New evidence materially contradicts an authority classification.
+9. Product scope changes to permit certification or machine-readiness claims.
+
+Routine filename changes, internal refactors, and refreshed file counts do
+**not** require ratification unless they alter an authority or a contract
+boundary.
+
+### 9.6 What ratification would and would not authorize
+
+Ratifying this document approves **the investigation record and the provisional
+guardrails**. By itself it does not authorize:
+
+- shared-package extraction;
+- any Toolbox runtime change;
+- CAM migration;
+- removal of an incumbent implementation.
+
+Each of those requires its own reviewed increment.

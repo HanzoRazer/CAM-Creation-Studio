@@ -51,13 +51,18 @@ the standard library only.
 
 ## Relationship to the Luthiers Toolbox
 
-> ⚠️ **PROVISIONAL — not yet architecturally reviewed.** Everything in this
+> ⚠️ **PROVISIONAL — NOT SIGNED OFF. Expires 2026-10-03.** Everything in this
 > section and the documents it links to is the output of one investigation
-> (CAM-CS-01 Increment 1). It has **not** been signed off, and it may change.
+> (CAM-CS-01 Increment 1). It has **not** been ratified, and it may change.
 > Do not treat it as settled architecture, and do not freeze downstream work
-> around it. The one exception is the terminology rule in the previous section,
-> which is **not** provisional — it restates [product-scope.md](product-scope.md),
-> which was already constitutional.
+> around it. Ratification requires explicit Project Owner approval — merging a
+> PR is not ratification. The review states, expiry behavior, and re-review
+> triggers are in
+> [CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md §9](architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md).
+>
+> The one exception is the terminology rule in the previous section, which is
+> **not** provisional and **does not expire** — it restates
+> [product-scope.md](product-scope.md), which was already constitutional.
 
 The Toolbox is the incumbent design **and** manufacturing runtime; Creation
 Studio does not independently reimplement its CAM algorithms. The provisional

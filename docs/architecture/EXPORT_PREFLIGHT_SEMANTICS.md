@@ -5,13 +5,15 @@
 **Related:** [`../safety-disclaimer.md`](../safety-disclaimer.md), `python/cam_creation_studio/safety/rules.py`
 **Last verified:** 2026-08-04 · CS `0442feb0`
 
-> **This document is not provisional.** Unlike
+> **This document is not provisional and does not expire.** Unlike
 > [`CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md`](CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md),
-> it introduces no new policy. It restates constraints already binding under
-> `docs/product-scope.md` and already reflected throughout the codebase, and
-> names the alternative term. If the boundary study is rejected wholesale, this
+> which is unratified and lapses on 2026-10-03, this ruling introduces no new
+> policy. It restates constraints already binding under `docs/product-scope.md`
+> and already reflected throughout the codebase, and names the alternative term.
+> If the boundary study is rejected wholesale — or lapses unratified — this
 > ruling still stands, because its authority is the product constitution rather
-> than the CAM-CS-01 investigation.
+> than the CAM-CS-01 investigation. Changing it requires the separate governance
+> decision described in §8.
 
 ---
 
