@@ -51,6 +51,14 @@ the standard library only.
 
 ## Relationship to the Luthiers Toolbox
 
+> ⚠️ **PROVISIONAL — not yet architecturally reviewed.** Everything in this
+> section and the documents it links to is the output of one investigation
+> (CAM-CS-01 Increment 1). It has **not** been signed off, and it may change.
+> Do not treat it as settled architecture, and do not freeze downstream work
+> around it. The one exception is the terminology rule in the previous section,
+> which is **not** provisional — it restates [product-scope.md](product-scope.md),
+> which was already constitutional.
+
 The Toolbox is the incumbent design **and** manufacturing runtime; Creation
 Studio does not independently reimplement its CAM algorithms. The provisional
 boundary and the prohibited-duplication list are in
@@ -62,3 +70,8 @@ backed by the evidence in [migration/](migration/):
 - [CAM_CS_01_REFERENCE_ARTIFACT_SEARCH.md](migration/CAM_CS_01_REFERENCE_ARTIFACT_SEARCH.md) — `REFERENCE_ARTIFACT_NOT_LOCATED`
 - [FRETBOARD_IMPLEMENTATION_COMPARISON_MATRIX.md](migration/FRETBOARD_IMPLEMENTATION_COMPARISON_MATRIX.md) — comparison matrix with explicit unknowns
 - [CAM_CS_01_NEXT_INCREMENT_OPTIONS.md](migration/CAM_CS_01_NEXT_INCREMENT_OPTIONS.md) — bounded options for review
+
+Those documents contain **point-in-time inventories** of another repository —
+file counts, module paths, test names. They were verified against one commit and
+will drift. Each carries an *Evidence freshness* section; re-verify before
+relying on a specific count or path.

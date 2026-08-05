@@ -3,6 +3,14 @@
 **Status:** Provisional. Subject to the migration study. Not a final architecture.
 **Supersedes:** the design-versus-manufacturing split asserted in CAM-CS-01 §3.
 **Evidence:** [`CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md`](../migration/CAM_CS_01_AUTHORITY_COLLISION_AUDIT.md)
+**Last verified:** 2026-08-04 · CS `0442feb0` · Toolbox `ffd155e4`
+**Review status:** **NOT SIGNED OFF.** Awaiting architectural review of Increment 1.
+
+> ⚠️ This document introduces concrete prohibitions (§7) on the strength of a
+> single investigation. That is deliberate — the prohibitions exist to stop
+> duplication *while* the boundary is being decided, not to settle it. If this
+> document is still governing work months from now without a sign-off, that is a
+> process failure, not a ratification. §9 records what would firm it up.
 
 ---
 
@@ -164,9 +172,36 @@ which requires explicit approval plus documented evidence that reuse, extraction
 and adaptation are all unsuitable. That disposition is assigned nowhere in the
 current matrix.
 
-This prohibition does not extend to Creation Studio's existing capabilities.
-`gcode/`, `preview/`, `feeds_speeds/`, `geometry/` (DXF), `image/`, and `cli/`
-continue to be developed under the existing scope.
+### What this prohibition does not cover
+
+The list above is narrow on purpose. It prohibits **standing a second
+implementation of a Toolbox algorithm inside Creation Studio**. It does not
+prohibit ordinary product work. Explicitly still allowed:
+
+- **Creation Studio's existing capabilities.** `gcode/`, `preview/`,
+  `feeds_speeds/`, `geometry/` (DXF), `image/`, `safety/`, and `cli/` continue
+  to be developed under the existing scope. None of them needs a boundary
+  exception.
+- **Local abstractions over Creation Studio's own data** — helpers, view models,
+  formatting, caching, CLI ergonomics. Operating on CS data is not
+  reimplementing a Toolbox algorithm.
+- **Throwaway prototypes and spikes** that are not merged to `main`. Learning
+  what an integration would cost is how the boundary gets decided; the
+  prohibition applies to durable authority, not to experiments.
+- **Adapters and wrappers** that call canonical code rather than restating it.
+- **Artifact assembly** — packaging, naming, and presenting outputs Creation
+  Studio did not compute.
+
+### Telling the three apart
+
+| | Definition | Test |
+| --- | --- | --- |
+| **Implementation** | Creation Studio computes the answer itself | Delete the Toolbox — does CS still produce a result? If yes, it is an implementation. |
+| **Adapter** | Creation Studio asks something else and translates the answer | Delete the Toolbox — does CS fail cleanly with "no source"? Then it is an adapter. |
+| **Artifact assembly** | Creation Studio arranges outputs it did not compute | Does CS touch any dimension, coordinate, feed, or depth? If no, it is assembly. |
+
+Only the first is prohibited. When a case is genuinely ambiguous, treat it as an
+open question for review rather than assuming either answer.
 
 ---
 

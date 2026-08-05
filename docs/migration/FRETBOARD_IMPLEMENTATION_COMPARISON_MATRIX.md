@@ -11,6 +11,21 @@ holds the incumbent implementations.
 
 **Unknown cells are explicitly `UNKNOWN`. No cell has been filled by inference.**
 
+> **Evidence freshness.** Last verified 2026-08-04 against the commits above.
+> Toolbox rows inventory an **external repository at one commit** and will drift.
+>
+> **Reading the columns.** *Toolbox incumbent*, *CS existing capability*, and
+> *Behavioral tests* are **observed**. *Toolbox authority status* is
+> **inference from the evidence hierarchy**. *Recommended authority* and
+> *Migration disposition* are **proposals for review**, not policy.
+>
+> An `UNKNOWN` means "not traced in this increment" — it is **not** evidence of
+> absence. Rows recorded as not located (holding tabs, male-plug compensation,
+> LightBurn output) are unproven negatives; confirming a real gap needs a second
+> tracing pass, as stated in
+> [`CAM_CS_01_NEXT_INCREMENT_OPTIONS.md`](CAM_CS_01_NEXT_INCREMENT_OPTIONS.md)
+> Option C.
+
 ---
 
 ## Vocabulary

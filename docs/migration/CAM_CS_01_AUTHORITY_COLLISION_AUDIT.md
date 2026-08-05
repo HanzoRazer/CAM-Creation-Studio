@@ -8,6 +8,19 @@ This document records, for each manufacturing capability CAM-CS-01 proposed to
 build in CNC Creation Studio, whether an incumbent implementation already exists
 — and where. It is an inventory, not a decision. No Toolbox file was modified.
 
+> **Evidence freshness.** Last verified 2026-08-04 against the commits above.
+> This inventories an **external repository at one commit**. The Luthiers
+> Toolbox evolves independently, so file counts, paths, module sizes, and
+> authority classifications here can go stale without anything in this
+> repository changing. Re-verify before acting on a specific row.
+>
+> **Reading the columns.** *Toolbox Incumbent*, *CS Incumbent*, and *Current
+> Authority Evidence* are **observed**. *Duplication Risk* is **inference**.
+> *Recommended Disposition* is a **proposal for review**, not policy — policy
+> lives only in
+> [`CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md`](../architecture/CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md) §7,
+> and that document is itself provisional.
+
 All Toolbox paths below are relative to `services/api/` unless stated otherwise.
 
 ---

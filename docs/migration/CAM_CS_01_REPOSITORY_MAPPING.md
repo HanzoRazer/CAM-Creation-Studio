@@ -9,6 +9,11 @@ This document records the real topology of CAM-Creation-Studio and maps every
 illustrative path from the original CAM-CS-01 handoff onto an actual path or
 marks it nonexistent. It changes no production behavior.
 
+> **Evidence freshness.** Last verified 2026-08-04 against the commits above.
+> Everything here is an **observed** point-in-time inventory — module paths,
+> counts, and the test baseline. These drift. Re-verify before relying on a
+> specific number or path; a stale count is not a finding.
+
 ---
 
 ## 1. Package roots
