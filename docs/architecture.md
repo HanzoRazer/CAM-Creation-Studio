@@ -51,7 +51,7 @@ the standard library only.
 
 ## Relationship to the Luthiers Toolbox
 
-> ⚠️ **PROVISIONAL — NOT SIGNED OFF. Expires 2026-10-03.** Everything in this
+> ⚠️ **PROVISIONAL — NOT SIGNED OFF. Expires 60 days after merge.** Everything in this
 > section and the documents it links to is the output of one investigation
 > (CAM-CS-01 Increment 1). It has **not** been ratified, and it may change.
 > Do not treat it as settled architecture, and do not freeze downstream work

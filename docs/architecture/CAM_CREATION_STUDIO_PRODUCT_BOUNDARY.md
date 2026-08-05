@@ -8,16 +8,18 @@
 ```text
 Review status:        NOT SIGNED OFF
 Architecture owner:   Project Owner
-Review deadline:      2026-10-03
+Merged on:            <pending — set at merge>
+Review deadline:      merge date + 60 days   (concrete date set at merge; see §9.4)
 Ratification record:  None
 ```
 
 > ⚠️ This document introduces concrete prohibitions (§7) on the strength of a
 > single investigation. That is deliberate — the prohibitions exist to stop
 > duplication *while* the boundary is being decided, not to settle it. It
-> **expires on 2026-10-03** if not ratified; see §9 for what expiry does and
-> does not mean. If this document is still governing work after that date
-> without a sign-off, that is a process failure, not a ratification.
+> **expires 60 days after it lands on `main`** if not ratified; see §9.4 for
+> what expiry does and does not mean. If this document is still governing work
+> past its deadline without a sign-off, that is a process failure, not a
+> ratification.
 
 ---
 
@@ -287,8 +289,28 @@ docs — without anyone having agreed to the boundary.
 
 ### 9.4 Provisional expiration
 
-This boundary **expires on 2026-10-03**, sixty days after the evidence review of
-2026-08-04.
+This boundary **expires 60 days after the commit that merges it to `main`** —
+not 60 days after the evidence review that produced it. The clock starts when
+the guardrails begin governing work, so time spent waiting for review does not
+consume the review window.
+
+**Required at merge.** Whoever merges fills in the header block:
+
+```text
+Merged on:        YYYY-MM-DD          <- the merge commit's date
+Review deadline:  YYYY-MM-DD          <- merged-on + 60 days
+```
+
+Until both are set, treat the deadline as **unset, not absent**. An unset
+deadline does not grant the document indefinite life; it means the merge
+procedure was not completed, and the omission should be fixed rather than
+relied on.
+
+Note that the 90-day inventory-staleness trigger (§9.5 item 7) runs from each
+document's own *Last verified* date — 2026-08-04 — and is unaffected by when
+this merges. The two clocks are independent: one bounds how long unratified
+guardrails govern, the other bounds how long an external-repository snapshot
+may be cited as justification.
 
 Expiration neither silently ratifies the boundary nor erases it. At expiration:
 

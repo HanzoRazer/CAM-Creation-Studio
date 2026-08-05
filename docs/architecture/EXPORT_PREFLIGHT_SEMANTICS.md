@@ -7,7 +7,7 @@
 
 > **This document is not provisional and does not expire.** Unlike
 > [`CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md`](CAM_CREATION_STUDIO_PRODUCT_BOUNDARY.md),
-> which is unratified and lapses on 2026-10-03, this ruling introduces no new
+> which is unratified and lapses 60 days after merge, this ruling introduces no new
 > policy. It restates constraints already binding under `docs/product-scope.md`
 > and already reflected throughout the codebase, and names the alternative term.
 > If the boundary study is rejected wholesale — or lapses unratified — this
