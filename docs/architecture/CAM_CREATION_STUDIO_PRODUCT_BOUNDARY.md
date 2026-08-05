@@ -8,9 +8,10 @@
 ```text
 Review status:        NOT SIGNED OFF
 Architecture owner:   Project Owner
-Merged on:            <pending — set at merge>
-Review deadline:      merge date + 60 days   (concrete date set at merge; see §9.4)
-Ratification record:  None
+Merged on:            2026-08-05
+Review deadline:      2026-10-04            (merged-on + 60 days; see §9.4)
+Ratification record:  None — merged to preserve the evidence record.
+                      Merging is not ratification (§9.3).
 ```
 
 > ⚠️ This document introduces concrete prohibitions (§7) on the strength of a
