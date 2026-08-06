@@ -101,8 +101,17 @@ is the default):
 camstudio generate ../examples/cnc-pocket-demo.json -o out.gcode
 camstudio generate ../examples/cnc-pocket-demo.json --machine marlin   # override config
 cat job.json | camstudio generate -
-# Note: adding --json writes a JSON envelope ({"gcode": "..."}), not raw
-# G-code — don't combine it with -o unless you want the JSON on disk.
+# Note: adding --json writes a JSON envelope ({"gcode": ..., "preflight": ...}),
+# not raw G-code — don't combine it with -o unless you want the JSON on disk.
+#
+# generate runs EXPORT PREFLIGHT before writing anything. Blocking findings
+# (contradictory units, unresolvable arc, non-finite value, non-positive feed,
+# unknown dialect) stop the write and exit 1 — no file is created and an
+# existing file is left untouched. Advisory findings print to stderr and the
+# export proceeds; judging those is the operator's call, not the tool's.
+# A passing preflight means only that no policy condition blocked export. It is
+# not a claim that the program is safe to run. See
+# docs/architecture/EXPORT_PREFLIGHT_SEMANTICS.md.
 
 # Validate (advisory). Default exit 1 if any warning/danger diagnostic is present;
 # relax with --fail-on danger (ignore warnings) or --fail-on never (always exit 0).
@@ -123,8 +132,9 @@ camstudio feeds -d 6 -n 2 -r 18000 --chipload 0.05 --json
 camstudio version
 ```
 
-Exit codes: `0` success · `1` validation failure · `2` bad arguments/input ·
-`3` file error · `70` internal error (an unexpected bug — please report it).
+Exit codes: `0` success · `1` validation failure (including an export blocked by
+preflight) · `2` bad arguments/input · `3` file error · `70` internal error (an
+unexpected bug — please report it).
 
 ## Design rules
 
