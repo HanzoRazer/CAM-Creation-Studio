@@ -35,7 +35,10 @@ Python architecture. New feature work targets the Python core.
 - `geometry/` — DXF import → neutral 2D geometry model (`import_dxf` → `GeometryCollection`); geometry only, no machining. Uses the optional `ezdxf` dependency behind the `dxf` extra. See [GEOMETRY_IMPORT.md](GEOMETRY_IMPORT.md)
 - `preview/` — `toolpath_model` (neutral travel/cut/burn segments; a model, not a simulation)
 - `image/` — `field`, `marching_squares`, `raster_etch`, `outline_etch`
-- `safety/` — `rules` (standing reminders + machine-tailored checklist)
+- `safety/` — `rules` (standing reminders + machine-tailored checklist) and
+  `preflight` (the one export gate: `run_export_preflight`; blocks contradictory
+  or unrepresentable programs, leaves machine-dependent judgements advisory).
+  See [architecture/EXPORT_PREFLIGHT_SEMANTICS.md](architecture/EXPORT_PREFLIGHT_SEMANTICS.md)
 - `handoff/` — `handoff` (feeds/speeds → Creator advisory contract)
 
 No GUI is included in this pass; the core is headless and fully unit-tested with

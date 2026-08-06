@@ -1,9 +1,11 @@
 # Export Preflight Semantics
 
-**Status:** Terminology ruling. Documentation only — no code is added by this increment.
+**Status:** Terminology ruling **and implementation contract**. Implemented by CS-009.
+**Policy version:** `cs-export-preflight/1`
+**Canonical entry point:** `cam_creation_studio.safety.run_export_preflight`
 **Governing document:** [`../product-scope.md`](../product-scope.md)
 **Related:** [`../safety-disclaimer.md`](../safety-disclaimer.md), `python/cam_creation_studio/safety/rules.py`
-**Last verified:** 2026-08-04 · CS `0442feb0`
+**Last verified:** 2026-08-05 · CS `db68f16`
 
 > **This ruling stands on its own authority.** It introduces no new policy: it
 > restates constraints already binding under `docs/product-scope.md` and already
@@ -94,13 +96,13 @@ constitution, this ruling, and every correct disclaimer in the codebase, and
 maintaining its allowlist would cost more than the check returns.
 
 The current state is therefore **compliant by review, not by tooling**, and this
-document is the reviewer's reference. One near-miss is on record:
-`python/cam_creation_studio/cli/commands/generate.py:70` uses "machine-ready"
-non-negated, in a code comment describing how an output *path* looks
-(`-o part.gcode`) while warning the file will hold JSON. It asserts nothing about
-the output and changes no behavior, but it is the single place the literal phrase
-appears unqualified. Reword it opportunistically — not as part of a
-documentation-only change.
+document is the reviewer's reference.
+
+The one near-miss previously on record — `cli/commands/generate.py` using
+"machine-ready" non-negated in a comment about how an output *path* looks — was
+resolved during CS-009, when that comment was edited anyway to describe the new
+export boundary. It now reads "looks like a finished program." No affirmative use
+of the prohibited vocabulary remains in the codebase.
 
 ---
 
@@ -123,15 +125,24 @@ validation complete
 
 ---
 
-## 4. The result type
+## 4. Implementation
 
-Recommended name: **`ExportPreflightResult`**.
+**Status: implemented (CS-009).** Policy version **`cs-export-preflight/1`**.
 
-Acceptable alternatives if repository vocabulary review prefers one:
-`export_eligible`, `export_blocking`, `preflight_passed`, `dialect_compatible`,
-`validation_complete`.
+### Canonical entry point
 
-Documented target shape:
+```python
+from cam_creation_studio.safety import run_export_preflight
+
+result = run_export_preflight(gcode, config)
+```
+
+`python/cam_creation_studio/safety/preflight.py` owns this. It is the **only**
+implementation; every export path calls it, and no policy logic lives in the CLI.
+`gcode` is the artifact that would be written, `config` the generation context
+(the same mapping `build_program` consumes). Neither is mutated.
+
+### Result
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -141,24 +152,67 @@ class ExportPreflightResult:
     advisory_findings: tuple[Diagnostic, ...]
     policy_version: str
     disclaimer: str
+    evaluated_rule_ids: tuple[str, ...]
+    skipped_rule_ids: tuple[str, ...]
 ```
 
-### Convention notes for whoever implements it
+`export_allowed` is `True` exactly when `blocking_findings` is empty; advisory
+findings never affect it. There is **no timestamp** — equal inputs must produce
+equal results so fixtures stay stable and repeat evaluation is verifiably
+identical. Findings are ordered by program location, then severity, then code,
+then message, with program-wide findings first; nothing in the ordering consults
+a dict, a set, or the filesystem.
 
-- `Diagnostic` already exists at `python/cam_creation_studio/models.py`
-  (`severity`, `code`, `message`, `line`). Reuse it. Do not define a second
-  diagnostic type.
-- Diagnostic codes are centrally owned by
-  `python/cam_creation_studio/gcode/validator/codes.py`. Any preflight code
-  belongs there, following the CS-003 conventions.
-- The package is frozen-dataclass-only (Ruling 6). No Pydantic.
-- `models.py` currently uses `List[...]`; `tuple[...]` is the shape specified by
-  the ruling. Reconcile against existing conventions at implementation time and
-  record the choice.
-- `disclaimer` should carry `safety.rules.DISCLAIMER` rather than a new string.
+Conventions followed: `Diagnostic` is reused unchanged (no second diagnostic
+model); the four new codes live in the single registry at
+`gcode/validator/codes.py` as `EXPORT_PREFLIGHT_CODES`, deliberately outside the
+eleven `CANONICAL_CODES` that CS-003 promises; frozen dataclasses throughout, no
+Pydantic; `disclaimer` carries `safety.rules.DISCLAIMER` rather than a new
+string; no new runtime dependency.
 
-**No such type is created in this increment.** This section records the target so
-a later increment does not have to relitigate it.
+### What blocks, and why that line is where it is
+
+Preflight blocks **what Creation Studio can know is wrong** and advises on
+**what only the operator can know**. Severity does not decide it — policy does.
+
+| Blocking | Reason |
+| --- | --- |
+| `DUPLICATE_UNITS` | program declares both G20 and G21 |
+| `ARC_WITHOUT_CENTER_OR_RADIUS` | arc geometry is unresolvable |
+| `ARC_ON_NON_ARC_DIALECT` | unrepresentable for the selected dialect |
+| `UNSUPPORTED_DIALECT` | target dialect is unknown |
+| `EXPORT_EMPTY_ARTIFACT` | nothing to write |
+| `EXPORT_NON_FINITE_VALUE` | NaN/Inf parameter no controller can honor |
+| `EXPORT_UNIT_MISMATCH` | request asked one unit system, artifact emits another |
+| `EXPORT_NON_POSITIVE_FEED` | feed move carrying `F <= 0` |
+
+Everything else stays advisory — including `SPINDLE_OFF_WITH_CUTS`,
+`NEGATIVE_Z_IN_LASER_MODE`, and `EXTRUSION_WITHOUT_HOTEND`, which are
+`DiagnosticSeverity.DANGER`. Whether those are real hazards depends on a machine
+Creation Studio cannot inspect. **Blocking on them would be an implicit claim to
+machine authority, which §2 forbids** — so they are surfaced loudly and the
+operator decides. Equally, absent information Creation Studio has never required
+(machine travel, workholding, tool condition, firmware behavior) never
+manufactures a blocker.
+
+An unknown dialect is detected once, by the validator, and *reclassified* here.
+Preflight adds no detection that an existing subsystem already performs.
+
+### CLI behavior
+
+`camstudio generate` runs preflight at the export boundary. Blocking findings
+stop the write — no file is created, an existing file is left untouched — and
+the command exits **`1`**, the established validation-failure code. (The order's
+suggested `3` was not used: it already means *file error* in this CLI.) Reports
+go to stderr so stdout stays pure G-code for redirection. With `--json`, a
+blocked run still emits a machine-readable report on stdout carrying **no
+`gcode` key**, so nothing downstream can mistake it for an approved artifact,
+and that report is never written to `--output`.
+
+One residual sharp edge: `camstudio generate job.json > part.gcode` with a
+blocked program leaves an empty `part.gcode`, because the shell creates the file
+before the command runs. Preflight cannot prevent that; stderr says plainly that
+no G-code was written. Prefer `-o` over redirection.
 
 ---
 

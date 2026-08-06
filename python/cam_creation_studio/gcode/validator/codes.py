@@ -36,6 +36,27 @@ EXTRUSION_WITHOUT_HOTEND = "EXTRUSION_WITHOUT_HOTEND"
 NEGATIVE_Z_IN_LASER_MODE = "NEGATIVE_Z_IN_LASER_MODE"
 SPINDLE_OFF_WITH_CUTS = "SPINDLE_OFF_WITH_CUTS"
 
+# --- Export-preflight policy codes (CS-009) -------------------------------- #
+# Emitted only by :mod:`cam_creation_studio.safety.preflight`, for conditions the
+# advisory validator does not detect because they matter only at the moment an
+# artifact would be written. They live here so there stays exactly one code
+# registry; they are deliberately NOT part of CANONICAL_CODES, which is the
+# CS-003 validator contract and must remain the eleven codes it promises.
+# There is deliberately no export code for an unknown dialect: the validator
+# already emits UNSUPPORTED_DIALECT for exactly that condition, and preflight
+# reclassifies it as blocking rather than detecting it a second time.
+EXPORT_EMPTY_ARTIFACT = "EXPORT_EMPTY_ARTIFACT"
+EXPORT_NON_FINITE_VALUE = "EXPORT_NON_FINITE_VALUE"
+EXPORT_UNIT_MISMATCH = "EXPORT_UNIT_MISMATCH"
+EXPORT_NON_POSITIVE_FEED = "EXPORT_NON_POSITIVE_FEED"
+
+EXPORT_PREFLIGHT_CODES = (
+    EXPORT_EMPTY_ARTIFACT,
+    EXPORT_NON_FINITE_VALUE,
+    EXPORT_UNIT_MISMATCH,
+    EXPORT_NON_POSITIVE_FEED,
+)
+
 # The eleven canonical codes CS-003 promises, in spec order.
 CANONICAL_CODES = (
     EMPTY_PROGRAM,
