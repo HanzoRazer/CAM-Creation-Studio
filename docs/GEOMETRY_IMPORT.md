@@ -66,11 +66,15 @@ To detect an incomplete import at a glance, read
 `raw_entity_count` / `unsupported_entity_count` / `entity_count` fields for the
 exact breakdown.
 
-> ### CS-008 fidelity remediation — complete
+> ### CS-008 fidelity remediation — complete for the defects verified here
 >
-> Three defects were confirmed against the golden corpus and are now fixed, each
-> guarded by a flipped characterization test in
-> `test_geometry_characterization.py`:
+> **Scope of this claim.** Three defects were reproduced against the golden
+> corpus *in this repository* and are fixed, each guarded by a flipped
+> characterization test in `test_geometry_characterization.py`. The claim covers
+> exactly those three. An external CS-008 audit is referenced by the orders that
+> commissioned this work but was never supplied to the implementing session, so
+> nothing here establishes coverage of findings beyond the three below. See
+> [SESSION_INTEGRITY_2026-08-07.md](SESSION_INTEGRITY_2026-08-07.md).
 >
 > * **OCS / extrusion was a correctness defect, not a fidelity one.** A `CIRCLE`
 >   at OCS `(5,5)` with extrusion `(0,0,-1)` imported at `(+5,5)` instead of its
