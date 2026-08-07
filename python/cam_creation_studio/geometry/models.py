@@ -95,25 +95,76 @@ class Polyline2D:
         return _bounds.bounds_of_points(self.vertices)
 
 
+# How a spline's geometry is given. DXF allows either; they are not
+# interchangeable, and converting between them is curve mathematics this layer
+# deliberately does not perform.
+REPRESENTATION_CONTROL = "control"   # control points define the curve
+REPRESENTATION_FIT = "fit"           # the curve passes through fit points
+
+
 @dataclass(frozen=True, slots=True)
 class Spline2D:
-    """A spline, preserved as its control points + degree (mm).
+    """A spline, preserved as the source defined it (mm).
 
-    We keep the source evidence (control points, degree, closed flag) rather than
-    flattening the curve; interpretation and any tessellation happen later.
+    DXF gives a spline one of two ways, and this model keeps whichever it was
+    handed rather than converting: ``representation`` says which, and the
+    matching point list is authoritative. Deriving control points from fit points
+    is curve fitting — real spline mathematics — and belongs nowhere near an
+    importer whose job is to preserve evidence.
+
+    ``knots`` and ``weights`` are **not** scaled with the drawing units. Knots
+    live in parameter space and weights are dimensionless; multiplying either by
+    a mm conversion would corrupt the curve.
+
+    Invariant: a spline must carry the points its declared representation needs.
+    A spline with neither control nor fit points is not a degenerate entity to be
+    kept with a warning — it is not geometry at all, and the importer excludes it
+    rather than admitting an entity that counts as imported while containing
+    nothing.
     """
 
-    control_points: List[Point]
+    control_points: List[Point] = field(default_factory=list)
+    fit_points: List[Point] = field(default_factory=list)
+    knots: List[float] = field(default_factory=list)
+    weights: List[float] = field(default_factory=list)
     degree: int = 3
     closed: bool = False
+    periodic: bool = False
+    rational: bool = False
+    representation: str = REPRESENTATION_CONTROL
     layer: str = "0"
     kind: str = "spline"
 
+    def __post_init__(self) -> None:
+        if self.representation not in (REPRESENTATION_CONTROL, REPRESENTATION_FIT):
+            raise ValueError(
+                f"Spline2D.representation must be "
+                f"{REPRESENTATION_CONTROL!r} or {REPRESENTATION_FIT!r}, "
+                f"got {self.representation!r}")
+        if not self.defining_points:
+            raise ValueError(
+                f"Spline2D declares representation={self.representation!r} but "
+                f"carries no {self.representation} points; an empty spline is not "
+                "valid geometry.")
+
+    @property
+    def defining_points(self) -> List[Point]:
+        """The point list that actually defines this curve."""
+        if self.representation == REPRESENTATION_FIT:
+            return self.fit_points
+        return self.control_points
+
     @property
     def bounds(self) -> Optional[Bounds]:
-        # Control-point hull bounds the curve; exact only for interpolating cases,
-        # but a deterministic, superset-safe box for preview/inspection.
-        return _bounds.bounds_of_points(self.control_points)
+        """Box over the defining points.
+
+        For a control-point spline this is the control hull — a superset of the
+        curve, so safe to reason about. For a **fit-point** spline it is not: the
+        curve interpolates the fit points and may bulge outside their box, so
+        these bounds can under-report. Tightening them requires evaluating the
+        curve, which this layer does not do.
+        """
+        return _bounds.bounds_of_points(self.defining_points)
 
 
 Entity = Union[Line2D, Arc2D, Circle2D, Polyline2D, Spline2D]
@@ -312,6 +363,8 @@ __all__ = [
     "Circle2D",
     "Polyline2D",
     "Spline2D",
+    "REPRESENTATION_CONTROL",
+    "REPRESENTATION_FIT",
     "Entity",
     "ImportMetadata",
     "ImportReport",

@@ -54,7 +54,8 @@ consumer that needs faithful geometry must check them:
 | Source construct | Behavior | Signal |
 |------------------|----------|--------|
 | Polyline **bulges** (arc segments) | Flattened to straight chords; vertices kept | `POLYLINE_BULGE_IGNORED` |
-| **SPLINE** knot vectors, weights, fit points | Dropped; only control points + degree kept | ⚠ **none — silent** |
+| **SPLINE** fit points, weights, knots | **Preserved** — see *Splines* below | (none — nothing is lost) |
+| Fit-spline **start/end tangents** | Not represented; fit points kept | `FIT_POINT_SPLINE_UNREPRESENTED` |
 | **OCS / extrusion vectors** | **Not applied.** Entities import at raw OCS coordinates | ⚠ **none — silent** |
 | **LWPOLYLINE** `elevation` | **Dropped.** Z flattened to 0 (POLYLINE keeps Z) | ⚠ **none — silent** |
 | **ELLIPSE**, **TEXT**, **MTEXT**, **HATCH**, **DIMENSION** | Not represented | `UNSUPPORTED_ENTITY` |
@@ -68,9 +69,9 @@ exact breakdown.
 
 > ### ⚠ Known fidelity defects under remediation (CS-008)
 >
-> The three rows marked **silent** above are confirmed defects, reproduced
-> against the golden corpus in `python/tests/fixtures/` and pinned by
-> `test_geometry_characterization.py`. Until the remediation increments land:
+> The rows marked **silent** above are confirmed defects, reproduced against the
+> golden corpus in `python/tests/fixtures/` and pinned by
+> `test_geometry_characterization.py`. Until the coordinate increment lands:
 >
 > * **OCS / extrusion is a correctness defect, not a fidelity one.** A `CIRCLE`
 >   drawn at OCS `(5,5)` with extrusion `(0,0,-1)` has a true WCS centre of
@@ -80,12 +81,9 @@ exact breakdown.
 > * **LWPOLYLINE elevation is dropped; POLYLINE elevation is kept.** Identical
 >   geometry survives or is flattened depending only on which entity the
 >   authoring tool emitted.
-> * **A fit-point SPLINE imports as an entity with zero control points** — it
->   raises `INVALID_SPLINE`, but still enters the collection contributing no
->   geometry and no bounds.
 >
-> Remediation order: evidence infrastructure (done) → spline fidelity →
-> coordinate correctness.
+> Remediation order: evidence infrastructure (**done**) → spline fidelity
+> (**done**) → coordinate correctness (**outstanding**).
 
 ## Design guarantees
 
@@ -114,12 +112,14 @@ Stable codes in `geometry/diagnostics.py`: `UNSUPPORTED_ENTITY`, `MISSING_LAYER`
 Degeneracy checks (zero length/radius, bulge) use a small tolerance, so float
 noise from CAD exports is caught rather than slipping past an exact `== 0`.
 
-**Reserved, not yet emitted** (CS-008 remediation): `FIT_POINT_SPLINE_UNREPRESENTED`,
-`RATIONAL_SPLINE_WEIGHTS_DROPPED`, `LWPOLYLINE_ELEVATION_DROPPED`,
-`EMPTY_SPLINE_GEOMETRY`, `OCS_TRANSFORM_FAILED`. The vocabulary is defined in the
-registry now so it has one home; the importer begins raising these in the
-increments that follow. A consumer matching on them today will simply never see
-them — it will not see a differently-named finding instead.
+Spline fidelity codes, live since the spline increment:
+`FIT_POINT_SPLINE_UNREPRESENTED`, `RATIONAL_SPLINE_WEIGHTS_DROPPED`,
+`EMPTY_SPLINE_GEOMETRY`. Each fires only on genuine loss — see *Splines* below.
+
+**Reserved, not yet emitted**: `LWPOLYLINE_ELEVATION_DROPPED`,
+`OCS_TRANSFORM_FAILED`, awaiting the coordinate-correctness increment. A consumer
+matching on them today will simply never see them — it will not see a
+differently-named finding instead.
 
 There is deliberately **no `OCS_TRANSFORM_APPLIED` code.** A transform that
 succeeds is correct importer behavior, not a defect; coding it as a diagnostic
@@ -160,6 +160,52 @@ It carries **no duration or timestamp** — wall-clock would make two imports of
 file compare unequal and destabilize fixtures, for a number that says nothing
 about fidelity. Because it is rebuilt on demand it cannot drift from the
 collection it describes.
+
+## Splines
+
+DXF defines a spline one of two ways, and they are **not** interchangeable. The
+importer keeps whichever the source used rather than converting:
+
+| `representation` | Authoritative points | Meaning |
+|------------------|----------------------|---------|
+| `"control"` | `control_points` | control points define the curve |
+| `"fit"` | `fit_points` | the curve passes *through* these points |
+
+`spline.defining_points` returns the authoritative list either way. Also
+preserved: `knots`, `weights`, `degree`, `closed`, `periodic`, `rational`.
+
+A fit-point spline is a **complete description, not a broken control-point one**,
+so preserving it raises no diagnostic. Likewise a rational spline whose weights
+survive is silent. This is the governing rule: *a loss diagnostic describes
+actual information loss, never merely the presence of a non-default DXF feature.*
+
+Deriving control points from fit points is curve fitting — real spline
+mathematics — and is deliberately not done here. An importer preserves evidence;
+it does not invent geometry.
+
+**Knots and weights are never scaled** by the drawing units. Knots live in
+parameter space and weights are dimensionless; multiplying either by a mm
+conversion would corrupt the curve.
+
+**Invariant:** a spline must carry the points its representation needs.
+Constructing `Spline2D` with neither raises `ValueError`, and a source spline
+with neither is excluded from the collection with `EMPTY_SPLINE_GEOMETRY` —
+rather than admitted as an entity that counts as imported while containing
+nothing.
+
+What still costs something:
+
+| Condition | Behavior | Signal |
+|-----------|----------|--------|
+| Neither control nor fit points | Entity excluded | `EMPTY_SPLINE_GEOMETRY` |
+| Weight count ≠ control-point count | Weights dropped; association unrecoverable | `RATIONAL_SPLINE_WEIGHTS_DROPPED` |
+| Fit spline with start/end tangents | Fit points kept; tangents not represented | `FIT_POINT_SPLINE_UNREPRESENTED` |
+| Control points < degree + 1 | Kept as given | `INVALID_SPLINE` (advisory, **not** a loss) |
+
+> **Bounds caveat.** For a control-point spline, `bounds` is the control hull — a
+> superset of the curve, safe to reason about. For a **fit-point** spline it is
+> not: the curve interpolates the fit points and may bulge outside their box, so
+> the bounds can under-report. Tightening them requires evaluating the curve.
 
 ## Golden fixture corpus
 

@@ -7,9 +7,9 @@ They are the before-half of a before-and-after regression pair. Tests named
 remediation increments which follow have to change them deliberately and
 visibly, rather than quietly moving geometry underneath a green suite.
 
-    PR 1 (this one) — record the defects, change nothing
-    PR 2            — spline fidelity        → flips the spline defect tests
-    PR 3            — coordinate correctness → flips the OCS and elevation tests
+    PR 1 — record the defects, change nothing            [done]
+    PR 2 — spline fidelity        → flipped the spline tests   [done]
+    PR 3 — coordinate correctness → flips the OCS and elevation tests
 
 A ``test_defect_*`` failing after those increments is the *intended* signal, not
 a regression. Each one names its target in the docstring. Everything else in
@@ -143,43 +143,69 @@ def test_polyline_elevation_is_preserved_and_must_stay_that_way():
 
 
 # --------------------------------------------------------------------------- #
-# DEFECT — spline fidelity (PR 2 target)
+# FIXED in PR 2 — spline fidelity
 # --------------------------------------------------------------------------- #
-def test_defect_fit_point_spline_becomes_an_empty_entity():
-    """PR 2 target. A fit-point spline yields a `Spline2D` with zero control
-    points: an entity that exists, claims to be geometry, and contains none."""
+# These previously asserted the defects. PR 2 flipped them, which is the whole
+# point of the characterization pair; they now guard the fix against regression.
+def test_fit_point_spline_is_preserved_as_fit_representation():
+    """Was: imported as an empty entity with zero control points.
+
+    Now the fit points are kept and the entity says so, instead of pretending to
+    be a control-point spline that lost its points.
+    """
     collection = load("fit_spline.dxf")
     spline = collection.of_kind("spline")[0]
 
-    assert spline.control_points == []
-    assert spline.bounds is None                    # contributes nothing
-    assert collection.bounds is None                # ...and nothing to the file
-    assert collection.metadata.entity_count == 1    # yet counts as imported
+    assert spline.representation == "fit"
+    assert len(spline.fit_points) == 4
+    assert spline.control_points == []              # correct: none were given
+    assert spline.defining_points == spline.fit_points
+    assert spline.bounds is not None                # contributes real extent now
+    assert collection.bounds is not None
 
 
-def test_fit_point_spline_is_at_least_flagged():
-    """Not silent — INVALID_SPLINE fires. PR 2 replaces it with a code that says
-    what was lost, so this assertion is expected to change."""
-    assert diag.INVALID_SPLINE in codes(load("fit_spline.dxf"))
+def test_fit_point_spline_is_no_longer_flagged_as_invalid():
+    """Was: INVALID_SPLINE, because zero control points looked degenerate.
+
+    A fit-point spline is a complete description, not a broken control-point one,
+    so there is nothing to report.
+    """
+    assert diag.INVALID_SPLINE not in codes(load("fit_spline.dxf"))
+    assert codes(load("fit_spline.dxf")) == []
 
 
-def test_defect_rational_spline_weights_are_dropped_silently():
-    """PR 2 target. Weights [1,4,4,1] make this a genuinely different curve from
-    the same control points unweighted. Nothing records their loss."""
-    collection = load("weighted_spline.dxf")
-    spline = collection.of_kind("spline")[0]
+def test_rational_spline_weights_are_preserved():
+    """Was: weights [1,4,4,1] discarded silently."""
+    spline = load("weighted_spline.dxf").of_kind("spline")[0]
 
-    assert len(spline.control_points) == 4
-    assert not hasattr(spline, "weights")           # PR 2 adds the field
-    assert codes(collection) == []                  # PR 2 adds the diagnostic
-    assert diag.RATIONAL_SPLINE_WEIGHTS_DROPPED not in codes(collection)
+    assert spline.weights == [1.0, 4.0, 4.0, 1.0]
+    assert spline.rational is True
+    assert len(spline.knots) == 8                   # knot vector kept too
+    assert spline.representation == "control"
 
 
-def test_defect_no_spline_loss_is_recorded_as_loss():
-    """PR 2 target. `report()` reports a clean import for both spline fixtures,
-    because nothing marks the missing weights or fit points as a cost."""
-    assert load("weighted_spline.dxf").report().loss_count == 0
-    assert load("fit_spline.dxf").report().loss_count == 0
+def test_faithfully_imported_splines_record_no_loss():
+    """Still zero — but now because nothing was lost, not because nothing looked.
+
+    This is the refinement that matters: a loss diagnostic describes actual
+    information loss, never merely the presence of a non-default DXF feature.
+    """
+    for name in ("weighted_spline.dxf", "fit_spline.dxf"):
+        report = load(name).report()
+        assert report.loss_count == 0
+        assert not report.has_loss
+
+
+def test_knots_and_weights_are_not_scaled_by_drawing_units():
+    """Knots are parameter space and weights are dimensionless.
+
+    Both fixtures are millimetre drawings (scale 1.0), so this pins the intent
+    rather than catching a live bug — the unit test in `test_spline_fidelity`
+    exercises a non-unity scale.
+    """
+    spline = load("weighted_spline.dxf").of_kind("spline")[0]
+    assert spline.weights == [1.0, 4.0, 4.0, 1.0]
+    assert max(spline.knots) == 1.0                 # normalized knot vector
 
 
 # --------------------------------------------------------------------------- #

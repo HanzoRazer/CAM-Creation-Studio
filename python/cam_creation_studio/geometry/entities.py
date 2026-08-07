@@ -12,9 +12,13 @@ still kept, so no entity is ever lost silently.
 
 Fidelity limits (surfaced as diagnostics, never silent): polyline *bulges* are
 flattened to chords (:data:`~geometry.diagnostics.POLYLINE_BULGE_IGNORED`);
-splines keep only control points + degree (knot vectors, weights, and fit points
-are dropped); ELLIPSE, TEXT, HATCH, DIMENSION, and INSERT/block references are
-unsupported (:data:`~geometry.diagnostics.UNSUPPORTED_ENTITY`).
+ELLIPSE, TEXT, HATCH, DIMENSION, and INSERT/block references are unsupported
+(:data:`~geometry.diagnostics.UNSUPPORTED_ENTITY`).
+
+Splines preserve whichever representation the source used — control points or
+fit points — along with knots, weights, degree, closure, and periodicity. Neither
+form is converted into the other, so a fit-point spline is recorded as fit
+evidence rather than reported as a loss.
 """
 
 from __future__ import annotations
@@ -24,7 +28,16 @@ from typing import List, Optional, Tuple
 from ..shared.geometry import Point
 from . import diagnostics as diag
 from .diagnostics import GeometryDiagnostic
-from .models import Arc2D, Circle2D, Entity, Line2D, Polyline2D, Spline2D
+from .models import (
+    REPRESENTATION_CONTROL,
+    REPRESENTATION_FIT,
+    Arc2D,
+    Circle2D,
+    Entity,
+    Line2D,
+    Polyline2D,
+    Spline2D,
+)
 
 TranslationResult = Tuple[Optional[Entity], List[GeometryDiagnostic]]
 
@@ -153,20 +166,135 @@ def translate(entity, scale: float) -> TranslationResult:
         )
 
     if dxftype == "SPLINE":
-        ctrl = [_pt(p, scale) for p in entity.control_points]
-        degree = int(getattr(entity.dxf, "degree", 3))
-        diags = []
-        if len(ctrl) < degree + 1:
-            diags.append(diag.warning(
-                diag.INVALID_SPLINE,
-                f"Spline of degree {degree} has only {len(ctrl)} control points.",
-                **loc))
-        return (
-            Spline2D(control_points=ctrl, degree=degree,
-                     closed=bool(entity.closed), layer=layer),
-            diags,
-        )
+        return _translate_spline(entity, scale, layer, loc)
 
     # Unsupported: keep evidence, drop no geometry silently.
     return None, [diag.warning(
         diag.UNSUPPORTED_ENTITY, f"Unsupported DXF entity type {dxftype!r}.", **loc)]
+
+
+# --------------------------------------------------------------------------- #
+# SPLINE
+# --------------------------------------------------------------------------- #
+# DXF SPLINE flag bits (group code 70).
+_SPLINE_CLOSED = 1
+_SPLINE_PERIODIC = 2
+_SPLINE_RATIONAL = 4
+
+
+def _floats(values) -> List[float]:
+    """A plain float list from any sequence-like, unscaled.
+
+    Knots live in parameter space and weights are dimensionless: neither is a
+    length, so neither is multiplied by the unit scale.
+    """
+    return [float(v) for v in (values or [])]
+
+
+def _translate_spline(entity, scale: float, layer: str, loc: dict) -> TranslationResult:
+    """Preserve a SPLINE as the source defined it — control points or fit points.
+
+    A spline given by fit points is *not* an incomplete control-point spline; it
+    is a different, equally complete description. Recording it as such preserves
+    the source faithfully, so no loss diagnostic is raised. Converting between the
+    two is curve fitting, which this layer does not do.
+
+    Diagnostics are reserved for genuine loss:
+
+    * neither representation available -> the entity is not geometry, so it is
+      excluded rather than admitted as an empty-but-valid spline;
+    * weights that cannot be matched to control points 1:1 -> the association is
+      unrecoverable, so the weights are dropped and said so;
+    * a fit spline carrying tangent constraints -> the tangents shape the curve
+      and this model has nowhere to put them.
+    """
+    ctrl = [_pt(p, scale) for p in (getattr(entity, "control_points", None) or [])]
+    fit = [_pt(p, scale) for p in (getattr(entity, "fit_points", None) or [])]
+    degree = int(getattr(entity.dxf, "degree", 3))
+    flags = int(getattr(entity.dxf, "flags", 0) or 0)
+    knots = _floats(getattr(entity, "knots", None))
+    weights = _floats(getattr(entity, "weights", None))
+    diags: List[GeometryDiagnostic] = []
+
+    if not ctrl and not fit:
+        return None, [diag.loss(
+            diag.EMPTY_SPLINE_GEOMETRY,
+            "Spline carries neither control points nor fit points; it defines no "
+            "geometry and was not imported.",
+            recoverable=False,
+            metadata={"degree": degree, "knot_count": len(knots)},
+            **loc)]
+
+    # Control points win when both are present: they define the curve exactly,
+    # while fit points are the authoring intent the CAD tool fitted them to.
+    representation = REPRESENTATION_CONTROL if ctrl else REPRESENTATION_FIT
+
+    # Weights are positional — weight[i] belongs to control_points[i]. A count
+    # mismatch makes that mapping unrecoverable, so they cannot be preserved.
+    if weights and len(weights) != len(ctrl):
+        diags.append(diag.loss(
+            diag.RATIONAL_SPLINE_WEIGHTS_DROPPED,
+            f"Spline has {len(weights)} weight(s) for {len(ctrl)} control "
+            "point(s); the association is unrecoverable, so weights were dropped.",
+            recoverable=False,
+            metadata={"weight_count": len(weights),
+                      "control_point_count": len(ctrl),
+                      "degree": degree},
+            **loc))
+        weights = []
+
+    # Tangent constraints shape a fitted curve. We keep the fit points, but this
+    # model has nowhere to record the tangents, so the curve is under-determined.
+    tangents = [
+        name for name in ("start_tangent", "end_tangent")
+        if _dxf_has(entity, name)
+    ]
+    if representation == REPRESENTATION_FIT and tangents:
+        diags.append(diag.loss(
+            diag.FIT_POINT_SPLINE_UNREPRESENTED,
+            f"Fit-point spline carries {' and '.join(tangents)}; the fit points "
+            "are preserved but the tangent constraints are not represented.",
+            recoverable=False,
+            metadata={"fit_point_count": len(fit), "tangents": tangents,
+                      "degree": degree},
+            **loc))
+
+    # An under-specified control-point spline is still advisory, not a loss: the
+    # points we were given are all preserved. Only meaningful for the control
+    # representation — a fit spline is not expected to carry control points.
+    if representation == REPRESENTATION_CONTROL and len(ctrl) < degree + 1:
+        diags.append(diag.warning(
+            diag.INVALID_SPLINE,
+            f"Spline of degree {degree} has only {len(ctrl)} control points.",
+            **loc))
+
+    return (
+        Spline2D(
+            control_points=ctrl,
+            fit_points=fit,
+            knots=knots,
+            weights=weights,
+            degree=degree,
+            closed=bool(getattr(entity, "closed", False) or flags & _SPLINE_CLOSED),
+            periodic=bool(flags & _SPLINE_PERIODIC),
+            rational=bool(flags & _SPLINE_RATIONAL) or bool(weights),
+            representation=representation,
+            layer=layer,
+        ),
+        diags,
+    )
+
+
+def _dxf_has(entity, name: str) -> bool:
+    """True when the entity's DXF namespace actually carries ``name``.
+
+    ezdxf exposes ``dxf.hasattr``; a duck-typed stand-in may not, so fall back to
+    a plain attribute probe rather than requiring the richer interface.
+    """
+    dxf = getattr(entity, "dxf", None)
+    if dxf is None:
+        return False
+    has = getattr(dxf, "hasattr", None)
+    if callable(has):
+        return bool(has(name))
+    return getattr(dxf, name, None) is not None
