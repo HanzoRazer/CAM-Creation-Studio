@@ -1,0 +1,260 @@
+{
+  "audit": "CS-008R",
+  "audited_commit": "637a0cafe3eed01792f90eff4ad093e41a519c24",
+  "audit_worktree": "C:\\tmp\\cs008_audit",
+  "package_file": "C:\\tmp\\cs008_audit\\python\\cam_creation_studio\\__init__.py",
+  "python_version": "3.14.0",
+  "ezdxf_version": "1.4.3",
+  "fixture_dir": "C:\\Users\\thepr\\AppData\\Local\\Temp\\cs008r_bd0sgezt",
+  "results": [
+    {
+      "id": "P1",
+      "case": "all six supported entity families + source order",
+      "classification": "FULLY_PRESERVED",
+      "expected": "['line','arc','circle','polyline','polyline','spline'] in source order",
+      "actual": "['line', 'arc', 'circle', 'polyline', 'polyline', 'spline']",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "P2",
+      "case": "fit-point-only spline",
+      "classification": "SKIPPED_WITH_DIAG",
+      "expected": "shape evidence for 3 fit points, or explicit loss diagnostic",
+      "actual": "Spline2D(control_points=0, bounds=None)",
+      "diagnostics": [
+        "INVALID_SPLINE"
+      ],
+      "note": "has_lossy_import=False; raw=1 kept=1 unsupported=0 -- entity retained, geometry empty, collection-level lossy signal NOT set"
+    },
+    {
+      "id": "P3",
+      "case": "control-point spline (order, degree, closed)",
+      "classification": "FULLY_PRESERVED",
+      "expected": "control points [(0, 0), (1, 3), (2, 3), (3, 0)] in order, degree=3, closed=False",
+      "actual": "order_preserved=True, degree=3, closed=False",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "P4",
+      "case": "rational spline weights",
+      "classification": "SILENTLY_LOST",
+      "expected": "weights [1.0, 8.0, 8.0, 1.0] retained, or explicit loss diagnostic",
+      "actual": "source carried 4 weights; weighted vs unweighted import indistinguishable=True",
+      "diagnostics": [],
+      "note": "Spline2D has no weight field; diagnostics.py declares no weight-loss code"
+    },
+    {
+      "id": "P5a",
+      "case": "knot vector",
+      "classification": "SILENTLY_LOST",
+      "expected": "8 knot values retained or loss diagnosed",
+      "actual": "model fields = ['control_points', 'degree', 'closed', 'layer', 'kind']; no knot field",
+      "diagnostics": [],
+      "note": "source knots: [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]"
+    },
+    {
+      "id": "P5b",
+      "case": "periodic vs closed spline state",
+      "classification": "FULLY_PRESERVED",
+      "expected": "closed state retained; periodic distinguishable from closed",
+      "actual": "source flags=1 (closed_bit=True, periodic_bit=False); model.closed=True",
+      "diagnostics": [],
+      "note": "model collapses both DXF flags into a single boolean 'closed'"
+    },
+    {
+      "id": "P6",
+      "case": "invalid spline (control points < degree+1)",
+      "classification": "APPROXIMATED_WITH_DIAG",
+      "expected": "INVALID_SPLINE raised, geometry still retained",
+      "actual": "codes=['INVALID_SPLINE'], entities kept=1",
+      "diagnostics": [
+        "INVALID_SPLINE"
+      ],
+      "note": ""
+    },
+    {
+      "id": "P7a",
+      "case": "OCS extrusion - CIRCLE centre",
+      "classification": "SILENTLY_LOST",
+      "expected": "WCS (-10.0000, 4.0000) via ezdxf OCS.to_wcs",
+      "actual": "(10.0000, 4.0000)",
+      "diagnostics": [],
+      "note": "OCS coordinates consumed as if they were WCS"
+    },
+    {
+      "id": "P7b",
+      "case": "OCS extrusion - ARC centre",
+      "classification": "SILENTLY_LOST",
+      "expected": "WCS x=-10.0000",
+      "actual": "x=10.0000",
+      "diagnostics": [],
+      "note": "under a flipped extrusion the arc sweep direction also mirrors; the model stores raw start/end angles unchanged"
+    },
+    {
+      "id": "P7c",
+      "case": "OCS extrusion - LWPOLYLINE vertex",
+      "classification": "SILENTLY_LOST",
+      "expected": "WCS x=-10.0000",
+      "actual": "x=10.0000",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "P7d",
+      "case": "control: default extrusion (0,0,1)",
+      "classification": "FULLY_PRESERVED",
+      "expected": "x=10.0000",
+      "actual": "x=10.0000",
+      "diagnostics": [],
+      "note": "isolates extrusion handling from general coordinate handling"
+    },
+    {
+      "id": "P8a",
+      "case": "LWPOLYLINE elevation",
+      "classification": "SILENTLY_LOST",
+      "expected": "vertex z = 12.0",
+      "actual": "vertex z = [0.0]",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "P8b",
+      "case": "POLYLINE-3D vertex elevation",
+      "classification": "FULLY_PRESERVED",
+      "expected": "vertex z = 12.0",
+      "actual": "vertex z = [12.0]",
+      "diagnostics": [],
+      "note": "NOT a like-for-like control for P8a: a 3D polyline carries z in the vertices themselves. P8c supplies the fair comparison."
+    },
+    {
+      "id": "P8c",
+      "case": "POLYLINE-2D elevation attribute (like-for-like control for P8a)",
+      "classification": "SILENTLY_LOST",
+      "expected": "vertex z = 12.0 if the elevation attribute is honoured on this path",
+      "actual": "vertex z = [0.0]",
+      "diagnostics": [],
+      "note": "decides whether P8a is a genuine LWPOLYLINE-vs-POLYLINE inconsistency or a uniform 2D-scope limitation across both polyline paths"
+    },
+    {
+      "id": "P9a",
+      "case": "LWPOLYLINE bulge",
+      "classification": "APPROXIMATED_WITH_DIAG",
+      "expected": "POLYLINE_BULGE_IGNORED raised; vertices retained; arc flattened to chord",
+      "actual": "codes=['POLYLINE_BULGE_IGNORED']; kept=1",
+      "diagnostics": [
+        "POLYLINE_BULGE_IGNORED"
+      ],
+      "note": ""
+    },
+    {
+      "id": "P9b",
+      "case": "POLYLINE bulge",
+      "classification": "APPROXIMATED_WITH_DIAG",
+      "expected": "POLYLINE_BULGE_IGNORED raised",
+      "actual": "codes=['POLYLINE_BULGE_IGNORED']",
+      "diagnostics": [
+        "POLYLINE_BULGE_IGNORED"
+      ],
+      "note": ""
+    },
+    {
+      "id": "P10a",
+      "case": "layer preservation",
+      "classification": "FULLY_PRESERVED",
+      "expected": "['cut', 'holes']",
+      "actual": "['cut', 'holes']",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "P10b",
+      "case": "source handle traceability",
+      "classification": "SILENTLY_LOST",
+      "expected": "source handles ['8A', '8B'] recoverable from imported entities",
+      "actual": "entity exposes handle attribute: False",
+      "diagnostics": [],
+      "note": "handles are read for DUPLICATE_HANDLE detection and diagnostic location only; no entity model field stores one"
+    },
+    {
+      "id": "P11",
+      "case": "MISSING_LAYER reachability",
+      "classification": "SILENTLY_LOST",
+      "expected": "either MISSING_LAYER raised, or the absent-layer state proven unconstructible",
+      "actual": "layer name preserved='GHOST_NOT_IN_TABLE'; present in reloaded layer table=False; MISSING_LAYER emitted=False",
+      "diagnostics": [],
+      "note": "absent-layer state was constructible; check diagnostic behaviour"
+    },
+    {
+      "id": "P12a",
+      "case": "unsupported entities (TEXT, ELLIPSE)",
+      "classification": "SKIPPED_WITH_DIAG",
+      "expected": "2 x UNSUPPORTED_ENTITY; 1 line kept; has_lossy_import=True",
+      "actual": "2 x UNSUPPORTED_ENTITY; kept=1; lossy=True",
+      "diagnostics": [
+        "UNSUPPORTED_ENTITY",
+        "UNSUPPORTED_ENTITY"
+      ],
+      "note": ""
+    },
+    {
+      "id": "P12b",
+      "case": "malformed supported entities",
+      "classification": "APPROXIMATED_WITH_DIAG",
+      "expected": "['DEGENERATE_POLYLINE', 'ZERO_LENGTH_LINE', 'ZERO_RADIUS'] raised; geometry retained; no crash",
+      "actual": "['DEGENERATE_POLYLINE', 'ZERO_LENGTH_LINE', 'ZERO_RADIUS']; kept=3",
+      "diagnostics": [
+        "ZERO_LENGTH_LINE",
+        "ZERO_RADIUS",
+        "DEGENERATE_POLYLINE"
+      ],
+      "note": ""
+    },
+    {
+      "id": "P13",
+      "case": "unit normalization",
+      "classification": "FULLY_PRESERVED",
+      "expected": "each mapped INSUNITS code scales to mm exactly; unmapped codes fall back with UNKNOWN_UNITS",
+      "actual": "$1->in:25.4 $2->ft:304.8 $4->mm:1 $5->cm:10 $6->m:1000 $9->mil:0.0254 $13->micron:0.001 $14->dm:100 || unmapped: $11->unknown/1.0/['UNKNOWN_UNITS'] $12->unknown/1.0/['UNKNOWN_UNITS'] $15->unknown/1.0/['UNKNOWN_UNITS'] $16->unknown/1.0/['UNKNOWN_UNITS']",
+      "diagnostics": [],
+      "note": "mismatches: none"
+    },
+    {
+      "id": "P14a",
+      "case": "bounds computed from normalized (post-scale) coordinates",
+      "classification": "FULLY_PRESERVED",
+      "expected": "(0.0, 0.0, 127.0, 127.0)",
+      "actual": "(0.0, 0.0, 127.0, 127.0)",
+      "diagnostics": [],
+      "note": "also witnesses the +Y cardinal crossing is included in the arc box"
+    },
+    {
+      "id": "P14b",
+      "case": "bounds after OCS transform",
+      "classification": "SILENTLY_LOST",
+      "expected": "(-12.0, 2.0, -8.0, 6.0)",
+      "actual": "(8.0, 2.0, 12.0, 6.0)",
+      "diagnostics": [],
+      "note": "consequence of P7a, not an independent bounds defect: the box is correctly computed about an incorrectly placed centre"
+    },
+    {
+      "id": "P15",
+      "case": "numeric normalization / JSON compatibility",
+      "classification": "SILENTLY_LOST",
+      "expected": "every coordinate is a plain Python float; serialized output is ordinary JSON numbers",
+      "actual": "types={'LWPOLYLINE.vertex.x': 'float64', 'POLYLINE.vertex.x': 'float', 'LINE.start.x': 'float'}; serialized-and-reparsed types={'float'}; json.dumps succeeded=True",
+      "diagnostics": [],
+      "note": "non-float scalars present: {'LWPOLYLINE.vertex.x': 'float64'} -- numpy is NOT a declared project dependency and the repo never imports it; these scalars arrive transitively through ezdxf. json.dumps survives only because numpy.float64 subclasses float"
+    },
+    {
+      "id": "P16",
+      "case": "determinism and source immutability",
+      "classification": "FULLY_PRESERVED",
+      "expected": "two imports serialize identically; source DXF byte-identical after import",
+      "actual": "serialization identical=True; source hash unchanged=True",
+      "diagnostics": [],
+      "note": "fixture sha256 15c67fe0ff9abb3e..."
+    }
+  ]
+}
