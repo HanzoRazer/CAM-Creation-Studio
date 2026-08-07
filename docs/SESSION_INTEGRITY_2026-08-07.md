@@ -93,8 +93,18 @@ concurrent session) both fix audit finding **F1 — OCS/extrusion never resolved
 to WCS**, and both modify `geometry/entities.py` and `geometry/diagnostics.py`.
 
 Neither session knew of the other. This is the contamination's most concrete
-cost, and it requires a human decision: **one of the two must be withdrawn.**
-They must not both merge.
+cost.
+
+**Resolved 2026-08-07 by owner ruling: #14 is canonical.** It branches from
+`main`, implements F1 in isolation, and leaves F2–F7 untouched. #13 was closed as
+superseded — it was stacked behind #10/#11 and mixed F5 into F1 — with its
+implementation notes preserved in its closing comment and its branch retained.
+No commit from #13 is cherry-picked onto `main`. See
+[`dev_orders/LEDGER.md`](dev_orders/LEDGER.md) for the full disposition.
+
+Both implementations independently derived the same mirrored-arc angle rule and
+both correctly left `LINE` untransformed, which is meaningful corroboration —
+but it cost two sessions' work to obtain, which is the point of rule 4 in §6.
 
 ### 4.3 Remediation coverage was narrower than claimed
 
