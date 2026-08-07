@@ -73,6 +73,107 @@ def _pt(vec, scale: float) -> Point:
     return Point(float(x) * scale, float(y) * scale, float(z or 0.0) * scale)
 
 
+# --------------------------------------------------------------------------- #
+# Object Coordinate System (OCS)
+# --------------------------------------------------------------------------- #
+# DXF stores CIRCLE, ARC, LWPOLYLINE and 2D POLYLINE coordinates in the entity's
+# own OCS, defined by its extrusion vector. With the default extrusion (0,0,1)
+# the OCS *is* the WCS; with any other, raw coordinates are in the wrong place —
+# a (0,0,-1) extrusion mirrors X, so an untransformed import lands a part
+# mirrored with nothing to show for it.
+#
+# The transform itself comes from ezdxf via ``entity.ocs()``. ezdxf defines DXF
+# coordinate semantics and is already the importer's dependency; reimplementing
+# the arbitrary-axis algorithm here would create a second correctness authority
+# for the same maths. Access stays duck-typed, so this module still imports no
+# ezdxf symbol and a lightweight fake without ``ocs()`` simply gets identity.
+
+_OCS_EPS = 1e-9
+
+# Entity types whose coordinates DXF defines in OCS. LINE and SPLINE are always
+# WCS; a 3D POLYLINE is WCS while a 2D one is OCS, so it is decided per entity.
+_OCS_TYPES = frozenset({"CIRCLE", "ARC", "LWPOLYLINE", "POLYLINE"})
+
+DEFAULT_EXTRUSION = (0.0, 0.0, 1.0)
+
+
+def _vec3(value) -> Optional[Tuple[float, float, float]]:
+    """A plain ``(x, y, z)`` tuple from any vector-like, or ``None``."""
+    if value is None:
+        return None
+    if hasattr(value, "x"):
+        return float(value.x), float(value.y), float(getattr(value, "z", 0.0))
+    try:
+        return float(value[0]), float(value[1]), float(value[2])
+    except (TypeError, IndexError, ValueError):
+        return None
+
+
+def _extrusion_of(entity) -> Tuple[float, float, float]:
+    """The entity's extrusion vector, defaulting to +Z when absent."""
+    return _vec3(getattr(getattr(entity, "dxf", None), "extrusion", None)) or DEFAULT_EXTRUSION
+
+
+def _is_default_extrusion(extrusion) -> bool:
+    """True when the OCS coincides with the WCS and no transform is needed."""
+    x, y, z = extrusion
+    return abs(x) <= _OCS_EPS and abs(y) <= _OCS_EPS and abs(z - 1.0) <= _OCS_EPS
+
+
+def _is_planar_extrusion(extrusion) -> bool:
+    """True when the entity's plane is parallel to WCS XY (extrusion ±Z).
+
+    Only these can be represented by the planar :class:`Arc2D` / :class:`Circle2D`
+    models: any other extrusion tilts the circle out of the XY plane entirely.
+    """
+    x, y, z = extrusion
+    return abs(x) <= _OCS_EPS and abs(y) <= _OCS_EPS and abs(abs(z) - 1.0) <= _OCS_EPS
+
+
+def _uses_ocs(entity, dxftype: str) -> bool:
+    """True when this entity's coordinates need an OCS→WCS transform."""
+    if dxftype not in _OCS_TYPES:
+        return False
+    if dxftype == "POLYLINE" and not getattr(entity, "is_2d_polyline", False):
+        return False  # a 3D polyline's vertices are already WCS
+    return not _is_default_extrusion(_extrusion_of(entity))
+
+
+def _wcs_mapper(entity):
+    """A callable mapping OCS ``(x, y, z)`` to WCS, or ``None`` if unavailable.
+
+    Uses ezdxf's own ``entity.ocs()``; a duck-typed stand-in without it yields
+    ``None`` and the caller falls back to identity.
+    """
+    ocs_factory = getattr(entity, "ocs", None)
+    if not callable(ocs_factory):
+        return None
+    ocs = ocs_factory()
+    to_wcs = getattr(ocs, "to_wcs", None)
+    if not callable(to_wcs):
+        return None
+
+    def _map(x: float, y: float, z: float):
+        return _vec3(to_wcs((x, y, z)))
+
+    return _map
+
+
+def _mirror_arc_angles(start: float, end: float) -> Tuple[float, float]:
+    """Angles for an arc whose plane is mirrored by a (0,0,-1) extrusion.
+
+    A mirror reverses orientation, and :class:`Arc2D` is defined as sweeping
+    **counter-clockwise** from ``start_angle`` to ``end_angle``. Both the locus
+    and the start/end identity cannot survive that — so we keep the locus, which
+    is the geometry, and accept that the two endpoints trade roles.
+
+    Reflection about the Y axis sends θ to 180° − θ; reversing the sweep swaps
+    the two, giving ``(180 − end, 180 − start)``. Verified against ezdxf's own
+    ``start_point`` / ``end_point`` for a mirrored arc.
+    """
+    return (180.0 - end) % 360.0, (180.0 - start) % 360.0
+
+
 def _layer_of(entity) -> str:
     layer = getattr(getattr(entity, "dxf", None), "layer", None)
     return layer if layer else "0"
@@ -102,38 +203,31 @@ def translate(entity, scale: float) -> TranslationResult:
                 diag.ZERO_LENGTH_LINE, "Line has zero length.", **loc))
         return Line2D(start=start, end=end, layer=layer), diags
 
-    if dxftype == "ARC":
-        center = _pt(entity.dxf.center, scale)
-        radius = float(entity.dxf.radius) * scale
-        diags = []
-        if abs(radius) <= _DEGENERATE_EPS_MM:
-            diags.append(diag.warning(
-                diag.ZERO_RADIUS, "Arc has zero radius.", **loc))
-        return (
-            Arc2D(
-                center=center,
-                radius=radius,
-                start_angle=float(entity.dxf.start_angle),
-                end_angle=float(entity.dxf.end_angle),
-                layer=layer,
-            ),
-            diags,
-        )
-
-    if dxftype == "CIRCLE":
-        center = _pt(entity.dxf.center, scale)
-        radius = float(entity.dxf.radius) * scale
-        diags = []
-        if abs(radius) <= _DEGENERATE_EPS_MM:
-            diags.append(diag.warning(
-                diag.ZERO_RADIUS, "Circle has zero radius.", **loc))
-        return Circle2D(center=center, radius=radius, layer=layer), diags
+    if dxftype in ("ARC", "CIRCLE"):
+        return _translate_circular(entity, dxftype, scale, layer, loc)
 
     if dxftype == "LWPOLYLINE":
         # "xyb" yields (x, y, bulge); a non-zero bulge is an arc we flatten to a
-        # chord, so record it rather than change the shape silently.
+        # chord, so record it rather than change the shape silently. Vertices are
+        # OCS 2D at the entity's `elevation`, which is the Z the old path lost.
         pts = list(entity.get_points("xyb"))
-        verts = [Point(p[0] * scale, p[1] * scale) for p in pts]
+        elevation = float(getattr(entity.dxf, "elevation", 0.0) or 0.0)
+        to_wcs = _wcs_mapper(entity) if _uses_ocs(entity, dxftype) else None
+        extrusion = _extrusion_of(entity)
+
+        verts = []
+        for p in pts:
+            x, y = float(p[0]), float(p[1])
+            if to_wcs is not None:
+                mapped = to_wcs(x, y, elevation)
+                if mapped is not None:
+                    x, y, z = mapped
+                else:
+                    z = elevation
+            else:
+                z = elevation
+            verts.append(Point(x * scale, y * scale, z * scale))
+
         bulges = [p[2] for p in pts if len(p) > 2]
         diags = []
         if len(verts) < 2:
@@ -145,7 +239,13 @@ def translate(entity, scale: float) -> TranslationResult:
                 diag.POLYLINE_BULGE_IGNORED,
                 "Polyline has bulge (arc) segments; flattened to straight chords.",
                 **loc))
-        return Polyline2D(vertices=verts, closed=bool(entity.closed), layer=layer), diags
+        return (
+            Polyline2D(
+                vertices=verts, closed=bool(entity.closed), layer=layer,
+                extrusion=None if _is_default_extrusion(extrusion) else Point(*extrusion),
+            ),
+            diags,
+        )
 
     if dxftype == "POLYLINE":
         verts = [_pt(v.dxf.location, scale) for v in entity.vertices]
@@ -171,6 +271,74 @@ def translate(entity, scale: float) -> TranslationResult:
     # Unsupported: keep evidence, drop no geometry silently.
     return None, [diag.warning(
         diag.UNSUPPORTED_ENTITY, f"Unsupported DXF entity type {dxftype!r}.", **loc)]
+
+
+# --------------------------------------------------------------------------- #
+# ARC / CIRCLE
+# --------------------------------------------------------------------------- #
+def _translate_circular(entity, dxftype, scale, layer, loc) -> TranslationResult:
+    """ARC and CIRCLE, with the OCS→WCS correction their coordinates require.
+
+    Three cases, decided by the extrusion vector:
+
+    * **default (0,0,1)** — OCS is WCS. Nothing is touched, so drawings without
+      an extrusion import exactly as they did before.
+    * **mirrored (0,0,-1)** — still parallel to WCS XY, so the planar model can
+      hold it exactly. The centre is transformed and, for an arc, the angles are
+      mirrored with it.
+    * **tilted (anything else)** — the circle genuinely does not lie in the XY
+      plane. The centre is still corrected, but a planar Arc2D/Circle2D cannot
+      express the plane, so ``OCS_TRANSFORM_FAILED`` says so rather than
+      returning a confidently flat answer.
+    """
+    diags: List[GeometryDiagnostic] = []
+    extrusion = _extrusion_of(entity)
+    cx, cy, cz = _vec3(entity.dxf.center) or (0.0, 0.0, 0.0)
+    radius = float(entity.dxf.radius) * scale
+
+    if _uses_ocs(entity, dxftype):
+        to_wcs = _wcs_mapper(entity)
+        if to_wcs is not None:
+            mapped = to_wcs(cx, cy, cz)
+            if mapped is None:
+                diags.append(diag.warning(
+                    diag.OCS_TRANSFORM_FAILED,
+                    "Could not map the entity's centre out of its object "
+                    "coordinate system; coordinates are left untransformed.",
+                    **loc))
+            else:
+                cx, cy, cz = mapped
+
+        if not _is_planar_extrusion(extrusion):
+            diags.append(diag.warning(
+                diag.OCS_TRANSFORM_FAILED,
+                f"Extrusion {tuple(round(v, 6) for v in extrusion)} tilts this "
+                f"{dxftype.lower()} out of the XY plane; the centre is corrected "
+                "but the neutral planar model cannot represent the plane itself.",
+                **loc))
+
+    center = Point(cx * scale, cy * scale, cz * scale)
+    if abs(radius) <= _DEGENERATE_EPS_MM:
+        diags.append(diag.warning(
+            diag.ZERO_RADIUS, f"{dxftype.title()} has zero radius.", **loc))
+
+    normal = None if _is_default_extrusion(extrusion) else Point(*extrusion)
+
+    if dxftype == "CIRCLE":
+        return Circle2D(center=center, radius=radius, layer=layer,
+                        extrusion=normal), diags
+
+    start = float(entity.dxf.start_angle)
+    end = float(entity.dxf.end_angle)
+    # A (0,0,-1) extrusion mirrors the plane, so the sweep must be mirrored too.
+    if extrusion[2] < 0 and _is_planar_extrusion(extrusion):
+        start, end = _mirror_arc_angles(start, end)
+
+    return (
+        Arc2D(center=center, radius=radius, start_angle=start, end_angle=end,
+              layer=layer, extrusion=normal),
+        diags,
+    )
 
 
 # --------------------------------------------------------------------------- #

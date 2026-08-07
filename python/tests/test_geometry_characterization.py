@@ -1,20 +1,19 @@
 """Characterization of DXF import fidelity against the golden corpus (CS-008).
 
-**These tests pin current behavior, including behavior that is wrong.**
+This module began as the before-half of a before-and-after regression pair: it
+pinned what the importer did when the CS-008 fidelity defects were live, so the
+remediation increments had to change it deliberately and visibly rather than
+quietly moving geometry underneath a green suite.
 
-They are the before-half of a before-and-after regression pair. Tests named
-``test_defect_*`` assert what the importer does *today* so that the two
-remediation increments which follow have to change them deliberately and
-visibly, rather than quietly moving geometry underneath a green suite.
+    PR 1 — record the defects, change nothing                     [done]
+    PR 2 — spline fidelity        → flipped the spline tests      [done]
+    PR 3 — coordinate correctness → flipped the OCS/elevation ones [done]
 
-    PR 1 — record the defects, change nothing            [done]
-    PR 2 — spline fidelity        → flipped the spline tests   [done]
-    PR 3 — coordinate correctness → flips the OCS and elevation tests
-
-A ``test_defect_*`` failing after those increments is the *intended* signal, not
-a regression. Each one names its target in the docstring. Everything else in
-this module characterizes behavior that is already correct and must survive both
-increments unchanged.
+All three have landed, so every assertion here now describes **correct**
+behavior and guards it against regression. Each flipped test keeps its original
+subject in the docstring ("Was: ...") so the history stays readable — and the
+OCS cases still compare against the same ezdxf reference the defect versions
+used, with the `!=` that documented the bug now the `==` that protects the fix.
 
 The corpus lives in ``tests/fixtures/`` and is immutable — see
 ``fixtures/MAKE_FIXTURES.py``.
@@ -78,65 +77,104 @@ def test_every_fixture_declares_millimetres(name):
 
 
 # --------------------------------------------------------------------------- #
-# DEFECT — coordinate correctness (PR 3 target)
+# FIXED in PR 3 — coordinate correctness
 # --------------------------------------------------------------------------- #
-def test_defect_extruded_circle_imports_at_mirrored_coordinates():
-    """PR 3 target. Extrusion (0,0,-1) mirrors OCS X; the importer ignores it.
+# Flipped from the defect assertions, keeping the same ezdxf OCS reference: the
+# `!=` that documented the bug is now the `==` that guards the fix.
+def test_extruded_circle_imports_at_true_wcs_coordinates():
+    """Was: imported at (+5,5), mirrored, silently.
 
-    The circle is drawn at OCS (5,5). Its true WCS centre is (-5,5). We import
-    it at (+5,5) — not lost metadata, a *wrong position*, and a part machined
-    from this would be mirrored.
+    Extrusion (0,0,-1) mirrors OCS X. The circle is drawn at OCS (5,5) and its
+    true WCS centre is (-5,5), which is now where it lands.
     """
     circle = load("extruded_circle.dxf").of_kind("circle")[0]
     expected_x, expected_y, _ = reference_wcs("extruded_circle.dxf", "CIRCLE")
 
-    assert expected_x == -5.0                       # ezdxf agrees on the truth
-    assert circle.center.x == 5.0                   # ...and we disagree with it
-    assert circle.center.x != expected_x            # PR 3 flips this to ==
-    assert circle.center.y == expected_y            # Y happens to be unaffected
+    assert expected_x == -5.0                       # ezdxf's reference
+    assert circle.center.x == expected_x            # was `!=`
+    assert circle.center.y == expected_y
 
 
-def test_defect_ocs_arc_imports_at_untransformed_coordinates():
-    """PR 3 target. A tilted extrusion (0, 0.6, 0.8) needs the arbitrary-axis
-    algorithm; the importer applies no transform at all."""
+def test_ocs_arc_centre_is_transformed_by_the_arbitrary_axis_algorithm():
+    """Was: no transform applied at all.
+
+    A tilted extrusion (0, 0.6, 0.8) exercises the general OCS case rather than
+    the degenerate mirror.
+    """
     arc = load("ocs_arc.dxf").of_kind("arc")[0]
     expected_x, _, _ = reference_wcs("ocs_arc.dxf", "ARC")
 
     assert expected_x == -10.0
-    assert arc.center.x == 10.0
-    assert arc.center.x != expected_x               # PR 3 flips this to ==
+    assert arc.center.x == expected_x                # was `!=`
 
 
-def test_defect_ocs_entities_produce_no_diagnostic():
-    """PR 3 target. Silent is the problem: neither file yields any finding."""
+def test_planar_ocs_correction_is_silent_because_nothing_is_lost():
+    """A successful transform is correct behavior, not a finding.
+
+    The mirrored circle stays parallel to WCS XY, so the planar model holds it
+    exactly and there is nothing to report.
+    """
     assert codes(load("extruded_circle.dxf")) == []
-    assert codes(load("ocs_arc.dxf")) == []
 
 
-def test_defect_lwpolyline_elevation_is_dropped_silently():
-    """PR 3 target. `get_points("xyb")` never reads `dxf.elevation`, so Z=25
-    becomes Z=0 with no diagnostic."""
+def test_tilted_extrusion_reports_the_unrepresentable_plane():
+    """Was: silent. Now the one OCS case that genuinely cannot be represented.
+
+    An extrusion of (0, 0.6, 0.8) tilts the arc out of the XY plane entirely —
+    its endpoint has a non-zero WCS Z. The centre is corrected, but a planar
+    Arc2D cannot express the plane, so the importer says so instead of returning
+    a confidently flat answer.
+    """
+    collection = load("ocs_arc.dxf")
+    assert diag.OCS_TRANSFORM_FAILED in codes(collection)
+    assert collection.report().loss_count == 0      # a limit, not lost data
+
+
+def test_ocs_entities_retain_their_source_extrusion_as_evidence():
+    circle = load("extruded_circle.dxf").of_kind("circle")[0]
+    arc = load("ocs_arc.dxf").of_kind("arc")[0]
+
+    assert (circle.extrusion.x, circle.extrusion.y, circle.extrusion.z) == (0.0, 0.0, -1.0)
+    assert (arc.extrusion.x, arc.extrusion.y, arc.extrusion.z) == (0.0, 0.6, 0.8)
+
+
+def test_corrected_coordinates_move_the_planar_bounds():
+    """The mirror is visible in the bounds, not just the centre."""
+    bounds = load("extruded_circle.dxf").bounds
+    assert (bounds.min_x, bounds.max_x) == (-8.0, -2.0)   # was (2.0, 8.0)
+    assert (bounds.min_y, bounds.max_y) == (2.0, 8.0)     # unchanged by an X mirror
+
+
+def test_lwpolyline_elevation_is_preserved():
+    """Was: elevation 25 flattened to 0, silently."""
     collection = load("lwpolyline_elevated.dxf")
     polyline = collection.of_kind("polyline")[0]
 
-    assert [v.z for v in polyline.vertices] == [0.0, 0.0, 0.0, 0.0]  # source said 25
-    assert codes(collection) == []
+    assert [v.z for v in polyline.vertices] == [25.0] * 4
+    assert codes(collection) == []                  # preserved => nothing to report
     assert diag.LWPOLYLINE_ELEVATION_DROPPED not in codes(collection)
 
 
-def test_defect_polyline_paths_disagree_on_elevation():
-    """PR 3 target. The same shape at the same Z survives or is flattened purely
-    according to which DXF entity the authoring tool emitted."""
+def test_polyline_paths_now_agree_on_elevation():
+    """Was: fidelity depended on which DXF entity the authoring tool emitted."""
     lw = load("lwpolyline_elevated.dxf").of_kind("polyline")[0]
     pl = load("polyline_elevated.dxf").of_kind("polyline")[0]
 
-    assert {v.z for v in pl.vertices} == {25.0}     # POLYLINE keeps Z
-    assert {v.z for v in lw.vertices} == {0.0}      # LWPOLYLINE loses it
-    assert [v.z for v in lw.vertices] != [v.z for v in pl.vertices]
+    assert [v.z for v in lw.vertices] == [v.z for v in pl.vertices]
+    assert {v.z for v in lw.vertices} == {25.0}
+
+
+def test_elevation_does_not_alter_the_planar_bounds_contract():
+    """Z is preserved on points; XY bounds stay XY. No 3D bounds were introduced."""
+    lw = load("lwpolyline_elevated.dxf").bounds
+    pl = load("polyline_elevated.dxf").bounds
+
+    assert (lw.min_x, lw.min_y, lw.max_x, lw.max_y) == (0.0, 0.0, 10.0, 10.0)
+    assert (lw.min_x, lw.min_y, lw.max_x, lw.max_y) == (pl.min_x, pl.min_y, pl.max_x, pl.max_y)
 
 
 def test_polyline_elevation_is_preserved_and_must_stay_that_way():
-    """Not a defect — the correct half of the pair. PR 3 must not regress it."""
+    """The half that was always correct — PR 3 must not have regressed it."""
     polyline = load("polyline_elevated.dxf").of_kind("polyline")[0]
     assert [v.z for v in polyline.vertices] == [25.0] * 4
     assert polyline.closed is True
@@ -236,13 +274,11 @@ def test_reports_round_trip_for_every_fixture():
         collection.to_json()                        # must stay JSON-encodable
 
 
-def test_lwpolyline_coordinates_are_numpy_backed():
-    """An observation, not a defect. `get_points()` returns numpy scalars and the
-    LWPOLYLINE path skips the `float()` coercion every other path applies.
-
-    Harmless today — `np.float64` subclasses `float`, so JSON and arithmetic both
-    work — but PR 3 rewrites this path and should coerce for consistency.
-    """
-    vertex = load("lwpolyline_elevated.dxf").of_kind("polyline")[0].vertices[0]
-    assert isinstance(vertex.x, float)              # true via subclassing
-    assert type(vertex.x) is not float              # ...but not the plain builtin
+def test_lwpolyline_coordinates_are_plain_floats():
+    """Was: numpy scalars, because this path skipped the `float()` coercion every
+    other path applies. PR 3 rewrote it and coerced, as flagged."""
+    for name in ("lwpolyline_elevated.dxf", "polyline_elevated.dxf"):
+        for vertex in load(name).of_kind("polyline")[0].vertices:
+            assert type(vertex.x) is float
+            assert type(vertex.y) is float
+            assert type(vertex.z) is float

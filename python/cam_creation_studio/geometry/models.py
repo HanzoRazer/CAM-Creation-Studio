@@ -54,6 +54,9 @@ class Arc2D:
     start_angle: float
     end_angle: float
     layer: str = "0"
+    # Source extrusion vector when the entity declared a non-default one.
+    # Evidence only: the coordinates above are already corrected to WCS.
+    extrusion: Optional[Point] = None
     kind: str = "arc"
 
     @property
@@ -73,6 +76,9 @@ class Circle2D:
     center: Point
     radius: float
     layer: str = "0"
+    # Source extrusion vector when the entity declared a non-default one.
+    # Evidence only: the coordinates above are already corrected to WCS.
+    extrusion: Optional[Point] = None
     kind: str = "circle"
 
     @property
@@ -88,6 +94,9 @@ class Polyline2D:
     vertices: List[Point]
     closed: bool = False
     layer: str = "0"
+    # Source extrusion vector when the entity declared a non-default one.
+    # Evidence only: the coordinates above are already corrected to WCS.
+    extrusion: Optional[Point] = None
     kind: str = "polyline"
 
     @property

@@ -56,8 +56,7 @@ consumer that needs faithful geometry must check them:
 | Polyline **bulges** (arc segments) | Flattened to straight chords; vertices kept | `POLYLINE_BULGE_IGNORED` |
 | **SPLINE** fit points, weights, knots | **Preserved** — see *Splines* below | (none — nothing is lost) |
 | Fit-spline **start/end tangents** | Not represented; fit points kept | `FIT_POINT_SPLINE_UNREPRESENTED` |
-| **OCS / extrusion vectors** | **Not applied.** Entities import at raw OCS coordinates | ⚠ **none — silent** |
-| **LWPOLYLINE** `elevation` | **Dropped.** Z flattened to 0 (POLYLINE keeps Z) | ⚠ **none — silent** |
+| **Tilted** extrusion on ARC/CIRCLE | Centre corrected; the tilted *plane* is not representable | `OCS_TRANSFORM_FAILED` |
 | **ELLIPSE**, **TEXT**, **MTEXT**, **HATCH**, **DIMENSION** | Not represented | `UNSUPPORTED_ENTITY` |
 | **INSERT** / block references | Not expanded; block contents do not appear | `UNSUPPORTED_ENTITY` |
 | 3D solids / meshes / Z-depth beyond point Z | Not represented | `UNSUPPORTED_ENTITY` |
@@ -67,23 +66,24 @@ To detect an incomplete import at a glance, read
 `raw_entity_count` / `unsupported_entity_count` / `entity_count` fields for the
 exact breakdown.
 
-> ### ⚠ Known fidelity defects under remediation (CS-008)
+> ### CS-008 fidelity remediation — complete
 >
-> The rows marked **silent** above are confirmed defects, reproduced against the
-> golden corpus in `python/tests/fixtures/` and pinned by
-> `test_geometry_characterization.py`. Until the coordinate increment lands:
+> Three defects were confirmed against the golden corpus and are now fixed, each
+> guarded by a flipped characterization test in
+> `test_geometry_characterization.py`:
 >
-> * **OCS / extrusion is a correctness defect, not a fidelity one.** A `CIRCLE`
->   drawn at OCS `(5,5)` with extrusion `(0,0,-1)` has a true WCS centre of
->   `(-5,5)`; it currently imports at `(+5,5)`. Geometry is placed **mirrored**,
->   with no diagnostic. Treat imported coordinates as untrusted for any drawing
->   whose entities carry a non-default extrusion vector.
-> * **LWPOLYLINE elevation is dropped; POLYLINE elevation is kept.** Identical
->   geometry survives or is flattened depending only on which entity the
+> * **OCS / extrusion was a correctness defect, not a fidelity one.** A `CIRCLE`
+>   at OCS `(5,5)` with extrusion `(0,0,-1)` imported at `(+5,5)` instead of its
+>   true WCS centre `(-5,5)` — geometry placed **mirrored**, silently. Now
+>   corrected; see *Coordinate systems* below.
+> * **LWPOLYLINE elevation was dropped while POLYLINE kept it.** Both now
+>   preserve Z identically, so fidelity no longer depends on which entity the
 >   authoring tool emitted.
+> * **A fit-point SPLINE imported as an entity with zero control points.** Now
+>   preserved as a fit representation; see *Splines*.
 >
-> Remediation order: evidence infrastructure (**done**) → spline fidelity
-> (**done**) → coordinate correctness (**outstanding**).
+> Evidence infrastructure (**done**) → spline fidelity (**done**) → coordinate
+> correctness (**done**).
 
 ## Design guarantees
 
@@ -112,14 +112,14 @@ Stable codes in `geometry/diagnostics.py`: `UNSUPPORTED_ENTITY`, `MISSING_LAYER`
 Degeneracy checks (zero length/radius, bulge) use a small tolerance, so float
 noise from CAD exports is caught rather than slipping past an exact `== 0`.
 
-Spline fidelity codes, live since the spline increment:
-`FIT_POINT_SPLINE_UNREPRESENTED`, `RATIONAL_SPLINE_WEIGHTS_DROPPED`,
-`EMPTY_SPLINE_GEOMETRY`. Each fires only on genuine loss — see *Splines* below.
+Fidelity codes: `FIT_POINT_SPLINE_UNREPRESENTED`,
+`RATIONAL_SPLINE_WEIGHTS_DROPPED`, `EMPTY_SPLINE_GEOMETRY`,
+`OCS_TRANSFORM_FAILED`. Each fires only on genuine loss or a genuine
+representational limit — never merely because a DXF feature is non-default.
 
-**Reserved, not yet emitted**: `LWPOLYLINE_ELEVATION_DROPPED`,
-`OCS_TRANSFORM_FAILED`, awaiting the coordinate-correctness increment. A consumer
-matching on them today will simply never see them — it will not see a
-differently-named finding instead.
+`LWPOLYLINE_ELEVATION_DROPPED` stays **registered but unemitted**: elevation is
+now preserved on every supported import, so nothing raises it. It is kept so the
+vocabulary remains stable for consumers written against it.
 
 There is deliberately **no `OCS_TRANSFORM_APPLIED` code.** A transform that
 succeeds is correct importer behavior, not a defect; coding it as a diagnostic
@@ -160,6 +160,54 @@ It carries **no duration or timestamp** — wall-clock would make two imports of
 file compare unequal and destabilize fixtures, for a number that says nothing
 about fidelity. Because it is rebuilt on demand it cannot drift from the
 collection it describes.
+
+## Coordinate systems (OCS → WCS)
+
+DXF stores **CIRCLE, ARC, LWPOLYLINE and 2D POLYLINE** coordinates in the
+entity's own *object coordinate system*, defined by its extrusion vector. With
+the default extrusion `(0,0,1)` the OCS **is** the WCS. With any other, raw
+coordinates are in the wrong place.
+
+The transform comes from **ezdxf's own `entity.ocs()`**, not a local
+implementation of the arbitrary-axis algorithm — ezdxf defines DXF coordinate
+semantics and is already the importer's dependency, so reimplementing it would
+create a second correctness authority for the same maths. Access stays
+duck-typed, so `entities.py` still imports no ezdxf symbol.
+
+| Extrusion | Meaning | Behavior |
+|-----------|---------|----------|
+| `(0,0,1)` — default | OCS is WCS | **untouched**; drawings without an extrusion import exactly as before |
+| `(0,0,-1)` — mirrored | still parallel to WCS XY | corrected exactly, **silently**; arc angles mirrored with the centre |
+| anything else — tilted | out of the XY plane | centre corrected; `OCS_TRANSFORM_FAILED` reports that the plane itself is not representable |
+
+`LINE` and `SPLINE` coordinates are WCS in DXF and are never transformed. A 3D
+`POLYLINE` is WCS; a 2D one is OCS, decided per entity.
+
+The source extrusion is retained on `Circle2D`, `Arc2D` and `Polyline2D` as
+`extrusion` (`None` when default) — evidence only, since the coordinates are
+already corrected.
+
+> **Mirrored arcs trade endpoints.** A mirror reverses orientation, and `Arc2D`
+> is defined as sweeping **counter-clockwise** from `start_angle` to `end_angle`.
+> The locus and the start/end identity cannot both survive that, so the importer
+> keeps the locus — the geometry — and the two endpoints swap roles. The swept
+> shape and sweep magnitude match ezdxf exactly.
+
+> **`OCS_TRANSFORM_FAILED` is not a loss code.** It reports a representational
+> limit — the centre is still corrected — rather than information that failed to
+> survive, so it is excluded from `LOSS_CODES` and does not raise
+> `report().loss_count`.
+
+### LWPOLYLINE elevation
+
+An LWPOLYLINE's vertices are 2D OCS points at the entity's `elevation`; that
+elevation is the Z. It is read, transformed with the vertices, scaled with the
+drawing units, and coerced to plain `float` — so an LWPOLYLINE and an equivalent
+POLYLINE now yield identical point Z. Bulges, widths, closure, vertex order,
+handles and layers are unaffected.
+
+Planar `Bounds` remain XY-only: Z is preserved on points, but elevation does not
+redefine the bounds contract and no 3D bounds type was introduced.
 
 ## Splines
 
