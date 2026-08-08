@@ -2,11 +2,20 @@
 
 **Status:** permanent governance artifact · **Order:** CS-REC-01
 **Repository:** CAM-Creation-Studio (`HanzoRazer/CAM-Creation-Studio`)
-**Affected session root:** `C:/Users/thepr/Downloads/CAM-Creation-Studio`
+**Affected session root:** a local checkout of this repository. The specific
+filesystem path is deliberately not recorded — it is environment-specific and
+carries no governance meaning; what matters is *which repository* the session was
+rooted at, not where the clone lived.
 
 Cross-repository context contamination occurred during an extended working
 session. This notice records what was contaminated, what was not, and how to
 tell the difference. It is an audit trail, not an apology.
+
+> **Reading note.** Sections 1–2 and 5–6 are durable: cause, evidence policy, and
+> operating rules. Sections 3–4 describe repository state **as it stood on
+> 2026-08-07** and are a historical record, not a live status board. Where they
+> name a PR, GitHub is authoritative — see
+> [`dev_orders/LEDGER.md`](dev_orders/LEDGER.md) § Source of truth.
 
 ---
 
@@ -66,7 +75,11 @@ reference for coordinate maths. None derives from Blueprint planning.
 | `db68f16` | Product boundary ratified | — |
 | `637a0ca` (#9) | CS-009 export preflight | 384 tests |
 | `1708d4c` (#12) | CS-008R conformance re-audit | Independent probes |
-| #10, #11, #13 (open) | CS-008 fidelity remediation | 493 tests; defects reproduced |
+| #10, #11, #13 | CS-008 fidelity remediation | 493 tests; defects reproduced |
+
+*State as of 2026-08-07.* #13 has since been closed as superseded (§4.2); #10 and
+#11 remain open. The evidence column is what mattered for recovery — each row was
+grounded in executed tests, and that does not change when a PR's status does.
 
 ---
 
@@ -106,10 +119,21 @@ Both implementations independently derived the same mirrored-arc angle rule and
 both correctly left `LINE` untransformed, which is meaningful corroboration —
 but it cost two sessions' work to obtain, which is the point of rule 4 in §6.
 
+**Sequel, recorded 2026-08-08.** #14 merged as `c60009c`. Review of the merged
+change then found a regression it had introduced: POLYLINE *mesh* flavours store
+WCS vertices but report `is_3d_polyline` false, so F1's exclusion missed them and
+mirrored coordinates that were already correct. Remediated in #16.
+
+This qualifies the corroboration above, and the qualification is the durable
+lesson: **independent agreement confirms the part both implementations reasoned
+about, and is silent on the part neither considered.** Two sessions agreeing on
+the arc rule said nothing about the entity flavour both overlooked. Convergence is
+evidence about what was examined, never coverage of what was not.
+
 ### 4.3 Remediation coverage was narrower than claimed
 
-Measured against the audit's eight findings, the remediation in #10/#11/#13
-covers:
+The audit declares **ten** findings, F1–F10. Measured against them, the
+remediation in #10/#11/#13 covered:
 
 | Finding | Disposition | Covered |
 |---|---|---|
@@ -121,6 +145,12 @@ covers:
 | F6 — source handle not recoverable | undocumented limitation | ❌ not addressed |
 | F7 — `MISSING_LAYER` declared but never emitted | confirmed defect | ❌ not addressed |
 | F8 — docs claim loss is never silent | derivative | ⚠️ partial |
+| F9 — LWPOLYLINE vertices carry `numpy.float64` | confirmed defect | ❌ not addressed |
+| F10 — periodic spline state | **unable to determine** | n/a — no claim to remediate |
+
+An earlier revision of this notice said "eight findings" and omitted F9 and F10.
+That undercounted the audit and is corrected here; the live coverage record is in
+[`dev_orders/LEDGER.md`](dev_orders/LEDGER.md).
 
 **F5 additionally repeats an analytical error the audit had already
 corrected.** The remediation's characterization asserted an asymmetry between

@@ -8,6 +8,14 @@ Four adjacent products share a problem domain and must not share a backlog.
 This document states who owns what, and what must be true before work crosses a
 boundary.
 
+> **Enforcement:** none of this is checked by CI. These are process requirements
+> upheld by people, so "must" here means "is required, and a reviewer may catch
+> it" — not "the system will stop you." The import boundaries in §2 are the only
+> part a linter could plausibly enforce today; that is unissued work. Judgement
+> still applies: these rules exist to prevent misrouted *work*, not to block a
+> five-minute read of a sibling repository for evidence, which §3 explicitly
+> permits.
+
 ---
 
 ## 1. Ownership
@@ -98,5 +106,19 @@ state what does not reconcile, what was verified, and what is needed. Do not
 proceed on a best guess and do not silently narrow scope to whatever seems safe.
 
 The single most reliable signal that a boundary has been crossed: an order
-referring to work this repository has no record of. Check the ledger first, then
-`main`, then the PR list. Report only after all three come back empty.
+referring to work this repository has no record of.
+
+Check in this order, and note that it is deliberately **not** the ledger first:
+
+1. **`main`** — the merged tree. `git ls-tree -r origin/main`.
+2. **Open PRs and remote branches** — `gh pr list`, `git branch -r`. Another
+   session's work is invisible until you look.
+3. **[`../dev_orders/LEDGER.md`](../dev_orders/LEDGER.md)** — for *why* something
+   was decided, once you know what exists.
+
+Report only after all three come back empty. The ledger comes last because it is
+a description of the repository, not the repository; a missing ledger row means
+the ledger is stale at least as often as it means the work is absent. Searching a
+summary before searching the tree is precisely the mistake recorded in
+[`../SESSION_INTEGRITY_2026-08-07.md`](../SESSION_INTEGRITY_2026-08-07.md) §4.1,
+where an artifact was declared missing while it sat merged on `main`.
