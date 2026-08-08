@@ -31,6 +31,10 @@ DEGENERATE_POLYLINE = "DEGENERATE_POLYLINE"
 # A polyline segment carried a non-zero bulge (an arc). We keep the vertices but
 # flatten the arc to a chord, so the shape changes — surfaced, never silent.
 POLYLINE_BULGE_IGNORED = "POLYLINE_BULGE_IGNORED"
+# An entity carried a non-default extrusion whose OCS -> WCS normalization could
+# not be completed reliably. Successful normalization is ordinary behaviour and is
+# NOT reported: only a failure to place the geometry correctly is.
+OCS_TRANSFORM_FAILED = "OCS_TRANSFORM_FAILED"
 
 CANONICAL_CODES = (
     UNSUPPORTED_ENTITY,
@@ -43,6 +47,7 @@ CANONICAL_CODES = (
     DUPLICATE_HANDLE,
     DEGENERATE_POLYLINE,
     POLYLINE_BULGE_IGNORED,
+    OCS_TRANSFORM_FAILED,
 )
 
 
