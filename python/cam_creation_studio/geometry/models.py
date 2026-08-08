@@ -83,7 +83,14 @@ class Circle2D:
 
 @dataclass(frozen=True, slots=True)
 class Polyline2D:
-    """An open or closed chain of vertices (mm)."""
+    """An open or closed chain of vertices (mm).
+
+    Represents an ordered vertex chain and **does not itself guarantee XY
+    planarity**; vertices may carry non-zero z. A consumer that requires an
+    XY-planar profile must establish that invariant explicitly rather than assume
+    it from the type. Which diagnostic a particular importer raises for non-planar
+    input is that importer's concern, not part of this model's contract.
+    """
 
     vertices: List[Point]
     closed: bool = False

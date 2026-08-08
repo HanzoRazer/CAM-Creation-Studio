@@ -17,6 +17,19 @@ flattened to chords (:data:`~geometry.diagnostics.POLYLINE_BULGE_IGNORED`);
 splines keep only control points + degree (knot vectors, weights, and fit points
 are dropped); ELLIPSE, TEXT, HATCH, DIMENSION, and INSERT/block references are
 unsupported (:data:`~geometry.diagnostics.UNSUPPORTED_ENTITY`).
+
+Two distinct OCS outcomes are reported, and the difference is load-bearing for any
+consumer making policy decisions from diagnostics:
+
+``OCS_TRANSFORM_FAILED``
+    The transform could not be obtained or applied, so coordinates were left
+    untransformed and may be misplaced.
+``NON_PLANAR_GEOMETRY``
+    The transform succeeded and every coordinate is correct, but the result is not
+    parallel to WCS XY, so this 2D model cannot represent it faithfully — a tilted
+    circle is really an ellipse in XY, and a tilted vertex chain's XY projection is
+    foreshortened. A consumer needing a planar profile must check for this; the
+    model types themselves promise no planarity.
 """
 
 from __future__ import annotations
@@ -100,6 +113,9 @@ _DEFAULT_EXTRUSION = (0.0, 0.0, 1.0)
 # How far the extrusion may tilt off the Z axis before the entity's plane is no
 # longer parallel to WCS XY. Below this the plane is XY-parallel for our purposes.
 _PLANAR_EPS = 1e-9
+# An arbitrary point fed through a candidate mapper once, to prove it actually
+# applies before we hand it to _pt. See _ocs_to_wcs.
+_MAPPER_PROBE_POINT = (0.0, 0.0, 0.0)
 
 
 def _as_xyz(vec) -> Optional[tuple]:
@@ -133,12 +149,39 @@ def _xy_planar(ext: Optional[tuple]) -> bool:
     """True when the OCS xy-plane is parallel to the WCS XY plane.
 
     Only then can a swept ARC (or a CIRCLE) be represented faithfully by our 2D
-    model, whose angles and radius live in the XY plane.
+    model, whose angles and radius live in the XY plane — and only then does a
+    vertex chain keep its authored proportions when read as a planar profile.
     """
     if ext is None:
         return True
     x, y, z = ext
     return abs(x) <= _PLANAR_EPS and abs(y) <= _PLANAR_EPS and abs(abs(z) - 1.0) <= _PLANAR_EPS
+
+
+def _wcs_vertex_polyline(entity) -> bool:
+    """True for POLYLINE flavours whose vertices are already WCS, not OCS.
+
+    A 3D polyline is the obvious one. Polygon meshes and polyface meshes are the
+    non-obvious ones: both report ``is_3d_polyline`` False yet also store WCS
+    vertices, so keying only off ``is_3d_polyline`` mirrors them wrongly.
+    """
+    return any(bool(getattr(entity, flag, False)) for flag in (
+        "is_3d_polyline", "is_polygon_mesh", "is_poly_face_mesh"))
+
+
+def _report_non_planar_chain(ext, loc: dict, diags: List[GeometryDiagnostic]) -> None:
+    """Report a vertex chain that resolved to WCS but does not lie parallel to XY.
+
+    The transform succeeded and every vertex is placed correctly; what is lost is
+    that no planar reading of them recovers the authored profile, because the XY
+    projection is foreshortened. That is a fidelity limit, not a failure, so it
+    carries :data:`~geometry.diagnostics.NON_PLANAR_GEOMETRY`.
+    """
+    diags.append(diag.warning(
+        diag.NON_PLANAR_GEOMETRY,
+        f"Polyline plane is not parallel to WCS XY (extrusion {ext}); vertices are "
+        "placed correctly in WCS but the chain is not XY-planar, so its XY "
+        "projection is foreshortened relative to the authored shape.", **loc))
 
 
 def _ocs_to_wcs(entity, loc: dict, diags: List[GeometryDiagnostic]):
@@ -163,8 +206,13 @@ def _ocs_to_wcs(entity, loc: dict, diags: List[GeometryDiagnostic]):
 
     # Any failure to obtain the authoritative transform must surface as evidence
     # rather than abort the import or silently fall through to raw coordinates.
+    # The mapper is probed once here rather than merely fetched: obtaining it can
+    # succeed while *applying* it raises, and an exception raised later from inside
+    # _pt would escape this guard and abort the whole import.
     try:
-        return ocs_factory().to_wcs
+        to_wcs = ocs_factory().to_wcs
+        to_wcs(_MAPPER_PROBE_POINT)
+        return to_wcs
     except Exception as exc:  # noqa: BLE001 - reported, never swallowed
         diags.append(diag.warning(
             diag.OCS_TRANSFORM_FAILED,
@@ -210,10 +258,11 @@ def translate(entity, scale: float) -> TranslationResult:
                     start_angle, end_angle = 180.0 - end_angle, 180.0 - start_angle
             else:
                 # A tilted extrusion puts the arc in a plane our 2D model cannot
-                # express. The centre is placed correctly; the sweep is not
-                # normalized, and that is reported rather than quietly wrong.
+                # express. The transform succeeded and the centre is placed
+                # correctly; the sweep is not an XY sweep, and that fidelity limit
+                # is reported rather than left quietly wrong.
                 diags.append(diag.warning(
-                    diag.OCS_TRANSFORM_FAILED,
+                    diag.NON_PLANAR_GEOMETRY,
                     f"Arc plane is not parallel to WCS XY (extrusion {ext}); centre "
                     "is placed in WCS but sweep angles could not be normalized.",
                     **loc))
@@ -238,10 +287,11 @@ def translate(entity, scale: float) -> TranslationResult:
         center = _pt(entity.dxf.center, scale, to_wcs)
         radius = float(entity.dxf.radius) * scale
         if to_wcs is not None and not _xy_planar(ext):
-            # Centre is correct; the circle's plane is tilted, so its XY footprint
-            # is really an ellipse and Circle2D overstates it.
+            # Transform succeeded and the centre is correct; the circle's plane is
+            # tilted, so its XY footprint is really an ellipse and Circle2D
+            # overstates it — a fidelity limit, not a failure.
             diags.append(diag.warning(
-                diag.OCS_TRANSFORM_FAILED,
+                diag.NON_PLANAR_GEOMETRY,
                 f"Circle plane is not parallel to WCS XY (extrusion {ext}); centre "
                 "is placed in WCS but the circle is not XY-planar.", **loc))
         if abs(radius) <= _DEGENERATE_EPS_MM:
@@ -259,9 +309,10 @@ def translate(entity, scale: float) -> TranslationResult:
             verts = [Point(p[0] * scale, p[1] * scale) for p in pts]
         else:
             # Vertices are OCS. Elevation is deliberately NOT folded in here: that
-            # is CS-008R F5 and out of F1's scope, so the OCS z stays 0 exactly as
-            # it was before this change.
+            # is CS-008R F5 and still out of scope, so the OCS z stays 0.
             verts = [_pt((p[0], p[1], 0.0), scale, to_wcs) for p in pts]
+            if not _xy_planar(_extrusion_of(entity)):
+                _report_non_planar_chain(_extrusion_of(entity), loc, diags)
         bulges = [p[2] for p in pts if len(p) > 2]
         if len(verts) < 2:
             diags.append(diag.warning(
@@ -276,11 +327,12 @@ def translate(entity, scale: float) -> TranslationResult:
 
     if dxftype == "POLYLINE":
         diags = []
-        # Only a 2D POLYLINE is OCS-defined; a 3D polyline already stores WCS
-        # vertices, so it must not be transformed.
-        is_3d = bool(getattr(entity, "is_3d_polyline", False))
-        to_wcs = None if is_3d else _ocs_to_wcs(entity, loc, diags)
+        # Only a 2D POLYLINE is OCS-defined; 3D polylines and the mesh flavours
+        # already store WCS vertices, so they must not be transformed.
+        to_wcs = None if _wcs_vertex_polyline(entity) else _ocs_to_wcs(entity, loc, diags)
         verts = [_pt(v.dxf.location, scale, to_wcs) for v in entity.vertices]
+        if to_wcs is not None and not _xy_planar(_extrusion_of(entity)):
+            _report_non_planar_chain(_extrusion_of(entity), loc, diags)
         bulges = [getattr(v.dxf, "bulge", 0.0) for v in entity.vertices]
         if len(verts) < 2:
             diags.append(diag.warning(

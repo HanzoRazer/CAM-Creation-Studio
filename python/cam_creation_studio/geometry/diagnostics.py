@@ -31,10 +31,19 @@ DEGENERATE_POLYLINE = "DEGENERATE_POLYLINE"
 # A polyline segment carried a non-zero bulge (an arc). We keep the vertices but
 # flatten the arc to a chord, so the shape changes — surfaced, never silent.
 POLYLINE_BULGE_IGNORED = "POLYLINE_BULGE_IGNORED"
-# An entity carried a non-default extrusion whose OCS -> WCS normalization could
-# not be completed reliably. Successful normalization is ordinary behaviour and is
-# NOT reported: only a failure to place the geometry correctly is.
+# An entity carried a non-default extrusion whose OCS -> WCS transform could not be
+# obtained or applied: no ``ocs()`` where one is required, ``ocs()`` raised, or the
+# mapper raised when applied. Coordinates are left untransformed and may therefore
+# be misplaced. Successful normalization is ordinary behaviour and is NOT reported
+# here — see NON_PLANAR_GEOMETRY for the transform that succeeds but loses fidelity.
 OCS_TRANSFORM_FAILED = "OCS_TRANSFORM_FAILED"
+# The OCS -> WCS transform SUCCEEDED and every coordinate is correctly placed, but
+# the result does not lie parallel to the WCS XY plane, so the 2D model cannot
+# represent it faithfully: a tilted circle projects to an ellipse, a tilted arc's
+# sweep is not an XY sweep, and a tilted vertex chain's XY projection is
+# foreshortened. Nothing failed and nothing is misplaced; what is lost is the
+# guarantee that reading the entity as a planar profile recovers the authored shape.
+NON_PLANAR_GEOMETRY = "NON_PLANAR_GEOMETRY"
 
 CANONICAL_CODES = (
     UNSUPPORTED_ENTITY,
@@ -48,6 +57,7 @@ CANONICAL_CODES = (
     DEGENERATE_POLYLINE,
     POLYLINE_BULGE_IGNORED,
     OCS_TRANSFORM_FAILED,
+    NON_PLANAR_GEOMETRY,
 )
 
 
