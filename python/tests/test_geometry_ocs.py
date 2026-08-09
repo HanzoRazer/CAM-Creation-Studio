@@ -190,7 +190,10 @@ def test_tilted_extrusion_circle_reports_non_planar(tmp_path):
     doc = _doc(lambda m: m.add_circle((10, 4), radius=2,
                                       dxfattribs={"extrusion": TILTED}))
     col = import_dxf(_save(doc, tmp_path))
-    assert diag.OCS_TRANSFORM_FAILED in _codes(col)
+    # Reported as NON_PLANAR_GEOMETRY, not OCS_TRANSFORM_FAILED: the transform
+    # succeeded and the centre is correct — what is lost is faithful 2D
+    # representation. See the diagnostics module for the split.
+    assert diag.NON_PLANAR_GEOMETRY in _codes(col)
 
 
 def test_tilted_extrusion_arc_centre_correct_and_sweep_reported(tmp_path):
@@ -201,7 +204,7 @@ def test_tilted_extrusion_arc_centre_correct_and_sweep_reported(tmp_path):
     expected = OCS(TILTED).to_wcs((10, 4, 0))
     assert (a.center.x, a.center.y, a.center.z) == pytest.approx(
         (expected.x, expected.y, expected.z))
-    assert diag.OCS_TRANSFORM_FAILED in _codes(col)
+    assert diag.NON_PLANAR_GEOMETRY in _codes(col)
 
 
 def test_tilted_extrusion_lwpolyline_vertices_match_reference(tmp_path):
