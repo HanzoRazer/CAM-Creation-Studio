@@ -128,6 +128,30 @@ cost*:
 | `recoverable` | Whether enough evidence survives to reconstruct the source. `None` means the question does not apply — an advisory that costs nothing. |
 | `metadata` | The structured particulars: counts, degrees, source normals, tolerances. Never prose; prose belongs in `message`. |
 
+#### `metadata` is a JSON contract, enforced at construction
+
+The schema is deliberately open — the particulars worth recording differ per
+finding — so the constraint is on **values**, not on a fixed set of keys.
+
+**Permitted:** `str`, `int`, `float` (finite), `bool`, `None`, `list`, and `dict`
+with string keys, nested to any depth. Anything else raises immediately from
+`GeometryDiagnostic.__post_init__`, so no construction path can bypass it.
+
+**Rejected, and why it matters more than it looks:**
+
+| Value | Without the check |
+|---|---|
+| `tuple` | Serializes fine, returns a `list`, **compares unequal** |
+| non-string key | Serializes fine, returns stringified, **compares unequal** |
+| `nan` / `inf` | Emits bare `nan`, which is **not valid JSON** |
+| `Point`, `set`, other objects | `TypeError` at export, naming the serializer rather than the culprit |
+
+The first three are the reason this is enforced rather than documented. A
+diagnostic is an export artifact; a value that survives in memory but changes
+shape crossing JSON surfaces later as a mystifying fixture or snapshot mismatch,
+far from the code that inserted it. Record a `Point` as `[x, y, z]` or as separate
+keys.
+
 `LOSS_CODES` names the codes meaning *source information did not survive*, and
 `is_loss(code)` tests membership. That is what separates real loss from routine
 normalization.

@@ -4,8 +4,12 @@ CS-008 remediation, PR 1. Covers the additive `GeometryDiagnostic` fields, the
 fidelity code vocabulary, and `GeometryCollection.report()`.
 
 This module tests the *mechanism* for reporting loss. Whether the importer
-actually emits these findings is the subject of `test_geometry_characterization`
-and of the two increments that follow.
+actually emits these findings belongs to the increments that follow.
+
+`metadata` is restricted to JSON-safe values, enforced at construction. Those
+tests are at the end of this file; the restriction exists because a diagnostic is
+an export artifact, and a value that changes shape crossing JSON is worse than one
+that fails outright.
 """
 
 import pytest
@@ -219,3 +223,87 @@ def test_collection_round_trip_preserves_loss_evidence():
     assert restored.diagnostics[0].recoverable is False
     assert restored.diagnostics[0].metadata == {"weight_count": 4}
     assert restored.report() == collection.report()
+
+
+# --------------------------------------------------------------------------- #
+# metadata is a JSON contract, enforced at construction.
+#
+# `Dict[str, Any]` is deliberately open — the particulars worth recording differ
+# per finding — so the constraint is on *values*, not on a closed schema. Two
+# separate hazards motivate it, and the silent one is the worse:
+#
+#   loud   Point, set        -> TypeError at json.dumps, far from the insertion
+#   silent tuple, int keys,  -> serialize fine and come back DIFFERENT, so
+#          nan/inf              equality breaks in a fixture nobody was editing
+#
+# Validation happens in __post_init__, so no construction path bypasses it.
+# --------------------------------------------------------------------------- #
+def _md(payload):
+    return diag.loss(diag.EMPTY_SPLINE_GEOMETRY, "…", recoverable=False,
+                     metadata=payload)
+
+
+def test_metadata_accepts_nested_json_safe_values():
+    payload = {
+        "count": 3, "ratio": 0.5, "ok": True, "absent": None, "name": "spline",
+        "normals": [[0.0, 0.0, -1.0], [0.0, 1.0, 0.0]],
+        "nested": {"degree": 3, "knots": [0.0, 1.0]},
+    }
+    assert _md(payload).metadata == payload
+
+
+def test_permitted_metadata_survives_the_shared_serializer_unchanged():
+    """The property the restriction exists to guarantee."""
+    payload = {"normal": [0.0, 0.0, -1.0], "nested": {"n": [1, 2]}, "tol": 1e-9}
+    original = _md(payload)
+    restored = from_dict(GeometryDiagnostic, to_dict(original))
+    assert restored.metadata == original.metadata
+
+
+@pytest.mark.parametrize("payload,fragment", [
+    ({"normal": (0.0, 0.0, -1.0)}, "metadata.normal"),
+    ({"outer": {"inner": (1, 2)}}, "metadata.outer.inner"),
+    ({"rows": [{"v": (1, 2)}]}, "metadata.rows[0].v"),
+])
+def test_metadata_rejects_tuple_and_names_its_path(payload, fragment):
+    """A tuple serializes fine and returns a list — the dangerous case."""
+    with pytest.raises(TypeError, match="tuple is not permitted") as excinfo:
+        _md(payload)
+    assert fragment in str(excinfo.value)
+
+
+def test_metadata_rejects_arbitrary_objects():
+    from cam_creation_studio.shared.geometry import Point
+    with pytest.raises(TypeError, match="not JSON-serializable"):
+        _md({"centre": Point(1.0, 2.0, 3.0)})
+
+
+def test_metadata_rejects_sets():
+    with pytest.raises(TypeError, match="not JSON-serializable"):
+        _md({"kinds": {"a", "b"}})
+
+
+def test_metadata_rejects_non_string_keys():
+    """A non-string key returns stringified and stops comparing equal."""
+    with pytest.raises(TypeError, match="not str"):
+        _md({3: "three"})
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_metadata_rejects_non_finite_floats(value):
+    """json.dumps emits bare nan/Infinity, which is not valid JSON."""
+    with pytest.raises(ValueError, match="not valid JSON"):
+        _md({"tol": value})
+
+
+def test_validation_is_not_bypassed_by_direct_construction():
+    """The loss() helper is the usual door, but it is not the only one."""
+    with pytest.raises(TypeError, match="tuple is not permitted"):
+        GeometryDiagnostic(DiagnosticSeverity.WARNING, diag.EMPTY_SPLINE_GEOMETRY,
+                           "…", metadata={"normal": (1, 2)})
+
+
+def test_ordinary_diagnostics_carry_no_metadata_and_are_unaffected():
+    d = diag.warning(diag.ZERO_RADIUS, "Circle has zero radius.")
+    assert d.metadata == {}
+    assert d.recoverable is None

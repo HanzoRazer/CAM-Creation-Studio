@@ -20,6 +20,19 @@ answer "and what did it cost":
 * ``metadata`` — the structured particulars: counts, degrees, source normals,
   tolerances. Never prose; prose belongs in ``message``.
 
+``metadata`` is **restricted to JSON-safe values** and that restriction is
+enforced at construction, not merely documented — see :func:`ensure_json_safe`.
+Permitted: ``str``, ``int``, ``float`` (finite), ``bool``, ``None``, ``list``, and
+``dict`` with string keys, nested freely. Everything else raises immediately.
+
+The restriction exists because a diagnostic is an export artifact. A value that
+survives in memory but changes shape crossing JSON is worse than one that fails
+outright: a ``tuple`` silently returns as a ``list``, a non-string key returns
+stringified, and ``nan`` is not valid JSON at all. Each compares unequal on the
+way back and would surface as a mystifying fixture or snapshot mismatch far from
+the code that inserted it. A ``Point`` or a ``set`` fails only at export time,
+which names the serializer rather than the culprit.
+
 This deliberately does **not** introduce a separate loss-record type. The
 geometry subsystem already owns import diagnostics and already carries the
 entity-level context (type, handle, layer) any loss report needs; a parallel
@@ -31,6 +44,7 @@ survive*, which is what distinguishes real loss from routine normalization.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
@@ -127,6 +141,55 @@ def is_loss(code: str) -> bool:
     return code in LOSS_CODES
 
 
+def ensure_json_safe(value, _path: str = "metadata") -> None:
+    """Raise :class:`TypeError`/:class:`ValueError` unless ``value`` survives JSON.
+
+    Walks the structure and rejects anything that would either fail to serialize
+    or come back *different*. The second class matters more than the first: a
+    ``tuple`` round-trips to a ``list`` and a non-string key round-trips
+    stringified, both silently, so equality breaks somewhere far away.
+
+    Permitted: ``str``, ``int``, ``bool``, ``None``, finite ``float``, ``list``,
+    and ``dict`` with string keys — nested to any depth. Subclasses of the scalar
+    types are allowed because they compare equal to their JSON form; ``tuple``,
+    ``set``, and arbitrary objects are not.
+
+    ``_path`` accumulates the location so the message names the offending key
+    rather than the whole payload.
+    """
+    if value is None or isinstance(value, (bool, str)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(
+                f"{_path}: {value!r} is not valid JSON. Use None for an absent "
+                "measurement, or a string if the special value is the point.")
+        return
+    if isinstance(value, int):
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(
+                    f"{_path}: key {key!r} is {type(key).__name__}, not str. "
+                    "JSON object keys are strings, so a non-string key returns "
+                    "stringified and no longer compares equal.")
+            ensure_json_safe(item, f"{_path}.{key}")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            ensure_json_safe(item, f"{_path}[{index}]")
+        return
+    if isinstance(value, tuple):
+        raise TypeError(
+            f"{_path}: tuple is not permitted because it round-trips to a list "
+            "and then compares unequal. Pass a list.")
+    raise TypeError(
+        f"{_path}: {type(value).__name__} is not JSON-serializable. Record the "
+        "particulars as primitives — e.g. a Point as [x, y, z] or as separate "
+        "keys — rather than storing the object.")
+
+
 @dataclass(frozen=True, slots=True)
 class GeometryDiagnostic:
     """One advisory finding raised while importing geometry.
@@ -158,6 +221,12 @@ class GeometryDiagnostic:
     def __post_init__(self) -> None:
         if not isinstance(self.severity, DiagnosticSeverity):
             object.__setattr__(self, "severity", DiagnosticSeverity(self.severity))
+        # Validated here rather than at export so the traceback names the code
+        # that inserted the value, not the serializer that choked on it. Every
+        # construction path runs through __post_init__, including direct
+        # instantiation, so there is no way to bypass it.
+        if self.metadata:
+            ensure_json_safe(self.metadata)
 
     @property
     def is_loss(self) -> bool:
