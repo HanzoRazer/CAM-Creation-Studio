@@ -9,12 +9,44 @@ about geometry findings exactly as they do about G-code validator findings.
 
 Every diagnostic carries a stable string ``code`` (see the constants below) so
 tests and consumers match on a symbol, never a prose message.
+
+Loss evidence
+-------------
+A diagnostic answers "something happened here". Two additive fields make it
+answer "and what did it cost":
+
+* ``recoverable`` — whether enough evidence survives to reconstruct the source.
+  ``None`` means the question does not apply (an advisory that costs nothing).
+* ``metadata`` — the structured particulars: counts, degrees, source normals,
+  tolerances. Never prose; prose belongs in ``message``.
+
+``metadata`` is **restricted to JSON-safe values** and that restriction is
+enforced at construction, not merely documented — see :func:`ensure_json_safe`.
+Permitted: ``str``, ``int``, ``float`` (finite), ``bool``, ``None``, ``list``, and
+``dict`` with string keys, nested freely. Everything else raises immediately.
+
+The restriction exists because a diagnostic is an export artifact. A value that
+survives in memory but changes shape crossing JSON is worse than one that fails
+outright: a ``tuple`` silently returns as a ``list``, a non-string key returns
+stringified, and ``nan`` is not valid JSON at all. Each compares unequal on the
+way back and would surface as a mystifying fixture or snapshot mismatch far from
+the code that inserted it. A ``Point`` or a ``set`` fails only at export time,
+which names the serializer rather than the culprit.
+
+This deliberately does **not** introduce a separate loss-record type. The
+geometry subsystem already owns import diagnostics and already carries the
+entity-level context (type, handle, layer) any loss report needs; a parallel
+model would split that ownership for no gain.
+
+:data:`LOSS_CODES` names the codes that mean *source information did not
+survive*, which is what distinguishes real loss from routine normalization.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+import math
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
 
 from ..enums import DiagnosticSeverity
 
@@ -31,6 +63,23 @@ DEGENERATE_POLYLINE = "DEGENERATE_POLYLINE"
 # A polyline segment carried a non-zero bulge (an arc). We keep the vertices but
 # flatten the arc to a chord, so the shape changes — surfaced, never silent.
 POLYLINE_BULGE_IGNORED = "POLYLINE_BULGE_IGNORED"
+
+# --- Fidelity codes (CS-008 remediation) ----------------------------------- #
+# The spline and elevation codes are reserved in this evidence increment; the
+# importer begins emitting them in the increments that follow. Naming them here
+# keeps the registry the single place the vocabulary is defined.
+#
+# There is deliberately no OCS_TRANSFORM_APPLIED code: a transform that succeeds
+# is correct importer behavior, not a defect, and recording it as a diagnostic
+# would train readers to ignore the ones that matter. Success is evidenced in
+# entity/import metadata; only failure earns a diagnostic.
+FIT_POINT_SPLINE_UNREPRESENTED = "FIT_POINT_SPLINE_UNREPRESENTED"
+RATIONAL_SPLINE_WEIGHTS_DROPPED = "RATIONAL_SPLINE_WEIGHTS_DROPPED"
+LWPOLYLINE_ELEVATION_DROPPED = "LWPOLYLINE_ELEVATION_DROPPED"
+EMPTY_SPLINE_GEOMETRY = "EMPTY_SPLINE_GEOMETRY"
+# The two OCS codes are live — F1 landed in #14 and its hardening in #16 — and
+# they are not interchangeable.
+#
 # An entity carried a non-default extrusion whose OCS -> WCS transform could not be
 # obtained or applied: no ``ocs()`` where one is required, ``ocs()`` raised, or the
 # mapper raised when applied. Coordinates are left untransformed and may therefore
@@ -56,9 +105,89 @@ CANONICAL_CODES = (
     DUPLICATE_HANDLE,
     DEGENERATE_POLYLINE,
     POLYLINE_BULGE_IGNORED,
+    FIT_POINT_SPLINE_UNREPRESENTED,
+    RATIONAL_SPLINE_WEIGHTS_DROPPED,
     OCS_TRANSFORM_FAILED,
     NON_PLANAR_GEOMETRY,
+    LWPOLYLINE_ELEVATION_DROPPED,
+    EMPTY_SPLINE_GEOMETRY,
 )
+
+# Codes meaning source information did not survive the import. Everything else
+# is an observation about geometry that arrived intact.
+#
+# The two OCS codes fall on opposite sides of this line, which is the clearest
+# illustration of what the line is:
+#
+# * ``OCS_TRANSFORM_FAILED`` is absent on purpose — it reports that a correction
+#   could not be applied, a correctness failure rather than a fidelity cost.
+# * ``NON_PLANAR_GEOMETRY`` is present. The transform succeeded and no coordinate
+#   is misplaced, but the entity's *plane* is not representable here and the
+#   models store no extrusion, so the authored orientation is genuinely gone. A
+#   tilted circle read back as a Circle2D is not the circle that was drawn.
+LOSS_CODES = frozenset({
+    UNSUPPORTED_ENTITY,
+    POLYLINE_BULGE_IGNORED,
+    FIT_POINT_SPLINE_UNREPRESENTED,
+    RATIONAL_SPLINE_WEIGHTS_DROPPED,
+    LWPOLYLINE_ELEVATION_DROPPED,
+    EMPTY_SPLINE_GEOMETRY,
+    NON_PLANAR_GEOMETRY,
+})
+
+
+def is_loss(code: str) -> bool:
+    """True when ``code`` means source information did not survive the import."""
+    return code in LOSS_CODES
+
+
+def ensure_json_safe(value, _path: str = "metadata") -> None:
+    """Raise :class:`TypeError`/:class:`ValueError` unless ``value`` survives JSON.
+
+    Walks the structure and rejects anything that would either fail to serialize
+    or come back *different*. The second class matters more than the first: a
+    ``tuple`` round-trips to a ``list`` and a non-string key round-trips
+    stringified, both silently, so equality breaks somewhere far away.
+
+    Permitted: ``str``, ``int``, ``bool``, ``None``, finite ``float``, ``list``,
+    and ``dict`` with string keys — nested to any depth. Subclasses of the scalar
+    types are allowed because they compare equal to their JSON form; ``tuple``,
+    ``set``, and arbitrary objects are not.
+
+    ``_path`` accumulates the location so the message names the offending key
+    rather than the whole payload.
+    """
+    if value is None or isinstance(value, (bool, str)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(
+                f"{_path}: {value!r} is not valid JSON. Use None for an absent "
+                "measurement, or a string if the special value is the point.")
+        return
+    if isinstance(value, int):
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(
+                    f"{_path}: key {key!r} is {type(key).__name__}, not str. "
+                    "JSON object keys are strings, so a non-string key returns "
+                    "stringified and no longer compares equal.")
+            ensure_json_safe(item, f"{_path}.{key}")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            ensure_json_safe(item, f"{_path}[{index}]")
+        return
+    if isinstance(value, tuple):
+        raise TypeError(
+            f"{_path}: tuple is not permitted because it round-trips to a list "
+            "and then compares unequal. Pass a list.")
+    raise TypeError(
+        f"{_path}: {type(value).__name__} is not JSON-serializable. Record the "
+        "particulars as primitives — e.g. a Point as [x, y, z] or as separate "
+        "keys — rather than storing the object.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +197,16 @@ class GeometryDiagnostic:
     ``entity_type`` / ``handle`` / ``layer`` locate the finding in the source
     DXF when applicable; all are optional so file-level findings (empty file,
     unknown units) can omit them.
+
+    ``recoverable`` and ``metadata`` carry loss evidence. ``recoverable`` is
+    ``None`` for findings that cost nothing, ``True`` when enough survives to
+    reconstruct the source, ``False`` when information is gone. ``metadata``
+    holds the structured particulars — counts, degrees, normals, tolerances —
+    so a consumer never has to parse ``message``.
+
+    Note that ``metadata`` makes instances unhashable, as a mutable-mapping
+    field always does. Diagnostics are collected in lists and matched on
+    ``code``; nothing in the subsystem puts them in a set.
     """
 
     severity: DiagnosticSeverity
@@ -76,10 +215,23 @@ class GeometryDiagnostic:
     entity_type: Optional[str] = None
     handle: Optional[str] = None
     layer: Optional[str] = None
+    recoverable: Optional[bool] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.severity, DiagnosticSeverity):
             object.__setattr__(self, "severity", DiagnosticSeverity(self.severity))
+        # Validated here rather than at export so the traceback names the code
+        # that inserted the value, not the serializer that choked on it. Every
+        # construction path runs through __post_init__, including direct
+        # instantiation, so there is no way to bypass it.
+        if self.metadata:
+            ensure_json_safe(self.metadata)
+
+    @property
+    def is_loss(self) -> bool:
+        """True when this finding records information that did not survive."""
+        return self.code in LOSS_CODES
 
     def as_dict(self) -> dict:
         return {
@@ -89,6 +241,8 @@ class GeometryDiagnostic:
             "entity_type": self.entity_type,
             "handle": self.handle,
             "layer": self.layer,
+            "recoverable": self.recoverable,
+            "metadata": dict(self.metadata),
         }
 
 
@@ -102,3 +256,24 @@ def warning(code: str, message: str, **loc: Optional[str]) -> GeometryDiagnostic
 
 def danger(code: str, message: str, **loc: Optional[str]) -> GeometryDiagnostic:
     return GeometryDiagnostic(DiagnosticSeverity.DANGER, code, message, **loc)
+
+
+def loss(
+    code: str,
+    message: str,
+    *,
+    recoverable: bool,
+    metadata: Optional[Dict[str, Any]] = None,
+    severity: DiagnosticSeverity = DiagnosticSeverity.WARNING,
+    **loc: Optional[str],
+) -> GeometryDiagnostic:
+    """Build a diagnostic recording that source information did not survive.
+
+    ``recoverable`` and ``metadata`` are mandatory-by-signature rather than
+    optional, because a loss finding that cannot say what was lost is barely
+    better than silence — which is the whole failure mode this exists to close.
+    """
+    return GeometryDiagnostic(
+        severity, code, message,
+        recoverable=recoverable, metadata=dict(metadata or {}), **loc,
+    )
