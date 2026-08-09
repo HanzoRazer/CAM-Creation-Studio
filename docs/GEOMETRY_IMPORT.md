@@ -89,12 +89,19 @@ exact breakdown.
 Stable codes in `geometry/diagnostics.py`: `UNSUPPORTED_ENTITY`, `MISSING_LAYER`,
 `ZERO_LENGTH_LINE`, `ZERO_RADIUS`, `INVALID_SPLINE`, `UNKNOWN_UNITS`,
 `EMPTY_FILE`, `DUPLICATE_HANDLE`, `DEGENERATE_POLYLINE`, `POLYLINE_BULGE_IGNORED`,
-`OCS_TRANSFORM_FAILED`, `NON_PLANAR_GEOMETRY`.
+`OCS_TRANSFORM_FAILED`, `NON_PLANAR_GEOMETRY`,
+`FIT_POINT_SPLINE_UNREPRESENTED`, `RATIONAL_SPLINE_WEIGHTS_DROPPED`,
+`LWPOLYLINE_ELEVATION_DROPPED`, `EMPTY_SPLINE_GEOMETRY`.
 Degeneracy checks (zero length/radius, bulge) use a small tolerance, so float
 noise from CAD exports is caught rather than slipping past an exact `== 0`.
 
 `geometry.diagnostics.CANONICAL_CODES` is the authoritative list; this paragraph
 is a convenience copy, and a test asserts the two agree so it cannot drift.
+
+The two OCS codes are **live**. The four spline/elevation codes are **reserved** —
+named so the vocabulary has one definition point — and begin being emitted in the
+fidelity increments that follow. A consumer matching on a reserved code today will
+simply never see it; it will not see a differently-named finding instead.
 
 ### The two OCS codes are not interchangeable
 
@@ -110,6 +117,34 @@ unhappy outcomes, and conflating them would put a false reason on the record:
 `NON_PLANAR_GEOMETRY` is the one to watch if you need a profile: a tilted circle's
 XY footprint is really an ellipse, and a tilted vertex chain's XY projection is
 foreshortened. The coordinates are not wrong; the 2D reading of them is.
+
+### Loss evidence
+
+A diagnostic says *something happened here*. Two additive fields say *what it
+cost*:
+
+| Field | Meaning |
+|---|---|
+| `recoverable` | Whether enough evidence survives to reconstruct the source. `None` means the question does not apply — an advisory that costs nothing. |
+| `metadata` | The structured particulars: counts, degrees, source normals, tolerances. Never prose; prose belongs in `message`. |
+
+`LOSS_CODES` names the codes meaning *source information did not survive*, and
+`is_loss(code)` tests membership. That is what separates real loss from routine
+normalization.
+
+The two OCS codes land on opposite sides of that line, which is the sharpest
+illustration of where the line is:
+
+- `OCS_TRANSFORM_FAILED` is **not** a loss code. It reports that a correction
+  could not be applied — a correctness failure, not a fidelity cost.
+- `NON_PLANAR_GEOMETRY` **is** a loss code. The transform succeeded and no
+  coordinate is misplaced, but the entity's *plane* is not representable here and
+  the models store no extrusion, so the authored orientation is genuinely gone. A
+  tilted circle read back as a `Circle2D` is not the circle that was drawn.
+
+`ImportReport` summarises a finished import — entity counts by kind, diagnostic
+counts by severity, and loss counts split into recoverable and unrecoverable. It
+carries no timestamp or duration, so two imports of the same file compare equal.
 
 ## Serialization
 

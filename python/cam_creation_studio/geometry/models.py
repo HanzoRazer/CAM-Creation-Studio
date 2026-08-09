@@ -161,6 +161,54 @@ class ImportMetadata:
 
 
 @dataclass(frozen=True, slots=True)
+class ImportReport:
+    """A flat summary of one import, derived from a :class:`GeometryCollection`.
+
+    Purely a *view*: every number here is computed from entities, metadata, and
+    diagnostics that already exist. It introduces no new finding type and is
+    never a source of truth — :meth:`GeometryCollection.report` rebuilds it on
+    demand, so it cannot drift from the collection it describes.
+
+    There is no duration field. Wall-clock time would make two imports of the
+    same file compare unequal and destabilize fixtures, for a number that says
+    nothing about fidelity.
+    """
+
+    source_path: Optional[str] = None
+    source_units: Optional[str] = None
+    unit_scale: Optional[float] = None
+    dxf_version: Optional[str] = None
+
+    raw_entity_count: int = 0
+    entity_count: int = 0
+    unsupported_entity_count: int = 0
+    counts_by_kind: dict = field(default_factory=dict)
+
+    diagnostic_count: int = 0
+    counts_by_severity: dict = field(default_factory=dict)
+    codes: List[str] = field(default_factory=list)
+
+    loss_count: int = 0
+    recoverable_loss_count: int = 0
+    unrecoverable_loss_count: int = 0
+
+    bounds: Optional[Bounds] = None
+
+    @property
+    def has_loss(self) -> bool:
+        """True when any source information failed to survive the import."""
+        return self.loss_count > 0
+
+    @property
+    def has_unrecoverable_loss(self) -> bool:
+        """True when something was lost that no surviving evidence can rebuild."""
+        return self.unrecoverable_loss_count > 0
+
+    def as_dict(self) -> dict:
+        return _generic_to_dict(self)
+
+
+@dataclass(frozen=True, slots=True)
 class GeometryCollection:
     """An ordered, heterogeneous set of imported entities plus import evidence.
 
@@ -194,6 +242,38 @@ class GeometryCollection:
         for e in self.entities:
             result[e.kind] = result.get(e.kind, 0) + 1
         return result
+
+    @property
+    def losses(self) -> List[GeometryDiagnostic]:
+        """Diagnostics recording information that did not survive, in order."""
+        return [d for d in self.diagnostics if d.is_loss]
+
+    def report(self) -> "ImportReport":
+        """Summarize this import. Recomputed each call, so it cannot go stale."""
+        meta = self.metadata
+        severities: dict = {}
+        for d in self.diagnostics:
+            key = d.severity.value
+            severities[key] = severities.get(key, 0) + 1
+
+        losses = self.losses
+        return ImportReport(
+            source_path=meta.source_path if meta else None,
+            source_units=meta.source_units if meta else None,
+            unit_scale=meta.unit_scale if meta else None,
+            dxf_version=meta.dxf_version if meta else None,
+            raw_entity_count=meta.raw_entity_count if meta else 0,
+            entity_count=len(self.entities),
+            unsupported_entity_count=meta.unsupported_entity_count if meta else 0,
+            counts_by_kind=self.counts(),
+            diagnostic_count=len(self.diagnostics),
+            counts_by_severity=severities,
+            codes=sorted({d.code for d in self.diagnostics}),
+            loss_count=len(losses),
+            recoverable_loss_count=sum(1 for d in losses if d.recoverable is True),
+            unrecoverable_loss_count=sum(1 for d in losses if d.recoverable is False),
+            bounds=self.bounds,
+        )
 
     # -- serialization ------------------------------------------------------ #
     def to_dict(self) -> dict:
@@ -241,5 +321,6 @@ __all__ = [
     "Spline2D",
     "Entity",
     "ImportMetadata",
+    "ImportReport",
     "GeometryCollection",
 ]
