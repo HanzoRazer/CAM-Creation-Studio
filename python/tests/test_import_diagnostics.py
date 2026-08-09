@@ -133,6 +133,32 @@ def test_is_loss_distinguishes_cost_from_observation():
     assert not diag.is_loss(diag.OCS_TRANSFORM_FAILED)  # failure, not fidelity cost
 
 
+def test_the_two_ocs_codes_are_classified_oppositely():
+    """Decided when #16 and #17 met; pinned so it is not re-decided by accident.
+
+    `LOSS_CODES` predates `NON_PLANAR_GEOMETRY`, so their relationship was not
+    something either branch had already settled.
+
+    * `OCS_TRANSFORM_FAILED` — the transform could not be applied. A correctness
+      failure: the coordinates may be wrong, which is not a *fidelity cost*.
+    * `NON_PLANAR_GEOMETRY` — the transform succeeded and every coordinate is
+      correct, but the entity's plane is not representable here and the models
+      store no extrusion, so the authored orientation is genuinely gone.
+    """
+    assert not diag.is_loss(diag.OCS_TRANSFORM_FAILED)
+    assert diag.is_loss(diag.NON_PLANAR_GEOMETRY)
+
+
+def test_non_planar_geometry_counts_as_unrecoverable_loss_when_reported_as_one():
+    """A tilted circle read back as a Circle2D is not the circle that was drawn."""
+    report = _collection(
+        diag.loss(diag.NON_PLANAR_GEOMETRY, "…", recoverable=False,
+                  metadata={"extrusion": [0.3, 0.4, 0.866]}),
+    ).report()
+    assert report.loss_count == 1
+    assert report.unrecoverable_loss_count == 1
+
+
 def test_is_loss_property_agrees_with_the_module_function():
     for code in diag.CANONICAL_CODES:
         assert diag.warning(code, "…").is_loss == diag.is_loss(code)
