@@ -57,7 +57,8 @@ consumer that needs faithful geometry must check them:
 | **SPLINE** knot vectors, weights, fit points | Dropped; only control points + degree kept | (documented; hull-bounded) |
 | **ELLIPSE**, **TEXT**, **MTEXT**, **HATCH**, **DIMENSION** | Not represented | `UNSUPPORTED_ENTITY` |
 | **INSERT** / block references | Not expanded; block contents do not appear | `UNSUPPORTED_ENTITY` |
-| 3D solids / meshes / Z-depth beyond point Z | Not represented | `UNSUPPORTED_ENTITY` |
+| 3D solids, `MESH` entities, Z-depth beyond point Z | Not represented | `UNSUPPORTED_ENTITY` |
+| `POLYLINE` in a **mesh** flavour (polygon / polyface) | Vertices kept in source order as a flat chain — a mesh is not a profile, so the result is rarely meaningful as one | (none) |
 
 To detect an incomplete import at a glance, read
 `collection.metadata.has_lossy_import` (True when any entity was dropped), or the
@@ -87,9 +88,28 @@ exact breakdown.
 
 Stable codes in `geometry/diagnostics.py`: `UNSUPPORTED_ENTITY`, `MISSING_LAYER`,
 `ZERO_LENGTH_LINE`, `ZERO_RADIUS`, `INVALID_SPLINE`, `UNKNOWN_UNITS`,
-`EMPTY_FILE`, `DUPLICATE_HANDLE`, `DEGENERATE_POLYLINE`, `POLYLINE_BULGE_IGNORED`.
+`EMPTY_FILE`, `DUPLICATE_HANDLE`, `DEGENERATE_POLYLINE`, `POLYLINE_BULGE_IGNORED`,
+`OCS_TRANSFORM_FAILED`, `NON_PLANAR_GEOMETRY`.
 Degeneracy checks (zero length/radius, bulge) use a small tolerance, so float
 noise from CAD exports is caught rather than slipping past an exact `== 0`.
+
+`geometry.diagnostics.CANONICAL_CODES` is the authoritative list; this paragraph
+is a convenience copy, and a test asserts the two agree so it cannot drift.
+
+### The two OCS codes are not interchangeable
+
+DXF stores CIRCLE, ARC, LWPOLYLINE and 2D POLYLINE coordinates in the entity's
+Object Coordinate System. Resolving that to world coordinates has two distinct
+unhappy outcomes, and conflating them would put a false reason on the record:
+
+| Code | What happened | Are the coordinates right? |
+|---|---|---|
+| `OCS_TRANSFORM_FAILED` | The transform could not be obtained or applied | **No** — left untransformed, may be misplaced |
+| `NON_PLANAR_GEOMETRY` | Transform succeeded, but the result is not parallel to WCS XY | **Yes** — but a planar reading of them does not recover the authored shape |
+
+`NON_PLANAR_GEOMETRY` is the one to watch if you need a profile: a tilted circle's
+XY footprint is really an ellipse, and a tilted vertex chain's XY projection is
+foreshortened. The coordinates are not wrong; the 2D reading of them is.
 
 ## Serialization
 

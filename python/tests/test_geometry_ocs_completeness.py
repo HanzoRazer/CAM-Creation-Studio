@@ -160,6 +160,36 @@ def test_flipped_chain_is_planar_and_stays_quiet():
     assert model.vertices[1].x == pytest.approx(-10.0, abs=1e-9)
 
 
+@pytest.mark.parametrize("points", [[], [(5, 5)]])
+def test_degenerate_tilted_chain_reports_only_degeneracy(points):
+    """A chain too short to have a profile must not claim a foreshortened one.
+
+    ``NON_PLANAR_GEOMETRY`` asserts the XY projection no longer recovers the
+    authored shape. Below two vertices there is no shape, so the message would
+    state something untrue — the precise failure the code split exists to prevent.
+    ``DEGENERATE_POLYLINE`` is the accurate finding and remains.
+    """
+    lw = _msp().add_lwpolyline(points, dxfattribs={"extrusion": TILTED})
+    _, diags = translate(lw, 1.0)
+    assert diag.DEGENERATE_POLYLINE in _codes(diags)
+    assert diag.NON_PLANAR_GEOMETRY not in _codes(diags)
+
+
+def test_degenerate_tilted_polyline2d_reports_only_degeneracy():
+    p = _msp().add_polyline2d([(5, 5)], dxfattribs={"extrusion": TILTED})
+    _, diags = translate(p, 1.0)
+    assert diag.DEGENERATE_POLYLINE in _codes(diags)
+    assert diag.NON_PLANAR_GEOMETRY not in _codes(diags)
+
+
+def test_two_vertex_tilted_chain_still_reports_non_planar():
+    """The gate is exactly at two vertices — the shortest real profile."""
+    lw = _msp().add_lwpolyline([(0, 0), (10, 0)], dxfattribs={"extrusion": TILTED})
+    _, diags = translate(lw, 1.0)
+    assert diag.NON_PLANAR_GEOMETRY in _codes(diags)
+    assert diag.DEGENERATE_POLYLINE not in _codes(diags)
+
+
 # --------------------------------------------------------------------------- #
 # Degraded OCS resolution — branches F1 left entirely uncovered.
 # These are genuine failures and keep OCS_TRANSFORM_FAILED.
@@ -301,6 +331,58 @@ def test_default_extrusion_entities_are_unchanged_and_quiet(tmp_path):
     codes = [d.code for d in col.diagnostics]
     assert diag.OCS_TRANSFORM_FAILED not in codes
     assert diag.NON_PLANAR_GEOMETRY not in codes
+
+
+# --------------------------------------------------------------------------- #
+# Diagnostic vocabulary. This pass adds a canonical code, so the taxonomy itself
+# is pinned — not only the behaviour that emits it.
+# --------------------------------------------------------------------------- #
+def _module_code_constants():
+    return {name for name, value in vars(diag).items()
+            if name.isupper() and isinstance(value, str) and name != "CANONICAL_CODES"}
+
+
+def test_canonical_codes_is_the_complete_vocabulary():
+    """Every module-level code constant is registered, and vice versa.
+
+    Guards the failure mode where a new code is defined and emitted but never
+    added to CANONICAL_CODES, leaving consumers that enumerate the set blind to it.
+    """
+    assert _module_code_constants() == set(diag.CANONICAL_CODES)
+
+
+def test_canonical_codes_have_no_duplicates_and_match_their_constants():
+    assert len(diag.CANONICAL_CODES) == len(set(diag.CANONICAL_CODES))
+    for code in diag.CANONICAL_CODES:
+        assert getattr(diag, code) == code, f"{code} constant does not equal its value"
+
+
+def test_both_ocs_codes_are_registered():
+    assert diag.OCS_TRANSFORM_FAILED in diag.CANONICAL_CODES
+    assert diag.NON_PLANAR_GEOMETRY in diag.CANONICAL_CODES
+    assert diag.OCS_TRANSFORM_FAILED != diag.NON_PLANAR_GEOMETRY
+
+
+def test_documented_code_list_matches_the_registry():
+    """The prose list in GEOMETRY_IMPORT.md is a copy; keep it from drifting.
+
+    OCS_TRANSFORM_FAILED shipped in #14 without ever reaching that list. This test
+    exists so the next added code cannot repeat that.
+    """
+    docs = os.path.join(os.path.dirname(__file__), "..", "..", "docs",
+                        "GEOMETRY_IMPORT.md")
+    text = open(os.path.abspath(docs), encoding="utf-8").read()
+    missing = [c for c in diag.CANONICAL_CODES if f"`{c}`" not in text]
+    assert not missing, f"undocumented diagnostic codes: {missing}"
+
+
+def test_non_planar_diagnostic_serializes_with_its_location():
+    c = _msp().add_circle((10, 4), radius=5, dxfattribs={"extrusion": TILTED})
+    _, diags = translate(c, 1.0)
+    payload = [d.as_dict() for d in diags if d.code == diag.NON_PLANAR_GEOMETRY][0]
+    assert payload["code"] == "NON_PLANAR_GEOMETRY"
+    assert payload["severity"] == "warning"
+    assert payload["entity_type"] == "CIRCLE"
 
 
 # --------------------------------------------------------------------------- #

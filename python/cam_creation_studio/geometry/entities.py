@@ -113,8 +113,14 @@ _DEFAULT_EXTRUSION = (0.0, 0.0, 1.0)
 # How far the extrusion may tilt off the Z axis before the entity's plane is no
 # longer parallel to WCS XY. Below this the plane is XY-parallel for our purposes.
 _PLANAR_EPS = 1e-9
-# An arbitrary point fed through a candidate mapper once, to prove it actually
-# applies before we hand it to _pt. See _ocs_to_wcs.
+# A point fed through a candidate mapper once, to prove it actually applies before
+# we hand it to _pt. See _ocs_to_wcs.
+#
+# The origin is chosen deliberately: every OCS maps it to the origin, so the probe
+# exercises the call path without depending on what the transform computes. It
+# asserts nothing about the mapper's arithmetic — only that invoking it does not
+# raise. A mapper that succeeds here and fails on a later point would defeat this,
+# but an OCS transform is linear, so there is no such point.
 _MAPPER_PROBE_POINT = (0.0, 0.0, 0.0)
 
 
@@ -158,25 +164,38 @@ def _xy_planar(ext: Optional[tuple]) -> bool:
     return abs(x) <= _PLANAR_EPS and abs(y) <= _PLANAR_EPS and abs(abs(z) - 1.0) <= _PLANAR_EPS
 
 
-def _wcs_vertex_polyline(entity) -> bool:
+def _polyline_vertices_are_wcs(entity) -> bool:
     """True for POLYLINE flavours whose vertices are already WCS, not OCS.
 
-    A 3D polyline is the obvious one. Polygon meshes and polyface meshes are the
-    non-obvious ones: both report ``is_3d_polyline`` False yet also store WCS
-    vertices, so keying only off ``is_3d_polyline`` mirrors them wrongly.
+    Scoped to POLYLINE: it reads the POLYLINE-specific flags and means nothing for
+    any other entity type. A 3D polyline is the obvious case. Polygon meshes and
+    polyface meshes are the non-obvious ones: both report ``is_3d_polyline`` False
+    yet also store WCS vertices, so keying only off ``is_3d_polyline`` mirrors them
+    wrongly.
     """
     return any(bool(getattr(entity, flag, False)) for flag in (
         "is_3d_polyline", "is_polygon_mesh", "is_poly_face_mesh"))
 
 
-def _report_non_planar_chain(ext, loc: dict, diags: List[GeometryDiagnostic]) -> None:
+def _report_non_planar_chain(ext, loc: dict, diags: List[GeometryDiagnostic],
+                             vertex_count: int) -> None:
     """Report a vertex chain that resolved to WCS but does not lie parallel to XY.
 
     The transform succeeded and every vertex is placed correctly; what is lost is
     that no planar reading of them recovers the authored profile, because the XY
     projection is foreshortened. That is a fidelity limit, not a failure, so it
     carries :data:`~geometry.diagnostics.NON_PLANAR_GEOMETRY`.
+
+    **Silent below two vertices.** A chain that short has no profile to
+    foreshorten, so the message would assert a distortion that does not exist —
+    and a diagnostic stating a false reason is the exact defect this code split
+    was introduced to remove. Such a chain already reports
+    :data:`~geometry.diagnostics.DEGENERATE_POLYLINE`, which is the accurate
+    finding; adding non-planarity on top would be noise wearing evidence's
+    clothes.
     """
+    if vertex_count < 2:
+        return
     diags.append(diag.warning(
         diag.NON_PLANAR_GEOMETRY,
         f"Polyline plane is not parallel to WCS XY (extrusion {ext}); vertices are "
@@ -185,12 +204,20 @@ def _report_non_planar_chain(ext, loc: dict, diags: List[GeometryDiagnostic]) ->
 
 
 def _ocs_to_wcs(entity, loc: dict, diags: List[GeometryDiagnostic]):
-    """ezdxf's OCS->WCS mapper for this entity, or None when none is needed.
+    """ezdxf's OCS->WCS mapper for this entity, or None when no transform applies.
 
-    Returns None for a default extrusion (identity, pass-through) and for objects
-    that expose no ``ocs()`` at all — a duck-typed test double is not a failure.
-    A declared non-default extrusion that we cannot resolve IS a failure and is
-    reported, because it means geometry may be placed incorrectly.
+    Returns None in three cases, only one of which is a failure:
+
+    * **Default extrusion** — the OCS is the world system, so there is nothing to
+      apply. Quiet; this is the ordinary path.
+    * **No ``ocs()`` while a non-default extrusion is declared** — reported as
+      :data:`~geometry.diagnostics.OCS_TRANSFORM_FAILED`. Coordinates are left
+      untransformed and may be misplaced.
+    * **``ocs()`` or the mapper raised** — reported the same way.
+
+    An object with no declared extrusion and no ``ocs()`` is not a failure: it
+    simply needs no transform, which is why the default-extrusion check comes
+    first and why a minimal duck-typed object works here.
     """
     ext = _extrusion_of(entity)
     if _is_default_extrusion(ext):
@@ -311,8 +338,9 @@ def translate(entity, scale: float) -> TranslationResult:
             # Vertices are OCS. Elevation is deliberately NOT folded in here: that
             # is CS-008R F5 and still out of scope, so the OCS z stays 0.
             verts = [_pt((p[0], p[1], 0.0), scale, to_wcs) for p in pts]
-            if not _xy_planar(_extrusion_of(entity)):
-                _report_non_planar_chain(_extrusion_of(entity), loc, diags)
+            ext = _extrusion_of(entity)
+            if not _xy_planar(ext):
+                _report_non_planar_chain(ext, loc, diags, len(verts))
         bulges = [p[2] for p in pts if len(p) > 2]
         if len(verts) < 2:
             diags.append(diag.warning(
@@ -329,10 +357,12 @@ def translate(entity, scale: float) -> TranslationResult:
         diags = []
         # Only a 2D POLYLINE is OCS-defined; 3D polylines and the mesh flavours
         # already store WCS vertices, so they must not be transformed.
-        to_wcs = None if _wcs_vertex_polyline(entity) else _ocs_to_wcs(entity, loc, diags)
+        to_wcs = (None if _polyline_vertices_are_wcs(entity)
+                  else _ocs_to_wcs(entity, loc, diags))
         verts = [_pt(v.dxf.location, scale, to_wcs) for v in entity.vertices]
-        if to_wcs is not None and not _xy_planar(_extrusion_of(entity)):
-            _report_non_planar_chain(_extrusion_of(entity), loc, diags)
+        ext = _extrusion_of(entity)
+        if to_wcs is not None and not _xy_planar(ext):
+            _report_non_planar_chain(ext, loc, diags, len(verts))
         bulges = [getattr(v.dxf, "bulge", 0.0) for v in entity.vertices]
         if len(verts) < 2:
             diags.append(diag.warning(
