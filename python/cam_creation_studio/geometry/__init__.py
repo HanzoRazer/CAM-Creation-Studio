@@ -23,6 +23,7 @@ from .models import (
     Entity,
     GeometryCollection,
     ImportMetadata,
+    ImportReport,
     Line2D,
     Polyline2D,
     Spline2D,
@@ -34,6 +35,7 @@ __all__ = [
     "import_dxf",
     "GeometryCollection",
     "ImportMetadata",
+    "ImportReport",
     "GeometryDiagnostic",
     # entities
     "Line2D",

@@ -21,6 +21,7 @@ import json
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
+from ..enums import DiagnosticSeverity
 from ..shared.geometry import Bounds, Point
 from ..shared.serialization import from_dict as _generic_from_dict
 from ..shared.serialization import to_dict as _generic_to_dict
@@ -172,6 +173,17 @@ class ImportReport:
     There is no duration field. Wall-clock time would make two imports of the
     same file compare unequal and destabilize fixtures, for a number that says
     nothing about fidelity.
+
+    ``entity_count`` is counted from the **live collection**, not copied from
+    :attr:`ImportMetadata.entity_count`. The two normally agree; where they do
+    not, the collection is right and the metadata is a stale record of what some
+    earlier import believed. A view that reported the recorded number would be
+    describing history rather than the object in hand. The other counts —
+    ``raw_entity_count`` and ``unsupported_entity_count`` — have no live
+    equivalent to recount, so they *are* taken from metadata.
+
+    ``counts_by_kind`` and ``counts_by_severity`` both carry every possible key,
+    zeros included, so a consumer can index either without guarding for absence.
     """
 
     source_path: Optional[str] = None
@@ -251,10 +263,11 @@ class GeometryCollection:
     def report(self) -> "ImportReport":
         """Summarize this import. Recomputed each call, so it cannot go stale."""
         meta = self.metadata
-        severities: dict = {}
+        # Seeded with every severity, mirroring counts() over kinds, so both count
+        # maps in the report have the same shape and neither needs a .get() guard.
+        severities: dict = {s.value: 0 for s in DiagnosticSeverity}
         for d in self.diagnostics:
-            key = d.severity.value
-            severities[key] = severities.get(key, 0) + 1
+            severities[d.severity.value] += 1
 
         losses = self.losses
         return ImportReport(

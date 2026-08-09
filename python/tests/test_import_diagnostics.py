@@ -21,7 +21,9 @@ from cam_creation_studio.geometry.models import (
     GeometryCollection,
     ImportMetadata,
     ImportReport,
+    Line2D,
 )
+from cam_creation_studio.shared.geometry import Point
 from cam_creation_studio.shared.serialization import from_dict, to_dict
 
 
@@ -208,12 +210,65 @@ def test_report_of_a_clean_import_shows_no_loss():
 
 
 def test_report_counts_severities():
+    """Every severity is present, zeros included — the same shape as counts_by_kind.
+
+    A consumer indexing one map should not have to guard differently from the
+    other, so `counts_by_severity` is seeded rather than accumulated.
+    """
     report = _collection(
         diag.info(diag.UNKNOWN_UNITS, "…"),
         diag.warning(diag.ZERO_RADIUS, "…"),
         diag.warning(diag.ZERO_LENGTH_LINE, "…"),
     ).report()
-    assert report.counts_by_severity == {"info": 1, "warning": 2}
+    assert report.counts_by_severity == {"info": 1, "warning": 2, "danger": 0}
+
+
+def test_both_count_maps_are_total_not_sparse():
+    report = GeometryCollection().report()
+    assert set(report.counts_by_severity) == {s.value for s in DiagnosticSeverity}
+    assert all(v == 0 for v in report.counts_by_severity.values())
+    assert set(report.counts_by_kind) == {
+        "line", "arc", "circle", "polyline", "spline"}
+
+
+def test_report_entity_count_follows_the_live_collection_not_stale_metadata():
+    """Pins which of the two sources of truth wins, and that it is deliberate.
+
+    `ImportMetadata.entity_count` records what some earlier import believed. The
+    report describes the object in hand, so it recounts. They normally agree;
+    when they cannot, the collection is right.
+    """
+    collection = GeometryCollection(
+        entities=[Line2D(start=Point(0, 0), end=Point(10, 0))],
+        metadata=ImportMetadata(
+            source_path="x.dxf", source_units="mm", unit_scale=1.0,
+            entity_count=99,            # deliberately wrong
+            raw_entity_count=99, unsupported_entity_count=0),
+        diagnostics=[],
+    )
+    assert collection.metadata.entity_count == 99
+    assert collection.report().entity_count == 1
+    # raw/unsupported have no live equivalent, so they still come from metadata.
+    assert collection.report().raw_entity_count == 99
+
+
+def test_import_report_is_importable_from_the_package_root():
+    """`collection.report()` returns this type; a consumer must be able to name it."""
+    import cam_creation_studio.geometry as geometry
+    assert geometry.ImportReport is ImportReport
+    assert "ImportReport" in geometry.__all__
+
+
+def test_diagnostics_are_unhashable_by_design():
+    """Pinned so nobody starts putting diagnostics in a set and is surprised.
+
+    `metadata` is a mutable mapping, so a frozen dataclass carrying one is still
+    unhashable. Diagnostics are collected in lists and matched on `code`.
+    """
+    with pytest.raises(TypeError):
+        hash(diag.warning(diag.ZERO_RADIUS, "…"))
+    with pytest.raises(TypeError):
+        {diag.loss(diag.EMPTY_SPLINE_GEOMETRY, "…", recoverable=False)}
 
 
 def test_report_carries_no_duration_or_timestamp():
