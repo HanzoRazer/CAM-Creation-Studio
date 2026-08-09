@@ -123,13 +123,14 @@ traceable. Retirement is recorded instead.
 | CAM-CS-02 *(1st)* | Export preflight | — | — | **Void — misrouted** | CS-009 | — |
 | CS-009 | Export preflight gate | `docs/architecture/EXPORT_PREFLIGHT_SEMANTICS.md` | `cs-009-export-preflight` | Merged (#9) | — | Export gate; no machine-readiness claim |
 | CS-008R | Geometry import conformance re-audit | — | `cs-008r-conformance-reaudit` | Merged (#12) | — | Evidence only |
-| CS-008 REM 1/3 | Import loss evidence + characterization | CS-008R (unseen at the time) | `cs-008-import-evidence` | **Open, blocked** (#10) | — | Diagnostic fields |
-| CS-008 REM 2/3 | Spline fidelity | as above | `cs-008-spline-fidelity` | **Open, blocked** (#11) | — | `Spline2D` extended |
+| CS-008 REM 1/3 | Import loss evidence + characterization | CS-008R (unseen at the time) | `cs-008-import-evidence` | **Closed — re-scoped** (#10) | **#17** | — (not merged) |
+| CS-008 REM 1/3-R | Import loss evidence infrastructure | `docs/audits/CS-008_REAUDIT.md` | `cs-008-loss-evidence` | **Open** (#17) | — | Loss fields, `LOSS_CODES`, `ImportReport` |
+| CS-008 REM 2/3 | Spline fidelity | as above | `cs-008-spline-fidelity` | **Open** (#11); targets `cs-008-loss-evidence` | — | `Spline2D` extended |
 | CS-008 REM 3/3 | Coordinate correctness | as above | `cs-008-coordinate-correctness` | **Closed — superseded** (#13) | **#14** | — (not merged) |
 | CS-008R F1 | OCS→WCS on import | `docs/audits/CS-008_REAUDIT.md` | `cs-008-f1-coordinate-correctness` | Merged (#14) `c60009c` | — | Coordinates corrected |
 | CS-008R F1-H | Post-F1 OCS hardening | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-ocs-completeness` | **Open** (#16) | — | Diagnostic split: `NON_PLANAR_GEOMETRY` |
 | CAM-CS-02 *(2nd)* | Shared fret-math extraction study | CAM-CS-01 audit §7 | — | **Retired identifier; unissued** | CS-010 | Cross-repository |
-| CS-REC-01…05 | Session integrity recovery | This ledger | `cs-rec-governance` | **Open** (#15) | — | Governance only |
+| CS-REC-01…05 | Session integrity recovery | This ledger | `cs-rec-governance` | Merged (#15) `4cc28a9` | — | Governance only |
 
 *Status column last refreshed 2026-08-08.* Confirm against GitHub before relying
 on it — see § Source of truth.
@@ -169,6 +170,49 @@ The corroboration above was not wrong, but it was narrower than it read.
 nothing about what neither considered.** Do not let convergence between two
 implementations stand in for coverage.
 
+**#10 — one PR carrying two separable pieces of work.**
+
+**Disposition (owner ruling, 2026-08-08): re-scope, not close outright.** #10
+bundled loss-evidence *infrastructure* with *characterization tests* of the very
+defect F1 then fixed. The two halves aged in opposite directions:
+
+- **Infrastructure — kept, re-scoped onto post-F1 `main` as #17.** Diagnostic
+  loss fields, `loss()`, `LOSS_CODES`, `is_loss()`, `ImportReport`, the reserved
+  fidelity vocabulary, and `test_import_diagnostics.py`. Sound, F1-independent,
+  and **#11 will not build without it** — its `entities.py` calls `diag.loss(...)`
+  and three codes that exist nowhere else.
+- **Characterization — dropped.** `test_geometry_characterization.py` pinned
+  pre-F1 behaviour as current (`circle.center.x == 5.0`, `!= expected_x`,
+  `codes(...) == []`). #14 falsified every one. It was written to be inverted by
+  a "PR 3" that is itself closed (#13), so rewriting it is authoring a new file,
+  not rebasing one.
+
+- #10 **closed as superseded** by #17; reasoning preserved in its closing comment.
+- Branch `cs-008-import-evidence` is **retained**, not deleted, as
+  `cs-008-coordinate-correctness` was for #13.
+- **No commit from #10 is cherry-picked onto `main`.**
+- #11 rebased onto `cs-008-loss-evidence` and retargeted to it.
+
+*The near miss worth recording:* the first recommendation was to close #10 and
+rebase #11 straight onto `main`. A trial rebase merged **textually** clean —
+which is what made it look safe — and only a symbol check showed #11 calling four
+things that live in #10. **A clean auto-merge is evidence about text, not about
+whether the result runs.**
+
+**A second duplicate-vocabulary collision.** #10 and #14 independently defined
+`OCS_TRANSFORM_FAILED` — the same concurrent-session duplication as #13/#14, one
+layer down, and undetected until #17 reconciled the two files by hand. #17 keeps
+one constant and #14's comment.
+
+*Corroboration worth keeping, and this one is sturdier:* #10 argued there must be
+no `OCS_TRANSFORM_APPLIED` code, because a transform that succeeds is correct
+behaviour and coding it would train readers to skim past findings that matter.
+#16 reached the same principle independently when splitting `NON_PLANAR_GEOMETRY`
+out of `OCS_TRANSFORM_FAILED`. Unlike the mirrored-arc agreement above, these two
+examined the question from opposite directions — one deciding what *not* to emit,
+the other what a successful transform must *not* be called — so the convergence is
+not two parties sharing one blind spot.
+
 ## Coverage record — `docs/audits/CS-008_REAUDIT.md`
 
 The audit declares **ten** findings, F1–F10. All ten are listed; none is omitted
@@ -177,7 +221,7 @@ because it is unremediated or undeterminable.
 | Finding | Status |
 |---------|--------|
 | **F1** — OCS/extrusion unresolved | **Remediated.** #14, merged `c60009c`. Hardened by #16 (below). |
-| **F2** — fit-point spline empty geometry | Represented by **#11**, subject to rebase + re-evaluation |
+| **F2** — fit-point spline empty geometry | Represented by **#11**, rebased onto `cs-008-loss-evidence` (#17). Still to be re-evaluated against the audit rather than its stacked form. |
 | **F3** — rational weights discarded | as F2 |
 | **F4** — knot vectors discarded | as F2 |
 | **F5** — elevation dropped | **NOT complete.** LWPOLYLINE is one case; **2D POLYLINE is equally affected.** The previously claimed LWPOLYLINE/POLYLINE asymmetry is **withdrawn** — it was an artifact of using POLYLINE3D as the control fixture (audit probe P8c). |
@@ -206,14 +250,24 @@ diagnostic never states a false reason.
 ## Next orders (sequenced)
 
 1. **#16** — post-F1 hardening. Open; closes a live regression on `main`.
-2. **Rebase #10/#11** on corrected `main` and re-evaluate them **against the
-   audit**, not against their stacked form. Their existing shape is not
-   authoritative: it was built before the audit was located.
-3. **New order — importer evidence completeness (F5/F6/F7).** Covers LWPOLYLINE
+2. **#17** — loss-evidence infrastructure, re-scoped from #10. Open; #11 depends
+   on it.
+3. **#11** — spline fidelity (F2/F3/F4). Open, targeting `cs-008-loss-evidence`.
+   Still to be re-evaluated **against the audit** rather than against its stacked
+   form; that shape predates the audit being located.
+4. **New order — importer evidence completeness (F5/F6/F7).** Covers LWPOLYLINE
    *and* 2D POLYLINE elevation, handle traceability, and the missing-layer
-   diagnostic. **Parent artifact: `docs/audits/CS-008_REAUDIT.md`** — explicitly
-   not the earlier conversational remediation plan.
-4. **Unissued:** F9 numeric normalization; F10 re-probe; CI enforcement of this
+   diagnostic. It also owns the **elevation control fixture** #17 deliberately did
+   not write: a 2D polyline with `dxf.elevation`, replacing the withdrawn
+   `polyline_elevated.dxf`. **Parent artifact: `docs/audits/CS-008_REAUDIT.md`** —
+   explicitly not the earlier conversational remediation plan.
+5. **Unissued:** F9 numeric normalization; F10 re-probe; CI enforcement of this
    ledger's mechanical rules (see § Enforcement status).
+
+**Merge-order note.** #16 and #17 both modify `geometry/diagnostics.py` — #16 adds
+`NON_PLANAR_GEOMETRY` and rewrites the `OCS_TRANSFORM_FAILED` comment; #17 adds
+the fidelity vocabulary and the loss fields. They do not conflict logically, but
+whichever lands second needs a small manual reconcile in the code registry. #11
+follows #17.
 
 Remaining findings are deliberately **not** combined into a single sweep.
