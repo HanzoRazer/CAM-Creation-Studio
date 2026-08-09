@@ -124,7 +124,7 @@ traceable. Retirement is recorded instead.
 | CS-009 | Export preflight gate | `docs/architecture/EXPORT_PREFLIGHT_SEMANTICS.md` | `cs-009-export-preflight` | Merged (#9) | — | Export gate; no machine-readiness claim |
 | CS-008R | Geometry import conformance re-audit | — | `cs-008r-conformance-reaudit` | Merged (#12) | — | Evidence only |
 | CS-008 REM 1/3 | Import loss evidence + characterization | CS-008R (unseen at the time) | `cs-008-import-evidence` | **Closed — re-scoped** (#10) | **#17** | — (not merged) |
-| CS-008 REM 1/3-R | Import loss evidence infrastructure | `docs/audits/CS-008_REAUDIT.md` | `cs-008-loss-evidence` | **Open** (#17) | — | Loss fields, `LOSS_CODES`, `ImportReport` |
+| CS-008 REM 1/3-R | Import loss evidence infrastructure | `docs/audits/CS-008_REAUDIT.md` | `cs-008-loss-evidence` | **Open** (#17) | — | Loss fields, `LOSS_CODES`, `ImportReport`; **diagnostic `metadata` constrained to JSON-safe values, enforced** |
 | CS-008 REM 2/3 | Spline fidelity | as above | `cs-008-spline-fidelity` | **Open** (#11); targets `cs-008-loss-evidence` | — | `Spline2D` extended |
 | CS-008 REM 3/3 | Coordinate correctness | as above | `cs-008-coordinate-correctness` | **Closed — superseded** (#13) | **#14** | — (not merged) |
 | CS-008R F1 | OCS→WCS on import | `docs/audits/CS-008_REAUDIT.md` | `cs-008-f1-coordinate-correctness` | Merged (#14) `c60009c` | — | Coordinates corrected |
@@ -246,6 +246,32 @@ the OCS resolution machinery it introduced or touched:
 Also introduced there: `OCS_TRANSFORM_FAILED` no longer covers transforms that
 succeeded. `NON_PLANAR_GEOMETRY` carries the successful-but-lossy case, so a
 diagnostic never states a false reason.
+
+### Diagnostic `metadata` is a JSON contract — #17
+
+A durable constraint, recorded because it binds every later increment.
+
+`GeometryDiagnostic.metadata` is typed `Dict[str, Any]` and stays open — the
+particulars worth recording differ per finding. The constraint is therefore on
+**values, not schema**: `str`, `int`, finite `float`, `bool`, `None`, `list`, and
+`dict` with string keys, nested freely. Anything else raises from
+`__post_init__`, so no construction path bypasses it.
+
+**Enforced rather than documented, deliberately.** Review proposed a documented
+restriction plus a test, or narrower typing. Narrower typing would defeat the
+field; a test catches only the cases it happens to exercise, and the hazard is
+precisely that a *later* increment slips in a richer value that no existing test
+sees.
+
+The decisive argument is that three of the five failure modes are **silent**: a
+`tuple` round-trips to a `list`, a non-string key returns stringified, and
+`nan`/`inf` are not valid JSON — each serializes without complaint and compares
+unequal on the way back, surfacing as a fixture mismatch far from the insertion.
+`shared.serialization` already coerced tuple to list, so this was a live defect,
+not a hypothetical one. Objects such as `Point` and `set` fail loudly instead, but
+only at export, naming the serializer rather than the culprit.
+
+Record a `Point` as `[x, y, z]` or as separate keys.
 
 ## Next orders (sequenced)
 
