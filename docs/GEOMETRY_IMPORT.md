@@ -54,7 +54,10 @@ consumer that needs faithful geometry must check them:
 | Source construct | Behavior | Signal |
 |------------------|----------|--------|
 | Polyline **bulges** (arc segments) | Flattened to straight chords; vertices kept | `POLYLINE_BULGE_IGNORED` |
-| **SPLINE** knot vectors, weights, fit points | Dropped; only control points + degree kept | (documented; hull-bounded) |
+| **SPLINE** fit points, weights, knots | **Preserved** — see *Splines* below | (none — nothing is lost) |
+| Fit-spline **start/end tangents** | Not represented; fit points kept | `FIT_POINT_SPLINE_UNREPRESENTED` |
+| **OCS / extrusion vectors** | **Resolved to WCS** since F1. A transform that cannot be obtained or applied is reported | `OCS_TRANSFORM_FAILED` |
+| **LWPOLYLINE / 2D POLYLINE** `elevation` | **Dropped.** Z flattened to 0 on **both** paths alike | ⚠ **none — silent** (F5) |
 | **ELLIPSE**, **TEXT**, **MTEXT**, **HATCH**, **DIMENSION** | Not represented | `UNSUPPORTED_ENTITY` |
 | **INSERT** / block references | Not expanded; block contents do not appear | `UNSUPPORTED_ENTITY` |
 | 3D solids, `MESH` entities, Z-depth beyond point Z | Not represented | `UNSUPPORTED_ENTITY` |
@@ -65,6 +68,21 @@ To detect an incomplete import at a glance, read
 `raw_entity_count` / `unsupported_entity_count` / `entity_count` fields for the
 exact breakdown.
 
+> ### ⚠ Known fidelity gap under remediation (CS-008R F5)
+>
+> **Elevation is dropped on both 2D polyline paths, silently.** An `LWPOLYLINE`
+> or a 2D `POLYLINE` carrying `elevation` imports with Z flattened to 0 and no
+> diagnostic. `LWPOLYLINE_ELEVATION_DROPPED` is reserved for it but not yet
+> emitted.
+>
+> An earlier revision of this document claimed LWPOLYLINE dropped elevation while
+> POLYLINE kept it. **That asymmetry is withdrawn.** It was an artifact of
+> comparing against a *3D* polyline, which carries Z in its vertices rather than
+> in an attribute; the audit's probe P8c shows a 2D POLYLINE drops it identically.
+>
+> Remediation order: evidence infrastructure (**done**) → spline fidelity
+> (**this increment**) → F1 coordinate correctness (**done**, #14) → F5/F6/F7
+> importer evidence completeness (**outstanding**).
 ## Design guarantees
 
 - **Neutral geometry.** ezdxf entities never leak outside the importer; only
@@ -98,10 +116,19 @@ noise from CAD exports is caught rather than slipping past an exact `== 0`.
 `geometry.diagnostics.CANONICAL_CODES` is the authoritative list; this paragraph
 is a convenience copy, and a test asserts the two agree so it cannot drift.
 
-The two OCS codes are **live**. The four spline/elevation codes are **reserved** —
-named so the vocabulary has one definition point — and begin being emitted in the
-fidelity increments that follow. A consumer matching on a reserved code today will
-simply never see it; it will not see a differently-named finding instead.
+**Live:** both OCS codes, since F1 (#14) and its hardening (#16); and
+`FIT_POINT_SPLINE_UNREPRESENTED`, `RATIONAL_SPLINE_WEIGHTS_DROPPED`,
+`EMPTY_SPLINE_GEOMETRY` since this increment — each fires only on genuine loss,
+see *Splines* below.
+
+**Reserved, not yet emitted:** `LWPOLYLINE_ELEVATION_DROPPED`, awaiting the F5
+increment. A consumer matching on it today will simply never see it — it will not
+see a differently-named finding instead.
+
+There is deliberately **no `OCS_TRANSFORM_APPLIED` code.** A transform that
+succeeds is correct importer behavior, not a defect; coding it as a diagnostic
+would train readers to skim past the findings that do matter. Success is recorded
+as entity/import metadata, and only *failure* earns a diagnostic.
 
 ### The two OCS codes are not interchangeable
 
@@ -166,9 +193,81 @@ illustration of where the line is:
   the models store no extrusion, so the authored orientation is genuinely gone. A
   tilted circle read back as a `Circle2D` is not the circle that was drawn.
 
-`ImportReport` summarises a finished import — entity counts by kind, diagnostic
-counts by severity, and loss counts split into recoverable and unrecoverable. It
-carries no timestamp or duration, so two imports of the same file compare equal.
+No separate loss-record type exists. `GeometryDiagnostic` already owns import
+findings and already carries the entity context (type, handle, layer) a loss
+report needs; a parallel model would split that ownership for no gain.
+
+### Import summary
+
+`collection.report()` returns an `ImportReport` — a flat, recomputed **view** over
+entities, metadata, and diagnostics that already exist:
+
+```python
+report = import_dxf("part.dxf").report()
+report.has_unrecoverable_loss   # something was lost that nothing can rebuild
+report.loss_count               # vs. report.diagnostic_count
+report.codes                    # sorted, de-duplicated
+```
+
+It carries **no duration or timestamp** — wall-clock would make two imports of one
+file compare unequal and destabilize fixtures, for a number that says nothing
+about fidelity. Because it is rebuilt on demand it cannot drift from the
+collection it describes.
+
+## Splines
+
+DXF defines a spline one of two ways, and they are **not** interchangeable. The
+importer keeps whichever the source used rather than converting:
+
+| `representation` | Authoritative points | Meaning |
+|------------------|----------------------|---------|
+| `"control"` | `control_points` | control points define the curve |
+| `"fit"` | `fit_points` | the curve passes *through* these points |
+
+`spline.defining_points` returns the authoritative list either way. Also
+preserved: `knots`, `weights`, `degree`, `closed`, `periodic`, `rational`.
+
+A fit-point spline is a **complete description, not a broken control-point one**,
+so preserving it raises no diagnostic. Likewise a rational spline whose weights
+survive is silent. This is the governing rule: *a loss diagnostic describes
+actual information loss, never merely the presence of a non-default DXF feature.*
+
+Deriving control points from fit points is curve fitting — real spline
+mathematics — and is deliberately not done here. An importer preserves evidence;
+it does not invent geometry.
+
+**Knots and weights are never scaled** by the drawing units. Knots live in
+parameter space and weights are dimensionless; multiplying either by a mm
+conversion would corrupt the curve.
+
+**Invariant:** a spline must carry the points its representation needs.
+Constructing `Spline2D` with neither raises `ValueError`, and a source spline
+with neither is excluded from the collection with `EMPTY_SPLINE_GEOMETRY` —
+rather than admitted as an entity that counts as imported while containing
+nothing.
+
+What still costs something:
+
+| Condition | Behavior | Signal |
+|-----------|----------|--------|
+| Neither control nor fit points | Entity excluded | `EMPTY_SPLINE_GEOMETRY` |
+| Weight count ≠ control-point count | Weights dropped; association unrecoverable | `RATIONAL_SPLINE_WEIGHTS_DROPPED` |
+| Fit spline with start/end tangents | Fit points kept; tangents not represented | `FIT_POINT_SPLINE_UNREPRESENTED` |
+| Control points < degree + 1 | Kept as given | `INVALID_SPLINE` (advisory, **not** a loss) |
+
+> **Bounds caveat.** For a control-point spline, `bounds` is the control hull — a
+> superset of the curve, safe to reason about. For a **fit-point** spline it is
+> not: the curve interpolates the fit points and may bulge outside their box, so
+> the bounds can under-report. Tightening them requires evaluating the curve.
+
+## Golden fixture corpus
+
+`python/tests/fixtures/` holds an **immutable** set of ASCII DXF files, one per
+fidelity question, reviewable as text. They are never regenerated by a test run —
+regenerating would silently re-baseline every characterization assertion, which is
+exactly the invisible change this remediation exists to prevent. Provenance and a
+deliberate-regeneration path are in `fixtures/MAKE_FIXTURES.py`; to change a
+fixture, add a new one and leave the old file alone.
 
 ## Serialization
 
