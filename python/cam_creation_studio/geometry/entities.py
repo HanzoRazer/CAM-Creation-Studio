@@ -408,13 +408,22 @@ _SPLINE_PERIODIC = 2
 _SPLINE_RATIONAL = 4
 
 
-def _floats(values) -> List[float]:
-    """A plain float list from any sequence-like, unscaled.
+def _floats(values) -> Optional[List[float]]:
+    """A plain float list from any sequence-like, unscaled, or None if unreadable.
+
+    Returns ``None`` rather than raising when the source holds something
+    non-numeric. A malformed knot or weight array is bad data in the file, and
+    this module's contract is to report bad data as evidence — letting a
+    ``ValueError`` escape would abort the whole import over one entity, losing
+    every other entity in the file along with it.
 
     Knots live in parameter space and weights are dimensionless: neither is a
     length, so neither is multiplied by the unit scale.
     """
-    return [float(v) for v in (values or [])]
+    try:
+        return [float(v) for v in (values or [])]
+    except (TypeError, ValueError):
+        return None
 
 
 def _translate_spline(entity, scale: float, layer: str, loc: dict) -> TranslationResult:
@@ -442,6 +451,27 @@ def _translate_spline(entity, scale: float, layer: str, loc: dict) -> Translatio
     weights = _floats(getattr(entity, "weights", None))
     diags: List[GeometryDiagnostic] = []
 
+    # A non-numeric knot or weight array is malformed source data. Report it and
+    # carry on without that array rather than letting the conversion raise, which
+    # would abandon every other entity in the file over this one.
+    for name, values in (("knot", knots), ("weight", weights)):
+        if values is None:
+            diags.append(diag.warning(
+                diag.INVALID_SPLINE,
+                f"Spline {name} values are not numeric; the {name} array was "
+                "discarded and the rest of the spline imported.", **loc))
+    knots = knots if knots is not None else []
+    weights = weights if weights is not None else []
+
+    # Degree below 1 is not a curve. ezdxf refuses to author it, so this only
+    # arrives from a malformed file; the value is preserved as evidence but must
+    # not pass as ordinary.
+    if degree < 1:
+        diags.append(diag.warning(
+            diag.INVALID_SPLINE,
+            f"Spline declares degree {degree}; a spline degree below 1 does not "
+            "describe a curve.", **loc))
+
     if not ctrl and not fit:
         return None, [diag.loss(
             diag.EMPTY_SPLINE_GEOMETRY,
@@ -455,16 +485,27 @@ def _translate_spline(entity, scale: float, layer: str, loc: dict) -> Translatio
     # while fit points are the authoring intent the CAD tool fitted them to.
     representation = REPRESENTATION_CONTROL if ctrl else REPRESENTATION_FIT
 
-    # Weights are positional — weight[i] belongs to control_points[i]. A count
-    # mismatch makes that mapping unrecoverable, so they cannot be preserved.
+    # Weights are positional — weight[i] belongs to control_points[i]. Without a
+    # 1:1 match that mapping is unrecoverable, so the weights cannot be preserved.
+    # The two ways this happens read very differently to whoever gets the
+    # diagnostic, so they are worded differently: a fit-represented spline has no
+    # control points at all, which is not a "count mismatch" but weights arriving
+    # on a representation that has nothing to attach them to.
     if weights and len(weights) != len(ctrl):
+        if representation == REPRESENTATION_FIT:
+            reason = (f"Spline is defined by fit points and carries no control "
+                      f"points, so its {len(weights)} weight(s) have nothing to "
+                      "attach to and were dropped.")
+        else:
+            reason = (f"Spline has {len(weights)} weight(s) for {len(ctrl)} "
+                      "control point(s); the association is unrecoverable, so "
+                      "weights were dropped.")
         diags.append(diag.loss(
-            diag.RATIONAL_SPLINE_WEIGHTS_DROPPED,
-            f"Spline has {len(weights)} weight(s) for {len(ctrl)} control "
-            "point(s); the association is unrecoverable, so weights were dropped.",
+            diag.RATIONAL_SPLINE_WEIGHTS_DROPPED, reason,
             recoverable=False,
             metadata={"weight_count": len(weights),
                       "control_point_count": len(ctrl),
+                      "representation": representation,
                       "degree": degree},
             **loc))
         weights = []

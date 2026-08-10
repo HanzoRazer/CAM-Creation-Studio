@@ -167,10 +167,27 @@ class Spline2D:
         """Box over the defining points.
 
         For a control-point spline this is the control hull — a superset of the
-        curve, so safe to reason about. For a **fit-point** spline it is not: the
-        curve interpolates the fit points and may bulge outside their box, so
-        these bounds can under-report. Tightening them requires evaluating the
-        curve, which this layer does not do.
+        curve, so safe to reason about.
+
+        For a **fit-point** spline it is **not conservative**. The curve
+        interpolates the fit points and overshoots between them, so the box can
+        be smaller than the curve. Measured against sampled curves, ordinary
+        shapes exceed it by a visible margin:
+
+        ============================================  ==================
+        fit points                                    curve exceeds box
+        ============================================  ==================
+        ``(0,0) (5,8) (10,0)``                        0.00 mm
+        ``(0,0) (4,10) (6,10) (10,0)``                0.10 mm
+        ``(0,0) (2,10) (4,0) (6,10) (8,0)``           0.22 mm
+        ``(0,0) (1,9) (9,9) (10,0)``                  1.13 mm
+        ============================================  ==================
+
+        So a caller must not use these bounds for anything where a too-small box
+        is unsafe — culling, clipping, containment, or a machining envelope
+        check. Tightening them means evaluating the curve, which is spline
+        mathematics and does not belong in an importer. Use
+        :attr:`representation` to tell the two cases apart.
         """
         return _bounds.bounds_of_points(self.defining_points)
 

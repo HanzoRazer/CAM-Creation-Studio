@@ -132,7 +132,8 @@ def test_mismatched_weights_are_dropped_and_reported():
     assert codes(diags) == [diag.RATIONAL_SPLINE_WEIGHTS_DROPPED]
     assert entity.weights == []
     assert diags[0].metadata == {
-        "weight_count": 2, "control_point_count": 4, "degree": 3}
+        "weight_count": 2, "control_point_count": 4, "degree": 3,
+        "representation": REPRESENTATION_CONTROL}
 
 
 def test_matched_weights_produce_no_finding():
@@ -223,3 +224,179 @@ def test_legacy_serialized_spline_still_loads():
     assert restored.representation == REPRESENTATION_CONTROL
     assert restored.fit_points == []
     assert restored.weights == []
+
+
+# --------------------------------------------------------------------------- #
+# Malformed source data. The importer's contract is to report bad data as
+# evidence; raising here would abandon every other entity in the file over one.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("field", ["knots", "weights"])
+def test_non_numeric_knots_or_weights_are_reported_not_raised(field):
+    model, diags = translate(
+        FakeSpline(control_points=P, **{field: [0.0, "not-a-number", 1.0]}), 1.0)
+    assert model is not None, "one malformed array must not abort the import"
+    assert diag.INVALID_SPLINE in codes(diags)
+    assert getattr(model, field) == []
+
+
+def test_a_malformed_array_does_not_discard_the_other_one():
+    model, _ = translate(
+        FakeSpline(control_points=P, knots=[0.0, "junk"], weights=[1.0] * 4), 1.0)
+    assert model.knots == []
+    assert model.weights == [1.0] * 4
+
+
+@pytest.mark.parametrize("degree", [0, -1])
+def test_degree_below_one_is_reported(degree):
+    """ezdxf refuses to author this, so it only arrives from a malformed file.
+
+    The value is still preserved as evidence — the importer records what the
+    source said — but it must not pass as ordinary.
+    """
+    model, diags = translate(FakeSpline(control_points=P, degree=degree), 1.0)
+    assert model.degree == degree
+    assert diag.INVALID_SPLINE in codes(diags)
+
+
+def test_ordinary_degree_is_silent():
+    _, diags = translate(FakeSpline(control_points=P, degree=3), 1.0)
+    assert codes(diags) == []
+
+
+# --------------------------------------------------------------------------- #
+# Weights arriving on a representation that cannot hold them
+# --------------------------------------------------------------------------- #
+def test_weights_on_a_fit_spline_are_dropped_and_explained_as_such():
+    """A fit spline has no control points, so weights have nothing to attach to.
+
+    Worth its own case because the message must not describe this as a count
+    mismatch — "3 weights for 0 control points" invites the reader to look for
+    missing control points on a spline that is not supposed to have any.
+    """
+    model, diags = translate(
+        FakeSpline(fit_points=P[:3], weights=[1.0, 2.0, 1.0]), 1.0)
+    assert model.representation == REPRESENTATION_FIT
+    assert model.weights == []
+    finding = [d for d in diags if d.code == diag.RATIONAL_SPLINE_WEIGHTS_DROPPED][0]
+    assert "fit points" in finding.message
+    assert "nothing to attach to" in finding.message
+    assert finding.metadata["representation"] == REPRESENTATION_FIT
+    assert finding.recoverable is False
+
+
+def test_weights_mismatched_against_control_points_say_so_instead():
+    model, diags = translate(
+        FakeSpline(control_points=P, weights=[1.0, 2.0]), 1.0)
+    finding = [d for d in diags if d.code == diag.RATIONAL_SPLINE_WEIGHTS_DROPPED][0]
+    assert "2 weight(s) for 4 control point(s)" in finding.message
+    assert finding.metadata["representation"] == REPRESENTATION_CONTROL
+    assert model.weights == []
+
+
+# --------------------------------------------------------------------------- #
+# Against real ezdxf, not duck types.
+#
+# The stubs above mirror the attribute shape this module relies on, which is
+# what makes the malformed cases testable at all. But a stub cannot confirm that
+# the shape is the one ezdxf actually presents — so the policy decisions that
+# depend on real library behaviour are pinned here through a genuine DXF.
+# --------------------------------------------------------------------------- #
+ezdxf = pytest.importorskip("ezdxf")
+
+CTRL = [(0, 0), (3, 9), (7, 9), (10, 0)]
+FIT = [(0, 0), (5, 8), (10, 0)]
+
+
+def _imported(build, tmp_path, insunits=4):
+    from cam_creation_studio.geometry import import_dxf
+    doc = ezdxf.new("R2010", setup=True)
+    doc.header["$INSUNITS"] = insunits
+    build(doc.modelspace())
+    path = str(tmp_path / "spline.dxf")
+    doc.saveas(path)
+    collection = import_dxf(path)
+    splines = [e for e in collection.entities if e.kind == "spline"]
+    return collection, (splines[0] if splines else None)
+
+
+def test_real_fit_spline_round_trips_through_a_file(tmp_path):
+    collection, spline = _imported(lambda m: m.add_spline(fit_points=FIT), tmp_path)
+    assert spline.representation == REPRESENTATION_FIT
+    assert len(spline.fit_points) == 3
+    assert [d.code for d in collection.diagnostics] == []
+
+
+def test_real_rational_spline_keeps_its_weights(tmp_path):
+    weights = [1.0, 8.0, 8.0, 1.0]
+    collection, spline = _imported(
+        lambda m: m.add_rational_spline(control_points=CTRL, weights=weights,
+                                        degree=3), tmp_path)
+    assert spline.weights == weights
+    assert spline.rational is True
+    assert [d.code for d in collection.diagnostics] == []
+
+
+def test_real_spline_carrying_both_forms_prefers_control_points(tmp_path):
+    """The 'control wins' rule is a policy choice, so pin it against real data.
+
+    Some exporters emit both: control points define the curve exactly, while fit
+    points record the authoring intent it was fitted to. Both are retained; only
+    the authoritative one drives `defining_points` and therefore `bounds`.
+    """
+    def build(msp):
+        spline = msp.add_spline(fit_points=FIT)
+        spline.control_points = CTRL
+
+    _, spline = _imported(build, tmp_path)
+    assert spline.representation == REPRESENTATION_CONTROL
+    assert len(spline.control_points) == 4
+    assert len(spline.fit_points) == 3, "the non-authoritative form is still kept"
+    assert spline.defining_points == spline.control_points
+
+
+def test_real_tangent_constraints_are_found_where_ezdxf_puts_them(tmp_path):
+    """`_dxf_has` probes `entity.dxf`; this proves that is the right place."""
+    def build(msp):
+        spline = msp.add_spline(fit_points=FIT)
+        spline.dxf.start_tangent = (1, 0, 0)
+        spline.dxf.end_tangent = (0, -1, 0)
+
+    collection, _ = _imported(build, tmp_path)
+    finding = [d for d in collection.diagnostics
+               if d.code == diag.FIT_POINT_SPLINE_UNREPRESENTED][0]
+    assert finding.metadata["tangents"] == ["start_tangent", "end_tangent"]
+
+
+def test_real_inch_file_scales_points_but_not_knots_or_weights(tmp_path):
+    knots = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]
+    weights = [1.0, 8.0, 8.0, 1.0]
+    collection, spline = _imported(
+        lambda m: m.add_rational_spline(control_points=CTRL, weights=weights,
+                                        degree=3, knots=knots),
+        tmp_path, insunits=1)                      # inches
+    assert collection.metadata.unit_scale == 25.4
+    assert spline.knots == knots, "knots are parameter-space"
+    assert spline.weights == weights, "weights are dimensionless"
+    assert spline.control_points[1].x == pytest.approx(3.0 * 25.4)
+
+
+def test_fit_spline_bounds_are_not_conservative(tmp_path):
+    """Pins the documented caveat with a curve that actually escapes the box.
+
+    A caller must not use these bounds for culling, containment, or an envelope
+    check. Recorded as a test so the limitation is measurable rather than a
+    remark in a docstring.
+    """
+    overshooting = [(0, 0), (1, 9), (9, 9), (10, 0)]
+
+    def build(msp):
+        msp.add_spline(fit_points=overshooting)
+
+    collection, spline = _imported(build, tmp_path)
+    assert spline.representation == REPRESENTATION_FIT
+    assert spline.bounds.max_y == pytest.approx(9.0)   # box over the fit points
+
+    doc = ezdxf.readfile(str(tmp_path / "spline.dxf"))
+    curve = doc.modelspace().query("SPLINE")[0].construction_tool()
+    peak = max(curve.point(i / 200).y for i in range(201))
+    assert peak > spline.bounds.max_y, "expected the curve to leave the box"
