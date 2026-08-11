@@ -190,6 +190,34 @@ def _polyline_vertices_are_wcs(entity) -> bool:
         "is_3d_polyline", "is_polygon_mesh", "is_poly_face_mesh"))
 
 
+def _source_elevation(entity) -> float:
+    """The entity's OCS z, read per the DXF family that owns it (CS-008R F5).
+
+    The two 2D polyline families spell the same fact differently, which is what
+    made the earlier comparison against a 3D polyline misleading:
+
+    * ``LWPOLYLINE`` stores a scalar ``dxf.elevation``.
+    * 2D ``POLYLINE`` stores a *point* ``dxf.elevation`` whose z carries the
+      value; its vertices sit at z = 0.
+
+    A 3D polyline has no elevation at all — its vertices carry z directly — so
+    this is never asked of one. Returns 0.0 when absent or unreadable: an entity
+    that declares no elevation is at z = 0, which is a fact rather than a loss,
+    so it is silent per the module's rule that correct behaviour is not reported.
+    """
+    raw = getattr(getattr(entity, "dxf", None), "elevation", None)
+    if raw is None:
+        return 0.0
+    if hasattr(raw, "z"):            # 2D POLYLINE: a point, only z is meaningful
+        raw = raw.z
+    elif isinstance(raw, (tuple, list)):
+        raw = raw[2] if len(raw) > 2 else 0.0
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _report_non_planar_chain(ext, loc: dict, diags: List[GeometryDiagnostic],
                              vertex_count: int) -> None:
     """Report a vertex chain that resolved to WCS but does not lie parallel to XY.
@@ -345,12 +373,17 @@ def translate(entity, scale: float) -> TranslationResult:
         diags = []
         to_wcs = _ocs_to_wcs(entity, loc, diags)
         pts = list(entity.get_points("xyb"))
+        # Elevation is the vertices' OCS z, not a value to add afterwards. It goes
+        # into the point *before* the transform because the OCS mapper mixes the
+        # axes: under extrusion (0,0,-1) an OCS z of 25 resolves to a WCS z of -25,
+        # and under a tilted extrusion it moves x and y as well. Transforming a
+        # flat (x, y, 0) and adding elevation after would be wrong in both cases.
+        elevation = _source_elevation(entity)
         if to_wcs is None:
-            verts = [Point(p[0] * scale, p[1] * scale) for p in pts]
+            verts = [Point(p[0] * scale, p[1] * scale, elevation * scale)
+                     for p in pts]
         else:
-            # Vertices are OCS. Elevation is deliberately NOT folded in here: that
-            # is CS-008R F5 and still out of scope, so the OCS z stays 0.
-            verts = [_pt((p[0], p[1], 0.0), scale, to_wcs) for p in pts]
+            verts = [_pt((p[0], p[1], elevation), scale, to_wcs) for p in pts]
             ext = _extrusion_of(entity)
             if not _xy_planar(ext):
                 _report_non_planar_chain(ext, loc, diags, len(verts))
@@ -370,9 +403,23 @@ def translate(entity, scale: float) -> TranslationResult:
         diags = []
         # Only a 2D POLYLINE is OCS-defined; 3D polylines and the mesh flavours
         # already store WCS vertices, so they must not be transformed.
-        to_wcs = (None if _polyline_vertices_are_wcs(entity)
-                  else _ocs_to_wcs(entity, loc, diags))
-        verts = [_pt(v.dxf.location, scale, to_wcs) for v in entity.vertices]
+        wcs_vertices = _polyline_vertices_are_wcs(entity)
+        to_wcs = None if wcs_vertices else _ocs_to_wcs(entity, loc, diags)
+        if wcs_vertices:
+            # 3D polylines and the mesh flavours carry z on each vertex already;
+            # they have no elevation attribute and must not be given one.
+            verts = [_pt(v.dxf.location, scale, to_wcs) for v in entity.vertices]
+        else:
+            # A 2D POLYLINE's vertices sit at z = 0 and the entity's elevation
+            # point carries the real OCS z. Fold it in before the transform, for
+            # the same reason as LWPOLYLINE above. Vertex locations are read
+            # through _as_xyz because they may be attribute-style or index-style
+            # vectors, exactly as _pt allows.
+            elevation = _source_elevation(entity)
+            verts = []
+            for v in entity.vertices:
+                x, y, _z = _as_xyz(v.dxf.location) or (0.0, 0.0, 0.0)
+                verts.append(_pt((x, y, elevation), scale, to_wcs))
         ext = _extrusion_of(entity)
         if to_wcs is not None and not _xy_planar(ext):
             _report_non_planar_chain(ext, loc, diags, len(verts))
