@@ -33,6 +33,43 @@ from .diagnostics import GeometryDiagnostic
 # Entities. All immutable; all reuse shared Point for coordinates.
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True, slots=True)
+class SourceReference:
+    """Where an imported entity came from in the source DXF (CS-008R F6).
+
+    Evidence, not interpretation: it says nothing about how the geometry should
+    be machined, only how to find it again in the file it came from.
+
+    ``ordinal`` is the entity's **position in the modelspace**, not its index in
+    :attr:`GeometryCollection.entities`. The two differ whenever something was
+    dropped, and that difference is the point — ordinals 0, 1, 3 record that the
+    second modelspace entity did not survive. Collection position is already
+    available from list order, so the explicit field is spent on the fact that
+    order alone cannot express.
+
+    Every field is optional except the DXF type, because a source may legitimately
+    withhold one: a handle can be absent and a layer unreadable. An absent value
+    is recorded as ``None`` rather than invented.
+    """
+
+    entity_type: str
+    handle: Optional[str] = None
+    layer: Optional[str] = None
+    ordinal: Optional[int] = None
+
+
+# Provenance is attached to every entity below as::
+#
+#     source: Optional[SourceReference] = field(default=None, compare=False)
+#
+# ``compare=False`` is deliberate. Geometry equality stays *geometric*: two
+# identical shapes compare equal whether or not they came from the same DXF
+# handle. Provenance is still serialized, still immutable, and still inspectable
+# through ``.source`` — it simply does not redefine what it means for two pieces
+# of geometry to be the same. Including it would make every imported entity
+# unequal to every other and quietly break any future geometric comparison.
+
+
+@dataclass(frozen=True, slots=True)
 class Line2D:
     """A straight segment from ``start`` to ``end`` (mm)."""
 
@@ -40,6 +77,7 @@ class Line2D:
     end: Point
     layer: str = "0"
     kind: str = "line"
+    source: Optional[SourceReference] = field(default=None, compare=False)
 
     @property
     def bounds(self) -> Bounds:
@@ -56,6 +94,7 @@ class Arc2D:
     end_angle: float
     layer: str = "0"
     kind: str = "arc"
+    source: Optional[SourceReference] = field(default=None, compare=False)
 
     @property
     def bounds(self) -> Bounds:
@@ -75,6 +114,7 @@ class Circle2D:
     radius: float
     layer: str = "0"
     kind: str = "circle"
+    source: Optional[SourceReference] = field(default=None, compare=False)
 
     @property
     def bounds(self) -> Bounds:
@@ -97,6 +137,7 @@ class Polyline2D:
     closed: bool = False
     layer: str = "0"
     kind: str = "polyline"
+    source: Optional[SourceReference] = field(default=None, compare=False)
 
     @property
     def bounds(self) -> Optional[Bounds]:
@@ -142,6 +183,7 @@ class Spline2D:
     representation: str = REPRESENTATION_CONTROL
     layer: str = "0"
     kind: str = "spline"
+    source: Optional[SourceReference] = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         if self.representation not in (REPRESENTATION_CONTROL, REPRESENTATION_FIT):

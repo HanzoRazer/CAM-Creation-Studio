@@ -94,7 +94,7 @@ def import_dxf(path: str) -> GeometryCollection:
     raw_count = 0
     unsupported_count = 0
 
-    for entity in msp:
+    for ordinal, entity in enumerate(msp):
         raw_count += 1
         handle = getattr(getattr(entity, "dxf", None), "handle", None)
         if handle is not None:
@@ -106,7 +106,9 @@ def import_dxf(path: str) -> GeometryCollection:
             else:
                 seen_handles.add(handle)
 
-        model, ediags = translate(entity, scale)
+        # The ordinal is the modelspace position, so a dropped entity leaves a
+        # gap in the imported sequence rather than being silently closed over.
+        model, ediags = translate(entity, scale, ordinal)
         diagnostics.extend(ediags)
         if model is not None:
             entities.append(model)

@@ -38,6 +38,7 @@ consumer making policy decisions from diagnostics:
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import List, Optional, Tuple
 
 from ..shared.geometry import Point
@@ -51,6 +52,7 @@ from .models import (
     Entity,
     Line2D,
     Polyline2D,
+    SourceReference,
     Spline2D,
 )
 
@@ -288,12 +290,40 @@ def _ocs_to_wcs(entity, loc: dict, diags: List[GeometryDiagnostic]):
         return None
 
 
-def translate(entity, scale: float) -> TranslationResult:
+def source_reference(entity, ordinal: Optional[int] = None) -> SourceReference:
+    """Canonical provenance for one source entity (CS-008R F6).
+
+    One place, so no entity branch grows its own copy of handle extraction.
+    ``ordinal`` is the caller's modelspace position; ``None`` when translating an
+    entity outside an import, where no such position exists.
+    """
+    return SourceReference(
+        entity_type=entity.dxftype(),
+        handle=_handle_of(entity),
+        layer=_layer_of(entity),
+        ordinal=ordinal,
+    )
+
+
+def translate(entity, scale: float,
+              ordinal: Optional[int] = None) -> TranslationResult:
     """Convert one ezdxf ``entity`` to an internal model + any diagnostics.
 
     Returns ``(None, [diag])`` for unsupported types; ``(entity, diags)``
     otherwise (``diags`` may be empty).
+
+    Provenance is attached here rather than inside each entity branch, so the
+    five translation paths stay about geometry and there is exactly one place
+    that decides what a source reference contains.
     """
+    model, diags = _translate(entity, scale)
+    if model is not None:
+        model = replace(model, source=source_reference(entity, ordinal))
+    return model, diags
+
+
+def _translate(entity, scale: float) -> TranslationResult:
+    """Geometry translation proper; see :func:`translate` for provenance."""
     dxftype = entity.dxftype()
     layer = _layer_of(entity)
     handle = _handle_of(entity)
