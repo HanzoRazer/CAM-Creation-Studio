@@ -102,8 +102,47 @@ def _pt(vec, scale: float, to_wcs=None) -> Point:
 
 
 def _layer_of(entity) -> str:
+    """The entity's layer for the geometry model, defaulting to ``"0"``.
+
+    This is the *usable* value: an entity with no layer belongs to layer ``"0"``,
+    which is what DXF means by omitting it. Deciding whether the source layer
+    evidence is sound is a separate question — see :func:`layer_condition`, which
+    reads the raw attribute rather than this normalized one.
+    """
     layer = getattr(getattr(entity, "dxf", None), "layer", None)
     return layer if layer else "0"
+
+
+# Layer evidence classification (CS-008R F7).
+LAYER_VALID = "valid"
+LAYER_EMPTY = "empty"
+LAYER_UNKNOWN_REFERENCE = "unknown_reference"
+
+
+def layer_condition(entity, known_layers: Optional[frozenset] = None) -> str:
+    """Classify the entity's layer evidence.
+
+    DXF layer ``"0"`` is a real layer, and an entity that omits the layer
+    attribute entirely *is* on layer ``"0"`` — that is what the omission means.
+    Neither is a finding. Only two conditions say the source layer evidence is
+    unsound:
+
+    * :data:`LAYER_EMPTY` — the attribute is present but names nothing.
+    * :data:`LAYER_UNKNOWN_REFERENCE` — it names a layer the document's table
+      does not define, so the name resolves to nothing.
+
+    ``known_layers`` is the document's layer-table names. Without it — a
+    duck-typed entity, or translation outside an import — the unknown-reference
+    check cannot be made and is skipped rather than guessed at.
+    """
+    raw = getattr(getattr(entity, "dxf", None), "layer", None)
+    if raw is None:
+        return LAYER_VALID                      # absent means layer "0"
+    if not str(raw).strip():
+        return LAYER_EMPTY
+    if known_layers is not None and str(raw) not in known_layers:
+        return LAYER_UNKNOWN_REFERENCE
+    return LAYER_VALID
 
 
 def _handle_of(entity) -> Optional[str]:
@@ -305,18 +344,37 @@ def source_reference(entity, ordinal: Optional[int] = None) -> SourceReference:
     )
 
 
-def translate(entity, scale: float,
-              ordinal: Optional[int] = None) -> TranslationResult:
+def translate(entity, scale: float, ordinal: Optional[int] = None,
+              known_layers: Optional[frozenset] = None) -> TranslationResult:
     """Convert one ezdxf ``entity`` to an internal model + any diagnostics.
 
     Returns ``(None, [diag])`` for unsupported types; ``(entity, diags)``
     otherwise (``diags`` may be empty).
 
-    Provenance is attached here rather than inside each entity branch, so the
-    five translation paths stay about geometry and there is exactly one place
-    that decides what a source reference contains.
+    Provenance and layer evidence are handled here rather than inside each entity
+    branch, so the five translation paths stay about geometry and there is exactly
+    one place deciding what a source reference contains and when layer evidence is
+    unsound.
     """
     model, diags = _translate(entity, scale)
+
+    # Layer evidence never withholds geometry: an entity whose layer cannot be
+    # resolved is still imported, and the finding rides alongside it. Emitted for
+    # unsupported types too, since the layer of a dropped entity is still evidence
+    # about the source.
+    condition = layer_condition(entity, known_layers)
+    if condition != LAYER_VALID:
+        raw = getattr(getattr(entity, "dxf", None), "layer", None)
+        message = (
+            "Entity declares an empty layer name; it is imported on layer \"0\"."
+            if condition == LAYER_EMPTY else
+            f"Entity references layer {raw!r}, which the document's layer table "
+            "does not define; it is imported on that name regardless.")
+        diags.append(diag.warning(
+            diag.MISSING_LAYER, message,
+            entity_type=entity.dxftype(), handle=_handle_of(entity),
+            layer=_layer_of(entity)))
+
     if model is not None:
         model = replace(model, source=source_reference(entity, ordinal))
     return model, diags
