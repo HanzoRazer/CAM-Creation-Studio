@@ -38,6 +38,7 @@ consumer making policy decisions from diagnostics:
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import List, Optional, Tuple
 
 from ..shared.geometry import Point
@@ -51,6 +52,7 @@ from .models import (
     Entity,
     Line2D,
     Polyline2D,
+    SourceReference,
     Spline2D,
 )
 
@@ -100,8 +102,47 @@ def _pt(vec, scale: float, to_wcs=None) -> Point:
 
 
 def _layer_of(entity) -> str:
+    """The entity's layer for the geometry model, defaulting to ``"0"``.
+
+    This is the *usable* value: an entity with no layer belongs to layer ``"0"``,
+    which is what DXF means by omitting it. Deciding whether the source layer
+    evidence is sound is a separate question — see :func:`layer_condition`, which
+    reads the raw attribute rather than this normalized one.
+    """
     layer = getattr(getattr(entity, "dxf", None), "layer", None)
     return layer if layer else "0"
+
+
+# Layer evidence classification (CS-008R F7).
+LAYER_VALID = "valid"
+LAYER_EMPTY = "empty"
+LAYER_UNKNOWN_REFERENCE = "unknown_reference"
+
+
+def layer_condition(entity, known_layers: Optional[frozenset] = None) -> str:
+    """Classify the entity's layer evidence.
+
+    DXF layer ``"0"`` is a real layer, and an entity that omits the layer
+    attribute entirely *is* on layer ``"0"`` — that is what the omission means.
+    Neither is a finding. Only two conditions say the source layer evidence is
+    unsound:
+
+    * :data:`LAYER_EMPTY` — the attribute is present but names nothing.
+    * :data:`LAYER_UNKNOWN_REFERENCE` — it names a layer the document's table
+      does not define, so the name resolves to nothing.
+
+    ``known_layers`` is the document's layer-table names. Without it — a
+    duck-typed entity, or translation outside an import — the unknown-reference
+    check cannot be made and is skipped rather than guessed at.
+    """
+    raw = getattr(getattr(entity, "dxf", None), "layer", None)
+    if raw is None:
+        return LAYER_VALID                      # absent means layer "0"
+    if not str(raw).strip():
+        return LAYER_EMPTY
+    if known_layers is not None and str(raw) not in known_layers:
+        return LAYER_UNKNOWN_REFERENCE
+    return LAYER_VALID
 
 
 def _handle_of(entity) -> Optional[str]:
@@ -190,6 +231,34 @@ def _polyline_vertices_are_wcs(entity) -> bool:
         "is_3d_polyline", "is_polygon_mesh", "is_poly_face_mesh"))
 
 
+def _source_elevation(entity) -> float:
+    """The entity's OCS z, read per the DXF family that owns it (CS-008R F5).
+
+    The two 2D polyline families spell the same fact differently, which is what
+    made the earlier comparison against a 3D polyline misleading:
+
+    * ``LWPOLYLINE`` stores a scalar ``dxf.elevation``.
+    * 2D ``POLYLINE`` stores a *point* ``dxf.elevation`` whose z carries the
+      value; its vertices sit at z = 0.
+
+    A 3D polyline has no elevation at all — its vertices carry z directly — so
+    this is never asked of one. Returns 0.0 when absent or unreadable: an entity
+    that declares no elevation is at z = 0, which is a fact rather than a loss,
+    so it is silent per the module's rule that correct behaviour is not reported.
+    """
+    raw = getattr(getattr(entity, "dxf", None), "elevation", None)
+    if raw is None:
+        return 0.0
+    if hasattr(raw, "z"):            # 2D POLYLINE: a point, only z is meaningful
+        raw = raw.z
+    elif isinstance(raw, (tuple, list)):
+        raw = raw[2] if len(raw) > 2 else 0.0
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _report_non_planar_chain(ext, loc: dict, diags: List[GeometryDiagnostic],
                              vertex_count: int) -> None:
     """Report a vertex chain that resolved to WCS but does not lie parallel to XY.
@@ -260,12 +329,59 @@ def _ocs_to_wcs(entity, loc: dict, diags: List[GeometryDiagnostic]):
         return None
 
 
-def translate(entity, scale: float) -> TranslationResult:
+def source_reference(entity, ordinal: Optional[int] = None) -> SourceReference:
+    """Canonical provenance for one source entity (CS-008R F6).
+
+    One place, so no entity branch grows its own copy of handle extraction.
+    ``ordinal`` is the caller's modelspace position; ``None`` when translating an
+    entity outside an import, where no such position exists.
+    """
+    return SourceReference(
+        entity_type=entity.dxftype(),
+        handle=_handle_of(entity),
+        layer=_layer_of(entity),
+        ordinal=ordinal,
+    )
+
+
+def translate(entity, scale: float, ordinal: Optional[int] = None,
+              known_layers: Optional[frozenset] = None) -> TranslationResult:
     """Convert one ezdxf ``entity`` to an internal model + any diagnostics.
 
     Returns ``(None, [diag])`` for unsupported types; ``(entity, diags)``
     otherwise (``diags`` may be empty).
+
+    Provenance and layer evidence are handled here rather than inside each entity
+    branch, so the five translation paths stay about geometry and there is exactly
+    one place deciding what a source reference contains and when layer evidence is
+    unsound.
     """
+    model, diags = _translate(entity, scale)
+
+    # Layer evidence never withholds geometry: an entity whose layer cannot be
+    # resolved is still imported, and the finding rides alongside it. Emitted for
+    # unsupported types too, since the layer of a dropped entity is still evidence
+    # about the source.
+    condition = layer_condition(entity, known_layers)
+    if condition != LAYER_VALID:
+        raw = getattr(getattr(entity, "dxf", None), "layer", None)
+        message = (
+            "Entity declares an empty layer name; it is imported on layer \"0\"."
+            if condition == LAYER_EMPTY else
+            f"Entity references layer {raw!r}, which the document's layer table "
+            "does not define; it is imported on that name regardless.")
+        diags.append(diag.warning(
+            diag.MISSING_LAYER, message,
+            entity_type=entity.dxftype(), handle=_handle_of(entity),
+            layer=_layer_of(entity)))
+
+    if model is not None:
+        model = replace(model, source=source_reference(entity, ordinal))
+    return model, diags
+
+
+def _translate(entity, scale: float) -> TranslationResult:
+    """Geometry translation proper; see :func:`translate` for provenance."""
     dxftype = entity.dxftype()
     layer = _layer_of(entity)
     handle = _handle_of(entity)
@@ -345,12 +461,17 @@ def translate(entity, scale: float) -> TranslationResult:
         diags = []
         to_wcs = _ocs_to_wcs(entity, loc, diags)
         pts = list(entity.get_points("xyb"))
+        # Elevation is the vertices' OCS z, not a value to add afterwards. It goes
+        # into the point *before* the transform because the OCS mapper mixes the
+        # axes: under extrusion (0,0,-1) an OCS z of 25 resolves to a WCS z of -25,
+        # and under a tilted extrusion it moves x and y as well. Transforming a
+        # flat (x, y, 0) and adding elevation after would be wrong in both cases.
+        elevation = _source_elevation(entity)
         if to_wcs is None:
-            verts = [Point(p[0] * scale, p[1] * scale) for p in pts]
+            verts = [Point(p[0] * scale, p[1] * scale, elevation * scale)
+                     for p in pts]
         else:
-            # Vertices are OCS. Elevation is deliberately NOT folded in here: that
-            # is CS-008R F5 and still out of scope, so the OCS z stays 0.
-            verts = [_pt((p[0], p[1], 0.0), scale, to_wcs) for p in pts]
+            verts = [_pt((p[0], p[1], elevation), scale, to_wcs) for p in pts]
             ext = _extrusion_of(entity)
             if not _xy_planar(ext):
                 _report_non_planar_chain(ext, loc, diags, len(verts))
@@ -370,9 +491,23 @@ def translate(entity, scale: float) -> TranslationResult:
         diags = []
         # Only a 2D POLYLINE is OCS-defined; 3D polylines and the mesh flavours
         # already store WCS vertices, so they must not be transformed.
-        to_wcs = (None if _polyline_vertices_are_wcs(entity)
-                  else _ocs_to_wcs(entity, loc, diags))
-        verts = [_pt(v.dxf.location, scale, to_wcs) for v in entity.vertices]
+        wcs_vertices = _polyline_vertices_are_wcs(entity)
+        to_wcs = None if wcs_vertices else _ocs_to_wcs(entity, loc, diags)
+        if wcs_vertices:
+            # 3D polylines and the mesh flavours carry z on each vertex already;
+            # they have no elevation attribute and must not be given one.
+            verts = [_pt(v.dxf.location, scale, to_wcs) for v in entity.vertices]
+        else:
+            # A 2D POLYLINE's vertices sit at z = 0 and the entity's elevation
+            # point carries the real OCS z. Fold it in before the transform, for
+            # the same reason as LWPOLYLINE above. Vertex locations are read
+            # through _as_xyz because they may be attribute-style or index-style
+            # vectors, exactly as _pt allows.
+            elevation = _source_elevation(entity)
+            verts = []
+            for v in entity.vertices:
+                x, y, _z = _as_xyz(v.dxf.location) or (0.0, 0.0, 0.0)
+                verts.append(_pt((x, y, elevation), scale, to_wcs))
         ext = _extrusion_of(entity)
         if to_wcs is not None and not _xy_planar(ext):
             _report_non_planar_chain(ext, loc, diags, len(verts))

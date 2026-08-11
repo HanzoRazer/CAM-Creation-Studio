@@ -386,16 +386,19 @@ def test_non_planar_diagnostic_serializes_with_its_location():
 
 
 # --------------------------------------------------------------------------- #
-# F5 remains unremediated. Pinned so nobody reads F1 + this pass as "OCS done".
+# F5 was pinned here as unremediated. It is remediated now, and this is the
+# deliberate update its own note called for — not an incidental edit.
 # --------------------------------------------------------------------------- #
-def test_lwpolyline_elevation_is_still_dropped():
-    """Known limitation, deliberately preserved.
+def test_lwpolyline_elevation_now_resolves_through_the_transform():
+    """Formerly `test_lwpolyline_elevation_is_still_dropped`.
 
-    Update this test as part of the F5 remediation, not incidentally while
-    touching these branches for some other reason.
+    The elevation is the vertices' OCS z, so under extrusion (0,0,-1) it must
+    come back *negated* — not merely present. A fix that resolved XY and then
+    added 7.5 afterwards would land at +7.5 and pass a weaker assertion, which
+    is why the sign is what this checks.
     """
     lw = _msp().add_lwpolyline([(10, 4), (20, 4)],
                                dxfattribs={"elevation": 7.5, "extrusion": FLIPPED})
     model, _ = translate(lw, 1.0)
-    assert all(p.z == 0.0 for p in model.vertices), (
-        "elevation is CS-008R F5 and remains unremediated")
+    assert [p.z for p in model.vertices] == [-7.5, -7.5]
+    assert [p.x for p in model.vertices] == [-10.0, -20.0], "XY still mirrors"

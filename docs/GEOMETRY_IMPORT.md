@@ -57,7 +57,7 @@ consumer that needs faithful geometry must check them:
 | **SPLINE** fit points, weights, knots | **Preserved** — see *Splines* below | (none — nothing is lost) |
 | Fit-spline **start/end tangents** | Not represented; fit points kept | `FIT_POINT_SPLINE_UNREPRESENTED` |
 | **OCS / extrusion vectors** | **Resolved to WCS** since F1. A transform that cannot be obtained or applied is reported | `OCS_TRANSFORM_FAILED` |
-| **LWPOLYLINE / 2D POLYLINE** `elevation` | **Dropped.** Z flattened to 0 on **both** paths alike | ⚠ **none — silent** (F5) |
+| **LWPOLYLINE / 2D POLYLINE** `elevation` | **Preserved.** Resolved through the OCS transform, both paths alike | (none — nothing is lost) |
 | **ELLIPSE**, **TEXT**, **MTEXT**, **HATCH**, **DIMENSION** | Not represented | `UNSUPPORTED_ENTITY` |
 | **INSERT** / block references | Not expanded; block contents do not appear | `UNSUPPORTED_ENTITY` |
 | 3D solids, `MESH` entities, Z-depth beyond point Z | Not represented | `UNSUPPORTED_ENTITY` |
@@ -68,21 +68,92 @@ To detect an incomplete import at a glance, read
 `raw_entity_count` / `unsupported_entity_count` / `entity_count` fields for the
 exact breakdown.
 
-> ### ⚠ Known fidelity gap under remediation (CS-008R F5)
->
-> **Elevation is dropped on both 2D polyline paths, silently.** An `LWPOLYLINE`
-> or a 2D `POLYLINE` carrying `elevation` imports with Z flattened to 0 and no
-> diagnostic. `LWPOLYLINE_ELEVATION_DROPPED` is reserved for it but not yet
-> emitted.
->
-> An earlier revision of this document claimed LWPOLYLINE dropped elevation while
-> POLYLINE kept it. **That asymmetry is withdrawn.** It was an artifact of
-> comparing against a *3D* polyline, which carries Z in its vertices rather than
-> in an attribute; the audit's probe P8c shows a 2D POLYLINE drops it identically.
->
-> Remediation order: evidence infrastructure (**done**) → spline fidelity
-> (**this increment**) → F1 coordinate correctness (**done**, #14) → F5/F6/F7
-> importer evidence completeness (**outstanding**).
+## Elevation
+
+A flat profile can sit at a height, and DXF records that height in a different
+place depending on which polyline the authoring tool emitted:
+
+| Entity | Where the height lives | Vertices |
+|---|---|---|
+| `LWPOLYLINE` | `dxf.elevation`, a **scalar** | at z = 0 |
+| 2D `POLYLINE` | `dxf.elevation`, a **point** whose z holds the value | at z = 0 |
+| 3D `POLYLINE` | nowhere — there is no elevation attribute | carry z directly |
+
+**Elevation is the vertices' OCS z, not a value added afterwards.** It is folded
+into each point *before* the OCS → WCS transform, because the transform mixes the
+axes:
+
+```text
+extrusion (0,0,-1),  elevation 25   ->  z = -25          (sign flips)
+extrusion (0.3,0.4,0.866), elev 25  ->  z ≈ 21.65, and x and y move too
+```
+
+Resolving XY first and adding elevation afterwards would land at `+25` in both
+cases — wrong on every non-default extrusion, while still passing any test that
+merely asked whether z survived.
+
+**Equivalent authored geometry normalizes equivalently.** The same square at the
+same height resolves to the same WCS coordinates whether the exporter wrote an
+`LWPOLYLINE` or a 2D `POLYLINE`. This is verified across units × extrusion ×
+elevation sign, each case checked both against the other representation and
+against ezdxf's own transform as an independent oracle.
+
+A 3D `POLYLINE` is **not** given an elevation — it has none, and reading one
+would double-count the z its vertices already carry. Mesh flavours are likewise
+untouched.
+
+> **Historical note.** An earlier revision claimed `LWPOLYLINE` dropped elevation
+> while `POLYLINE` kept it. **That asymmetry was never real.** It came from
+> comparing a 2D representation against a *3D* polyline — two different things —
+> and the audit's probe P8c disproved it. The fixtures
+> `lwpolyline_elevation.dxf` and `polyline2d_elevation.dxf` are the correct
+> paired control that replaces it.
+
+## Source provenance
+
+Every imported entity records where it came from:
+
+```python
+entity.source        # SourceReference | None
+entity.source.entity_type   # "LWPOLYLINE" — the DXF type, not the model kind
+entity.source.handle        # source handle, or None if the file has none
+entity.source.layer         # source layer name
+entity.source.ordinal       # position in the modelspace
+```
+
+Two properties are worth knowing before relying on it:
+
+- **`ordinal` is the modelspace position, not the collection index.** They differ
+  whenever an entity was dropped, and the gap is the evidence: ordinals `0, 2`
+  record that modelspace entity 1 did not survive. Collection position is already
+  available from list order.
+- **`source` does not affect geometry equality.** Two identical shapes compare
+  equal whether or not they share a handle. Provenance is serialized and
+  inspectable, but it does not redefine what it means for two pieces of geometry
+  to be the same. Compare `.source` directly when identity is the question.
+
+`entity_type` also distinguishes what `kind` cannot: an `LWPOLYLINE` and a 2D
+`POLYLINE` both become `Polyline2D`, and only provenance says which was written.
+
+## Layer evidence
+
+| Source condition | Meaning | Finding |
+|---|---|---|
+| layer attribute absent | the entity is on layer `"0"` | none |
+| `layer = "0"` | a real, ordinary layer | none |
+| `layer = ""` | names nothing | `MISSING_LAYER` |
+| name absent from the layer table | resolves to nothing | `MISSING_LAYER` |
+
+The first row is the one that keeps this honest: in DXF an omitted layer group
+code **means** layer `"0"`. Treating omission as a defect would fire on ordinary
+valid files.
+
+A layer finding never withholds geometry — the entity is imported and the finding
+rides alongside it. It is raised for unsupported entity types too, since the layer
+of a dropped entity is still a fact about the source. When the document's layer
+table cannot be read, the unknown-reference check is skipped rather than guessed,
+because assuming an empty table would make every entity look like a bad reference.
+
 ## Design guarantees
 
 - **Neutral geometry.** ezdxf entities never leak outside the importer; only
@@ -116,14 +187,24 @@ noise from CAD exports is caught rather than slipping past an exact `== 0`.
 `geometry.diagnostics.CANONICAL_CODES` is the authoritative list; this paragraph
 is a convenience copy, and a test asserts the two agree so it cannot drift.
 
-**Live:** both OCS codes, since F1 (#14) and its hardening (#16); and
-`FIT_POINT_SPLINE_UNREPRESENTED`, `RATIONAL_SPLINE_WEIGHTS_DROPPED`,
-`EMPTY_SPLINE_GEOMETRY` since this increment — each fires only on genuine loss,
-see *Splines* below.
+**Live:** both OCS codes, since F1 (#14) and its hardening (#16);
+`FIT_POINT_SPLINE_UNREPRESENTED`, `RATIONAL_SPLINE_WEIGHTS_DROPPED` and
+`EMPTY_SPLINE_GEOMETRY` since the spline increment — each fires only on genuine
+loss, see *Splines* below; and `MISSING_LAYER`, since the F7 increment gave it
+defined semantics (see *Layer evidence* above).
 
-**Reserved, not yet emitted:** `LWPOLYLINE_ELEVATION_DROPPED`, awaiting the F5
-increment. A consumer matching on it today will simply never see it — it will not
-see a differently-named finding instead.
+**Reserved and no longer reachable:** `LWPOLYLINE_ELEVATION_DROPPED`. It was
+registered for the defect F5 has now fixed — elevation is preserved, so nothing
+emits it. It is deliberately **not** repurposed: giving an existing code a new
+meaning would make historical findings ambiguous, and a "dropped elevation"
+symbol should not quietly come to mean something else. It remains registered
+pending disposition by the CS-008R closure audit, which is the right place to
+decide whether to retire it.
+
+There is no malformed-elevation code. ezdxf rejects non-numeric elevation at
+assignment, so the condition cannot be demonstrated, and naming a symbol for an
+undemonstrable case is how unreachable vocabulary accumulates. Unreadable
+elevation is read as absent (0.0) and stays silent.
 
 There is deliberately **no `OCS_TRANSFORM_APPLIED` code.** A transform that
 succeeds is correct importer behavior, not a defect; coding it as a diagnostic
@@ -268,6 +349,22 @@ regenerating would silently re-baseline every characterization assertion, which 
 exactly the invisible change this remediation exists to prevent. Provenance and a
 deliberate-regeneration path are in `fixtures/MAKE_FIXTURES.py`; to change a
 fixture, add a new one and leave the old file alone.
+
+That rule has already been exercised. `polyline_elevated.dxf` was built with
+`add_polyline3d` while documenting itself as an elevation control, and it is the
+origin of the withdrawn LWPOLYLINE/POLYLINE asymmetry. It keeps its name and is
+never reused; the correct paired control was added alongside it as
+`lwpolyline_elevation.dxf` and `polyline2d_elevation.dxf`. `MAKE_FIXTURES.py`
+records why, in place, so the mistake cannot be repeated by someone reading only
+the generator.
+
+### Implementation map — CS-008R F5/F6/F7
+
+| Finding | Implementation | Tests |
+|---|---|---|
+| **F5** elevation | `entities.py::_source_elevation` + both polyline branches | `test_geometry_elevation.py`, fixtures `lwpolyline_elevation.dxf` / `polyline2d_elevation.dxf` |
+| **F6** provenance | `models.py::SourceReference`, `entities.py::source_reference`, ordinal from `importer.py` | `test_geometry_provenance.py` |
+| **F7** layer evidence | `entities.py::layer_condition`, `importer.py::_layer_table_names` | `test_geometry_layers.py` |
 
 ## Serialization
 

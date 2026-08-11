@@ -44,6 +44,42 @@ def lwpolyline_elevated():
     return doc, "lwpolyline_elevated.dxf"
 
 
+def lwpolyline_elevation():
+    """CS-008R F5 control, half one: LWPOLYLINE with a scalar ``dxf.elevation``.
+
+    Paired with :func:`polyline2d_elevation`, which authors the *same* square at
+    the *same* height through the other 2D representation. Together they are the
+    correct version of the comparison the withdrawn ``polyline_elevated`` fixture
+    got wrong: equivalent authored geometry, genuinely equivalent DXF semantics.
+    """
+    doc, msp = _new()
+    pl = msp.add_lwpolyline([(0, 0), (10, 0), (10, 10), (0, 10)], close=True)
+    pl.dxf.elevation = 25.0
+    return doc, "lwpolyline_elevation.dxf"
+
+
+def polyline2d_elevation():
+    """CS-008R F5 control, half two: a true **2D** POLYLINE at the same height.
+
+    ``add_polyline2d`` — never ``add_polyline3d``. The distinction is the entire
+    point of this fixture:
+
+    * a 2D POLYLINE keeps its vertices at z = 0 and carries the height in
+      ``dxf.elevation``, which is a *point* whose z holds the value;
+    * a 3D POLYLINE has no elevation attribute at all and carries z on each
+      vertex.
+
+    Comparing a 2D LWPOLYLINE against a 3D POLYLINE therefore compares two
+    different things and manufactures an asymmetry that does not exist. That is
+    exactly what happened, and audit probe P8c disproved it. This pair replaces
+    that comparison; see the note below where the bad builder used to be.
+    """
+    doc, msp = _new()
+    msp.add_polyline2d([(0, 0), (10, 0), (10, 10), (0, 10)], close=True,
+                       dxfattribs={"elevation": (0, 0, 25.0)})
+    return doc, "polyline2d_elevation.dxf"
+
+
 # A ``polyline_elevated`` builder was removed here, deliberately.
 #
 # It claimed to be an elevation control paired with ``lwpolyline_elevated`` —
@@ -61,6 +97,10 @@ def lwpolyline_elevated():
 # belongs to the F5 remediation, which owns that finding — not to this evidence
 # increment. It is left unwritten rather than written wrong, because this corpus
 # is immutable and a misleading fixture cannot be quietly corrected later.
+#
+# **Written now, correctly**, by the F5 remediation that owns it: the pair
+# `lwpolyline_elevation` / `polyline2d_elevation` above. The withdrawn file keeps
+# its old name and is never reused as an elevation control.
 
 
 def extruded_circle():
@@ -119,6 +159,8 @@ def unsupported_entity():
 
 BUILDERS = (
     lwpolyline_elevated,
+    lwpolyline_elevation,
+    polyline2d_elevation,
     extruded_circle,
     ocs_arc,
     fit_spline,

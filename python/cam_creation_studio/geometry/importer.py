@@ -89,12 +89,16 @@ def import_dxf(path: str) -> GeometryCollection:
 
     # --- translate entities in source order ----------------------------- #
     msp = doc.modelspace()
+    # The document's layer-table names, so translation can tell a layer that is
+    # merely unusual from one the file never defines. Read once; a missing or
+    # unreadable table yields None, which makes the check skip rather than guess.
+    known_layers = _layer_table_names(doc)
     entities = []
     seen_handles: set = set()
     raw_count = 0
     unsupported_count = 0
 
-    for entity in msp:
+    for ordinal, entity in enumerate(msp):
         raw_count += 1
         handle = getattr(getattr(entity, "dxf", None), "handle", None)
         if handle is not None:
@@ -106,7 +110,9 @@ def import_dxf(path: str) -> GeometryCollection:
             else:
                 seen_handles.add(handle)
 
-        model, ediags = translate(entity, scale)
+        # The ordinal is the modelspace position, so a dropped entity leaves a
+        # gap in the imported sequence rather than being silently closed over.
+        model, ediags = translate(entity, scale, ordinal, known_layers)
         diagnostics.extend(ediags)
         if model is not None:
             entities.append(model)
@@ -133,3 +139,17 @@ def import_dxf(path: str) -> GeometryCollection:
 
 def _dxf_version(doc) -> Optional[str]:
     return getattr(doc, "dxfversion", None)
+
+
+def _layer_table_names(doc) -> Optional[frozenset]:
+    """Names defined in the document's layer table, or ``None`` if unreadable.
+
+    ``None`` rather than an empty set on failure: an empty set would mean "this
+    document defines no layers", which would make every entity look like an
+    unknown reference. Absence of evidence is not evidence of absence, so the
+    check is skipped instead.
+    """
+    try:
+        return frozenset(layer.dxf.name for layer in doc.layers)
+    except Exception:  # noqa: BLE001 - a table we cannot read is not a failure
+        return None
