@@ -235,11 +235,17 @@ because it is unremediated or undeterminable.
 | **F9** — LWPOLYLINE vertices carry `numpy.float64` | Unremediated. **Disposition owed** — accept, defer, or remediate. |
 | **F10** — periodic spline state | **Unable to determine.** No claim to remediate; re-probe before treating as either defect or non-defect. **Disposition owed.** |
 
-**Seven of ten findings are remediated; F8, F9 and F10 are not.** They are listed
-as owing a *disposition* rather than a fix, because two of the three may
-legitimately close as accepted or deferred — but none of them closes by being
-omitted. A closure audit that turned "unable to determine" into "fixed" by
-silence would repeat the failure this audit exists to correct.
+**Seven of ten findings are remediated; F8, F9 and F10 are not.** They owe a
+*disposition* rather than necessarily a fix — see § The closure standard for the
+four rulings available and the rules binding them. Two points from there apply to
+this table directly:
+
+- The seven "remediated" rows above are **claims to be re-probed**, not
+  conclusions. The closure audit verifies them against current `main` rather than
+  reading this table back to itself; a re-probe that contradicts a row reopens it.
+- **No finding closes by omission.** A closure audit that turned "unable to
+  determine" into "fixed" by silence would repeat the failure this audit exists
+  to correct.
 
 ### Post-F1 hardening — #16
 
@@ -312,24 +318,53 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 The remediation chain is complete and merged. What remains is closure, and it is
 deliberately linear — nothing below should start before the step above it lands.
 
-1. **F8 / F9 / F10 disposition.** The three findings no PR has closed. Each needs
-   an explicit ruling — remediated, accepted, or deferred with a reason — and
-   none of them may close by omission. F10 in particular is recorded as *unable
-   to determine*, which is a status in its own right: it is closed by gathering
-   the missing evidence or by deferring it on the record, never by quietly
-   dropping it from the table.
+1. **F8 / F9 / F10 disposition.** The three findings no PR has closed. Each takes
+   exactly one ruling from the vocabulary below. F10 is recorded as *unable to
+   determine*, which is a status in its own right: it closes by gathering the
+   missing evidence or by being deferred on the record, never by being dropped
+   from the table.
 2. **CS-008R closure audit.** A *closure* audit, not another exploratory one: the
    same finding identifiers re-probed against the same behaviours from current
-   `main`, producing one disposition per finding. Only after that table exists
-   may CS-008R be described as complete.
+   `main`. Its output is the disposition table defined below.
 3. **Freeze importer feature expansion**, defects excepted, once closure lands.
 4. **Authorize the first neutral-geometry consumer.** The importer now produces
    evidence nothing consumes; that is the next real product question, and it is
    out of scope until the three steps above are done.
+
+### The closure standard
+
+Stated as a gate rather than an intention, so a reviewer can hold the audit
+against it instead of judging whether it feels thorough.
+
+**CS-008R may be described as complete when, and only when, the closure audit
+records one disposition for every finding F1–F10, each drawn from:**
+
+| Disposition | Means | Requires |
+|---|---|---|
+| **Remediated** | the defect is fixed | the merged PR, and a probe re-run against current `main` confirming it |
+| **Accepted** | real, and deliberately not fixed | the reason, and who ruled |
+| **Deferred** | to be fixed later | the reason, and what would close it |
+| **Not a defect** | withdrawn on evidence | the evidence that disproves it |
+
+Three rules bind that table:
+
+- **No finding closes by omission.** A finding absent from the table is an
+  incomplete audit, not a closed finding. Silence is the one disposition that is
+  never available.
+- **A remediation is not self-certifying.** Seven findings are recorded as
+  remediated above; the closure audit re-probes them rather than reading this
+  ledger back to itself. If a re-probe contradicts a recorded remediation, the
+  audit's finding wins and the row is reopened — that is the point of running it.
+- **"Unable to determine" is not a disposition.** It is the reason a finding is
+  still open. F10 closes as *deferred* with what would settle it, or as
+  *remediated* / *not a defect* once probed — never by inheriting its own
+  uncertainty.
 
 **Unissued, and not blocking closure:** CI enforcement of this ledger's mechanical
 rules (see § Enforcement status); a repository `.gitattributes` normalizing line
 endings — its absence let a whole-file CRLF rewrite into #19, caught in review and
 corrected, but nothing structurally prevents a recurrence.
 
-Remaining findings are deliberately **not** combined into a single sweep.
+F8, F9 and F10 are deliberately **not** combined into a single sweep. They differ
+in kind — a documentation claim, a numeric-type question, and an undetermined
+probe — and bundling them would let the weakest evidence carry the other two.
