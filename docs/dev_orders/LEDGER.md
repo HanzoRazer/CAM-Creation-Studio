@@ -124,16 +124,20 @@ traceable. Retirement is recorded instead.
 | CS-009 | Export preflight gate | `docs/architecture/EXPORT_PREFLIGHT_SEMANTICS.md` | `cs-009-export-preflight` | Merged (#9) | — | Export gate; no machine-readiness claim |
 | CS-008R | Geometry import conformance re-audit | — | `cs-008r-conformance-reaudit` | Merged (#12) | — | Evidence only |
 | CS-008 REM 1/3 | Import loss evidence + characterization | CS-008R (unseen at the time) | `cs-008-import-evidence` | **Closed — re-scoped** (#10) | **#17** | — (not merged) |
-| CS-008 REM 1/3-R | Import loss evidence infrastructure | `docs/audits/CS-008_REAUDIT.md` | `cs-008-loss-evidence` | **Open** (#17) | — | Loss fields, `LOSS_CODES`, `ImportReport`; **diagnostic `metadata` constrained to JSON-safe values, enforced** |
-| CS-008 REM 2/3 | Spline fidelity | as above | `cs-008-spline-fidelity` | **Open** (#11); targets `cs-008-loss-evidence` | — | `Spline2D` extended |
+| CS-008 REM 1/3-R | Import loss evidence infrastructure | `docs/audits/CS-008_REAUDIT.md` | `cs-008-loss-evidence` | Merged (#17) `9a967f7` | — | Loss fields, `LOSS_CODES`, `ImportReport`; **diagnostic `metadata` constrained to JSON-safe values, enforced** |
+| CS-008 REM 2/3 | Spline fidelity | as above | `cs-008-spline-fidelity` | Merged (#11) `ed66bca` | — | `Spline2D` extended; F2/F3/F4 verified against the audit |
 | CS-008 REM 3/3 | Coordinate correctness | as above | `cs-008-coordinate-correctness` | **Closed — superseded** (#13) | **#14** | — (not merged) |
 | CS-008R F1 | OCS→WCS on import | `docs/audits/CS-008_REAUDIT.md` | `cs-008-f1-coordinate-correctness` | Merged (#14) `c60009c` | — | Coordinates corrected |
-| CS-008R F1-H | Post-F1 OCS hardening | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-ocs-completeness` | **Open** (#16) | — | Diagnostic split: `NON_PLANAR_GEOMETRY` |
+| CS-008R F1-H | Post-F1 OCS hardening | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-ocs-completeness` | Merged (#16) `b9f181f` | — | Diagnostic split: `NON_PLANAR_GEOMETRY` |
+| CS-008R-F5F7 | Import evidence completeness | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-import-evidence-completeness` | Merged (#19) `d6c7a8f` | — | Elevation resolved; `SourceReference` provenance; `MISSING_LAYER` given semantics |
 | CAM-CS-02 *(2nd)* | Shared fret-math extraction study | CAM-CS-01 audit §7 | — | **Retired identifier; unissued** | CS-010 | Cross-repository |
 | CS-REC-01…05 | Session integrity recovery | This ledger | `cs-rec-governance` | Merged (#15) `4cc28a9` | — | Governance only |
 
-*Status column last refreshed 2026-08-08.* Confirm against GitHub before relying
+*Status column last refreshed 2026-08-11.* Confirm against GitHub before relying
 on it — see § Source of truth.
+
+**No CS-008 remediation PR is open.** Every branch in this index is merged, closed,
+or explicitly unissued.
 
 ---
 
@@ -220,16 +224,28 @@ because it is unremediated or undeterminable.
 
 | Finding | Status |
 |---------|--------|
-| **F1** — OCS/extrusion unresolved | **Remediated.** #14, merged `c60009c`. Hardened by #16 (below). |
-| **F2** — fit-point spline empty geometry | Represented by **#11**, rebased onto `cs-008-loss-evidence` (#17). Still to be re-evaluated against the audit rather than its stacked form. |
+| **F1** — OCS/extrusion unresolved | **Remediated.** #14, merged `c60009c`. Hardened by #16, merged `b9f181f`. |
+| **F2** — fit-point spline empty geometry | **Remediated.** #11, merged `ed66bca`. Re-evaluated against the audit rather than its stacked form: 23/23 acceptance checks. |
 | **F3** — rational weights discarded | as F2 |
 | **F4** — knot vectors discarded | as F2 |
-| **F5** — elevation dropped | **NOT complete.** LWPOLYLINE is one case; **2D POLYLINE is equally affected.** The previously claimed LWPOLYLINE/POLYLINE asymmetry is **withdrawn** — it was an artifact of using POLYLINE3D as the control fixture (audit probe P8c). |
-| **F6** — source handle not recoverable | Unremediated |
-| **F7** — `MISSING_LAYER` never emitted | Unremediated |
-| **F8** — docs claim loss is never silent | Partially addressed under CS-REC-02 (completion claims scoped to demonstrated evidence) |
-| **F9** — LWPOLYLINE vertices carry `numpy.float64` | Unremediated |
-| **F10** — periodic spline state | **Unable to determine.** No claim to remediate; re-probe before treating as either defect or non-defect. |
+| **F5** — elevation dropped | **Remediated.** #19, merged `d6c7a8f`. Both 2D paths, verified against ezdxf as an independent transform oracle across units × extrusion × elevation sign. The withdrawn LWPOLYLINE/POLYLINE asymmetry is replaced by a correct paired control fixture. |
+| **F6** — source handle not recoverable | **Remediated.** #19. `SourceReference` carries DXF type, handle, layer, and modelspace ordinal. |
+| **F7** — `MISSING_LAYER` never emitted | **Remediated.** #19. Fires for an empty layer name or a name absent from the layer table; an omitted attribute resolves to valid layer `"0"`. |
+| **F8** — docs claim loss is never silent | Partially addressed under CS-REC-02 (completion claims scoped to demonstrated evidence). **Disposition still owed.** |
+| **F9** — LWPOLYLINE vertices carry `numpy.float64` | Unremediated. **Disposition owed** — accept, defer, or remediate. |
+| **F10** — periodic spline state | **Unable to determine.** No claim to remediate; re-probe before treating as either defect or non-defect. **Disposition owed.** |
+
+**Seven of ten findings are remediated; F8, F9 and F10 are not.** They owe a
+*disposition* rather than necessarily a fix — see § The closure standard for the
+four rulings available and the rules binding them. Two points from there apply to
+this table directly:
+
+- The seven "remediated" rows above are **claims to be re-probed**, not
+  conclusions. The closure audit verifies them against current `main` rather than
+  reading this table back to itself; a re-probe that contradicts a row reopens it.
+- **No finding closes by omission.** A closure audit that turned "unable to
+  determine" into "fixed" by silence would repeat the failure this audit exists
+  to correct.
 
 ### Post-F1 hardening — #16
 
@@ -246,6 +262,30 @@ the OCS resolution machinery it introduced or touched:
 Also introduced there: `OCS_TRANSFORM_FAILED` no longer covers transforms that
 succeeded. `NON_PLANAR_GEOMETRY` carries the successful-but-lossy case, so a
 diagnostic never states a false reason.
+
+### Import evidence completeness — #19 (F5/F6/F7)
+
+Four rulings taken before implementation. They are recorded here because each
+foreclosed a defensible alternative, and a later reader will otherwise see only
+the outcome and not the choice.
+
+| Decision | Ruling | Why the alternative was rejected |
+|---|---|---|
+| Absent layer attribute | Valid layer `"0"`, no diagnostic | In DXF an omitted layer group code *means* layer 0. The order's original four-way split treated "no readable value" and "layer 0" as different states; they are the same state, and flagging it would fire on ordinary valid files. |
+| Provenance in equality | `compare=False` | Geometry equality stays geometric. Including it would make every imported entity unequal to every other and break future geometric comparison, while answering a question `.source` already answers directly. |
+| `ordinal` basis | Modelspace position, gaps kept | A gap records that an entity did not survive. A dense index over imported entities renumbers the survivors and erases that; collection position is already available from list order. |
+| `LWPOLYLINE_ELEVATION_DROPPED` | Left registered, unfired | F5 removes the condition it named. **Not repurposed** — changing an existing code's meaning makes historical findings ambiguous. Disposition belongs to the closure audit. |
+
+The last ruling has a corollary worth keeping: **no malformed-elevation code was
+added.** ezdxf rejects non-numeric elevation at assignment, so the condition
+cannot be demonstrated, and naming a symbol for an undemonstrable case is exactly
+how unreachable vocabulary accumulates — the problem the ruling exists to stop.
+
+Two behaviour changes shipped deliberately and should be expected in the field:
+elevated 2D polylines that previously imported at `z = 0` now import at their
+true elevation, and files referencing a layer absent from the layer table now
+raise an advisory `MISSING_LAYER` where they were silent. Neither withholds
+geometry.
 
 ### Diagnostic `metadata` is a JSON contract — #17
 
@@ -275,25 +315,56 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 
 ## Next orders (sequenced)
 
-1. **#16** — post-F1 hardening. Open; closes a live regression on `main`.
-2. **#17** — loss-evidence infrastructure, re-scoped from #10. Open; #11 depends
-   on it.
-3. **#11** — spline fidelity (F2/F3/F4). Open, targeting `cs-008-loss-evidence`.
-   Still to be re-evaluated **against the audit** rather than against its stacked
-   form; that shape predates the audit being located.
-4. **New order — importer evidence completeness (F5/F6/F7).** Covers LWPOLYLINE
-   *and* 2D POLYLINE elevation, handle traceability, and the missing-layer
-   diagnostic. It also owns the **elevation control fixture** #17 deliberately did
-   not write: a 2D polyline with `dxf.elevation`, replacing the withdrawn
-   `polyline_elevated.dxf`. **Parent artifact: `docs/audits/CS-008_REAUDIT.md`** —
-   explicitly not the earlier conversational remediation plan.
-5. **Unissued:** F9 numeric normalization; F10 re-probe; CI enforcement of this
-   ledger's mechanical rules (see § Enforcement status).
+The remediation chain is complete and merged. What remains is closure, and it is
+deliberately linear — nothing below should start before the step above it lands.
 
-**Merge-order note.** #16 and #17 both modify `geometry/diagnostics.py` — #16 adds
-`NON_PLANAR_GEOMETRY` and rewrites the `OCS_TRANSFORM_FAILED` comment; #17 adds
-the fidelity vocabulary and the loss fields. They do not conflict logically, but
-whichever lands second needs a small manual reconcile in the code registry. #11
-follows #17.
+1. **F8 / F9 / F10 disposition.** The three findings no PR has closed. Each takes
+   exactly one ruling from the vocabulary below. F10 is recorded as *unable to
+   determine*, which is a status in its own right: it closes by gathering the
+   missing evidence or by being deferred on the record, never by being dropped
+   from the table.
+2. **CS-008R closure audit.** A *closure* audit, not another exploratory one: the
+   same finding identifiers re-probed against the same behaviours from current
+   `main`. Its output is the disposition table defined below.
+3. **Freeze importer feature expansion**, defects excepted, once closure lands.
+4. **Authorize the first neutral-geometry consumer.** The importer now produces
+   evidence nothing consumes; that is the next real product question, and it is
+   out of scope until the three steps above are done.
 
-Remaining findings are deliberately **not** combined into a single sweep.
+### The closure standard
+
+Stated as a gate rather than an intention, so a reviewer can hold the audit
+against it instead of judging whether it feels thorough.
+
+**CS-008R may be described as complete when, and only when, the closure audit
+records one disposition for every finding F1–F10, each drawn from:**
+
+| Disposition | Means | Requires |
+|---|---|---|
+| **Remediated** | the defect is fixed | the merged PR, and a probe re-run against current `main` confirming it |
+| **Accepted** | real, and deliberately not fixed | the reason, and who ruled |
+| **Deferred** | to be fixed later | the reason, and what would close it |
+| **Not a defect** | withdrawn on evidence | the evidence that disproves it |
+
+Three rules bind that table:
+
+- **No finding closes by omission.** A finding absent from the table is an
+  incomplete audit, not a closed finding. Silence is the one disposition that is
+  never available.
+- **A remediation is not self-certifying.** Seven findings are recorded as
+  remediated above; the closure audit re-probes them rather than reading this
+  ledger back to itself. If a re-probe contradicts a recorded remediation, the
+  audit's finding wins and the row is reopened — that is the point of running it.
+- **"Unable to determine" is not a disposition.** It is the reason a finding is
+  still open. F10 closes as *deferred* with what would settle it, or as
+  *remediated* / *not a defect* once probed — never by inheriting its own
+  uncertainty.
+
+**Unissued, and not blocking closure:** CI enforcement of this ledger's mechanical
+rules (see § Enforcement status); a repository `.gitattributes` normalizing line
+endings — its absence let a whole-file CRLF rewrite into #19, caught in review and
+corrected, but nothing structurally prevents a recurrence.
+
+F8, F9 and F10 are deliberately **not** combined into a single sweep. They differ
+in kind — a documentation claim, a numeric-type question, and an undetermined
+probe — and bundling them would let the weakest evidence carry the other two.
