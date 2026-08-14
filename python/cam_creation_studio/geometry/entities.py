@@ -12,10 +12,15 @@ radius, degenerate polyline, invalid spline, flattened bulge, unresolvable OCS)
 become advisory diagnostics; the geometry is still kept, so no entity is ever lost
 silently.
 
-Fidelity limits (surfaced as diagnostics, never silent): polyline *bulges* are
+Fidelity limits, most of them surfaced as diagnostics: polyline *bulges* are
 flattened to chords (:data:`~geometry.diagnostics.POLYLINE_BULGE_IGNORED`);
 ELLIPSE, TEXT, HATCH, DIMENSION, and INSERT/block references are unsupported
 (:data:`~geometry.diagnostics.UNSUPPORTED_ENTITY`).
+
+Two are **not** signalled, and saying "never silent" here was the substance of
+audit finding F8: a mesh-flavour POLYLINE imports as an ordinary flat chain, and
+display attributes (colour, linetype, lineweight) are dropped. See the fidelity
+table in ``docs/GEOMETRY_IMPORT.md`` for both.
 
 Splines preserve whichever representation the source used — control points or
 fit points — along with knots, weights, degree, closure, and periodicity. Neither
