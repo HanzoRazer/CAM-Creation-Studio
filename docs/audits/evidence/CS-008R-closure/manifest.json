@@ -1,0 +1,184 @@
+{
+  "audit": "CS-008R-CL",
+  "parent_artifact": "docs/audits/CS-008_REAUDIT.md",
+  "target_commit": "592d4613387236c651eabc8363a1d3388dfcb794",
+  "closure_commit": "5d2468bab4bca9b972eade9c5a4b5cfdf94ec1da",
+  "audit_worktree": "C:\\tmp\\cs008r-closure",
+  "package_file": "C:\\tmp\\cs008r-closure\\python\\cam_creation_studio\\geometry\\importer.py",
+  "python_version": "3.14.0",
+  "ezdxf_version": "1.4.3",
+  "fixture_dir": "C:\\tmp\\cs008r-closure\\python\\tests\\fixtures",
+  "findings": {
+    "F1": {
+      "disposition": "remediated",
+      "by": "#14, hardened by #16",
+      "probe": "C1a/C1b"
+    },
+    "F2": {
+      "disposition": "remediated",
+      "by": "#11",
+      "probe": "C2"
+    },
+    "F3": {
+      "disposition": "remediated",
+      "by": "#11",
+      "probe": "C3"
+    },
+    "F4": {
+      "disposition": "remediated",
+      "by": "#11",
+      "probe": "C4"
+    },
+    "F5": {
+      "disposition": "remediated",
+      "by": "#19",
+      "probe": "C5"
+    },
+    "F6": {
+      "disposition": "remediated",
+      "by": "#19",
+      "probe": "C6"
+    },
+    "F7": {
+      "disposition": "remediated",
+      "by": "#19",
+      "probe": "C7a/C7b"
+    },
+    "F8": {
+      "disposition": "remediated",
+      "by": "CS-008R-CL",
+      "probe": "C8"
+    },
+    "F9": {
+      "disposition": "accepted",
+      "by": "owner ruling 2026-08-13",
+      "probe": "C9"
+    },
+    "F10": {
+      "disposition": "remediated",
+      "by": "#11, verified at closure",
+      "probe": "C10"
+    }
+  },
+  "results": [
+    {
+      "id": "C1a",
+      "case": "flipped extrusion resolves to WCS",
+      "expected": "centre x = -5.0 (OCS +5 mirrored)",
+      "actual": "centre = (-5.0, 5.0)",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "C1b",
+      "case": "tilted extrusion resolves and reports its lost plane",
+      "expected": "NON_PLANAR_GEOMETRY present, OCS_TRANSFORM_FAILED absent",
+      "actual": "arc imported = True",
+      "diagnostics": [
+        "NON_PLANAR_GEOMETRY"
+      ],
+      "note": ""
+    },
+    {
+      "id": "C2",
+      "case": "fit-point spline is usable geometry",
+      "expected": "representation 'fit' with fit points retained",
+      "actual": "representation=fit, fit_points=4, control_points=0",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "C3",
+      "case": "rational weights survive in order",
+      "expected": "[1.0, 4.0, 4.0, 1.0], rational=True",
+      "actual": "[1.0, 4.0, 4.0, 1.0], rational=True",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "C4",
+      "case": "knots survive and are not unit-scaled",
+      "expected": "knot vector present, degree 3, max <= 1.0",
+      "actual": "knots=8, degree=3, max_knot=1.0",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "C5",
+      "case": "both 2D polyline paths agree on elevation",
+      "expected": "identical vertices at z = 25.0",
+      "actual": "lwpolyline z=25.0, polyline2d z=25.0, identical=True",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "C6",
+      "case": "provenance answers where the entity came from",
+      "expected": "entity_type, handle, layer, ordinal all present",
+      "actual": "entity_type=CIRCLE, handle=True, layer='0', ordinal=0",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "C7a",
+      "case": "omitted layer attribute means valid layer 0",
+      "expected": "layer '0', no MISSING_LAYER",
+      "actual": "layer='0'",
+      "diagnostics": [],
+      "note": ""
+    },
+    {
+      "id": "C7b",
+      "case": "empty layer name is reported, geometry kept",
+      "expected": "MISSING_LAYER present, entity retained",
+      "actual": "entities=1",
+      "diagnostics": [
+        "MISSING_LAYER"
+      ],
+      "note": ""
+    },
+    {
+      "id": "C8",
+      "case": "mesh-flavour POLYLINE is silently reshaped",
+      "expected": "a diagnostic, or has_lossy_import True",
+      "actual": "kinds=['polyline'], has_lossy_import=False",
+      "diagnostics": [],
+      "note": "confirms F8: the import reports nothing and reads as clean"
+    },
+    {
+      "id": "C9a",
+      "case": "LWPOLYLINE coordinate honours every numeric contract",
+      "expected": "float subclass; equality, arithmetic, JSON and round-trip all correct",
+      "actual": "{\"arithmetic\": true, \"ensure_json_safe\": true, \"exact_type\": \"float64\", \"isfinite\": true, \"isinstance_float\": true, \"numpy_in_serialized_json\": false, \"repr\": \"np.float64(10.0)\", \"roundtrip_equal\": true, \"roundtrip_type\": \"float\", \"value_equality\": true}",
+      "diagnostics": [],
+      "note": "accepted limitation: of the contracts, only the debug repr differs"
+    },
+    {
+      "id": "C9b",
+      "case": "does the foreign numeric type propagate into derived values",
+      "expected": "derived values remain JSON-safe, or are refused at the contract boundary",
+      "actual": "{\"comparison_type\": \"bool\", \"ensure_json_safe\": \"TypeError\", \"is_python_bool\": false, \"json_dumps\": \"TypeError: Object of type bool is not JSON serializable\"}",
+      "diagnostics": [],
+      "note": "numpy.bool_ names itself 'bool' but is not one; json refuses it. No production diagnostic embeds a coordinate-derived value - the metadata sites carry counts, degree and strings - so nothing is exposed, and the JSON contract refuses it at construction rather than corrupting a payload. Recorded as the sharpest trigger that would reopen F9."
+    },
+    {
+      "id": "C10",
+      "case": "periodic spline distinguishable from a merely closed one",
+      "expected": "both closed; periodic False vs True; identical control points",
+      "actual": "closed=(True, True), periodic=(False, True), control_points=(4, 4), representation=control",
+      "diagnostics": [],
+      "note": "evidence the audit lacked; answered from a real DXF, not a stub"
+    },
+    {
+      "id": "CV",
+      "case": "reserved code is unreachable across the fixture corpus",
+      "expected": "LWPOLYLINE_ELEVATION_DROPPED never emitted",
+      "actual": "reserved_code_emitted=False",
+      "diagnostics": [
+        "NON_PLANAR_GEOMETRY",
+        "UNSUPPORTED_ENTITY"
+      ],
+      "note": "codes observed across the corpus, not the full live set"
+    }
+  ]
+}

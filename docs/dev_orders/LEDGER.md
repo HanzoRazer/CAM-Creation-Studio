@@ -132,12 +132,13 @@ traceable. Retirement is recorded instead.
 | CS-008R-F5F7 | Import evidence completeness | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-import-evidence-completeness` | Merged (#19) `d6c7a8f` | — | Elevation resolved; `SourceReference` provenance; `MISSING_LAYER` given semantics |
 | CAM-CS-02 *(2nd)* | Shared fret-math extraction study | CAM-CS-01 audit §7 | — | **Retired identifier; unissued** | CS-010 | Cross-repository |
 | CS-REC-01…05 | Session integrity recovery | This ledger | `cs-rec-governance` | Merged (#15) `4cc28a9` | — | Governance only |
+| CS-008R-CL | Audit disposition and import closure | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-closure` | **Open** | — | F8/F9/F10 disposed; vocabulary classified; CS-008R **CLOSED**; importer frozen |
 
-*Status column last refreshed 2026-08-11.* Confirm against GitHub before relying
+*Status column last refreshed 2026-08-13.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
-**No CS-008 remediation PR is open.** Every branch in this index is merged, closed,
-or explicitly unissued.
+**One CS-008 order is open: CS-008R-CL**, the closure audit recorded in this table.
+Every other branch in this index is merged, closed, or explicitly unissued.
 
 ---
 
@@ -231,21 +232,24 @@ because it is unremediated or undeterminable.
 | **F5** — elevation dropped | **Remediated.** #19, merged `d6c7a8f`. Both 2D paths, verified against ezdxf as an independent transform oracle across units × extrusion × elevation sign. The withdrawn LWPOLYLINE/POLYLINE asymmetry is replaced by a correct paired control fixture. |
 | **F6** — source handle not recoverable | **Remediated.** #19. `SourceReference` carries DXF type, handle, layer, and modelspace ordinal. |
 | **F7** — `MISSING_LAYER` never emitted | **Remediated.** #19. Fires for an empty layer name or a name absent from the layer table; an omitted attribute resolves to valid layer `"0"`. |
-| **F8** — docs claim loss is never silent | Partially addressed under CS-REC-02 (completion claims scoped to demonstrated evidence). **Disposition still owed.** |
-| **F9** — LWPOLYLINE vertices carry `numpy.float64` | Unremediated. **Disposition owed** — accept, defer, or remediate. |
-| **F10** — periodic spline state | **Unable to determine.** No claim to remediate; re-probe before treating as either defect or non-defect. **Disposition owed.** |
+| **F8** — docs claim loss is never silent | **Remediated.** CS-008R-CL, documentation. Still false at closure, but on *new* grounds: a mesh-flavour `POLYLINE` is silently reshaped (`has_lossy_import` stays False) and display attributes are dropped unmentioned. Claim scoped, both exceptions stated, `entities.py` docstring corrected. |
+| **F9** — LWPOLYLINE vertices carry `numpy.float64` | **Accepted.** Owner ruling, 2026-08-13. Present at `entities.py:471`; every behavioural contract correct, only the debug `repr` differs. Reopening triggers recorded with the finding. |
+| **F10** — periodic spline state | **Remediated.** #11 added `Spline2D.periodic`; CS-008R-CL supplied the evidence the audit lacked — two splines differing only in the PERIODIC bit, `periodic=(False, True)`, from a real DXF rather than a stub. |
 
-**Seven of ten findings are remediated; F8, F9 and F10 are not.** They owe a
-*disposition* rather than necessarily a fix — see § The closure standard for the
-four rulings available and the rules binding them. Two points from there apply to
-this table directly:
+**All ten findings are disposed. CS-008R is CLOSED** — see
+[`docs/audits/CS-008R_CLOSURE.md`](../audits/CS-008R_CLOSURE.md), audited at
+`592d461`. Seven remediated by prior PRs, one remediated at closure, one accepted,
+one resolved from new evidence. Nothing deferred; nothing omitted.
 
-- The seven "remediated" rows above are **claims to be re-probed**, not
-  conclusions. The closure audit verifies them against current `main` rather than
-  reading this table back to itself; a re-probe that contradicts a row reopens it.
-- **No finding closes by omission.** A closure audit that turned "unable to
-  determine" into "fixed" by silence would repeat the failure this audit exists
-  to correct.
+The seven "remediated" rows above were **re-probed**, not read back from this
+table. None was contradicted; had one been, the row would have reopened. The
+importer is now under **feature freeze — defects only**.
+
+Two limitations are carried openly rather than closed over: the mesh-`POLYLINE`
+silence above is documented but unfixed — adding a diagnostic is a
+runtime-vocabulary change belonging to a defect order with its own evidence — and
+F9's accepted `numpy` type propagates into derived values as `numpy.bool_`, which
+the JSON contract refuses at construction rather than corrupting a payload.
 
 ### Post-F1 hardening — #16
 
@@ -315,21 +319,29 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 
 ## Next orders (sequenced)
 
-The remediation chain is complete and merged. What remains is closure, and it is
-deliberately linear — nothing below should start before the step above it lands.
+The remediation chain is complete and merged, and **closure has landed**. Steps 1
+to 3 below are done; step 4 is now the live question.
 
-1. **F8 / F9 / F10 disposition.** The three findings no PR has closed. Each takes
-   exactly one ruling from the vocabulary below. F10 is recorded as *unable to
-   determine*, which is a status in its own right: it closes by gathering the
-   missing evidence or by being deferred on the record, never by being dropped
+1. ~~**F8 / F9 / F10 disposition.**~~ **Done** — CS-008R-CL. F8 remediated
+   (documentation), F9 accepted, F10 remediated and verified. None was dropped
    from the table.
-2. **CS-008R closure audit.** A *closure* audit, not another exploratory one: the
-   same finding identifiers re-probed against the same behaviours from current
-   `main`. Its output is the disposition table defined below.
-3. **Freeze importer feature expansion**, defects excepted, once closure lands.
-4. **Authorize the first neutral-geometry consumer.** The importer now produces
-   evidence nothing consumes; that is the next real product question, and it is
-   out of scope until the three steps above are done.
+2. ~~**CS-008R closure audit.**~~ **Done** —
+   [`docs/audits/CS-008R_CLOSURE.md`](../audits/CS-008R_CLOSURE.md), audited at
+   `592d461`, all ten findings disposed, seven prior remediations re-probed and
+   none contradicted.
+3. ~~**Freeze importer feature expansion.**~~ **In force.** The DXF importer is
+   under **feature freeze — defects only**. New capabilities require a new,
+   externally justified requirement; bug fixes continue through normal defect
+   orders.
+4. **Authorize the first neutral-geometry consumer.** ← **now live.** The importer
+   produces evidence nothing consumes; that is the next real product question. It
+   needs its own dev order and is deliberately unnumbered here — closure does not
+   get to assign the next capability.
+
+**Known and unfixed, available as defect orders when someone wants them:** the
+mesh-flavour `POLYLINE` silence (documented at closure; fixing it means adding a
+diagnostic, which is a runtime-vocabulary change and needs its own evidence), and
+F9's `numpy` type should any of its recorded reopening triggers occur.
 
 ### The closure standard
 

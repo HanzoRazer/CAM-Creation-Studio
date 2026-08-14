@@ -47,9 +47,10 @@ represented as geometry — but it is never dropped silently.
 
 ### What is *not* preserved yet (fidelity limits)
 
-A **successful import is not a guarantee of full geometric fidelity.** These are
-surfaced as diagnostics (or an unsupported-entity drop), never silent — but a
-consumer that needs faithful geometry must check them:
+A **successful import is not a guarantee of full geometric fidelity.** Most of
+these are surfaced as a diagnostic or an unsupported-entity drop — but not all of
+them, and the exceptions are listed as such below rather than covered by a
+blanket promise. A consumer that needs faithful geometry must check them:
 
 | Source construct | Behavior | Signal |
 |------------------|----------|--------|
@@ -61,12 +62,30 @@ consumer that needs faithful geometry must check them:
 | **ELLIPSE**, **TEXT**, **MTEXT**, **HATCH**, **DIMENSION** | Not represented | `UNSUPPORTED_ENTITY` |
 | **INSERT** / block references | Not expanded; block contents do not appear | `UNSUPPORTED_ENTITY` |
 | 3D solids, `MESH` entities, Z-depth beyond point Z | Not represented | `UNSUPPORTED_ENTITY` |
-| `POLYLINE` in a **mesh** flavour (polygon / polyface) | Vertices kept in source order as a flat chain — a mesh is not a profile, so the result is rarely meaningful as one | (none) |
+| `POLYLINE` in a **mesh** flavour (polygon / polyface) | Vertices kept in source order as a flat chain — a mesh is not a profile, so the result is rarely meaningful as one | **(none — silent)** |
+| Entity **display attributes**: colour, linetype, lineweight, transparency | Not represented; the models carry `layer` and nothing else | **(none — silent)** |
 
 To detect an incomplete import at a glance, read
 `collection.metadata.has_lossy_import` (True when any entity was dropped), or the
 `raw_entity_count` / `unsupported_entity_count` / `entity_count` fields for the
 exact breakdown.
+
+**Two limits are genuinely silent, and neither moves `has_lossy_import`.** They
+are called out here because the rest of this page is built on the opposite habit,
+and an exception that is only visible as a blank table cell is not documented:
+
+* a **mesh-flavour `POLYLINE`** imports as an ordinary flat chain. No diagnostic
+  is raised and `has_lossy_import` stays `False`, so a polyface reads as a clean
+  import of a profile it never was;
+* **display attributes** are dropped without a diagnostic. This one is deliberate
+  and is not a defect to fix: colour and linetype are presentation, not geometry,
+  and this importer's contract is geometric fidelity. It is recorded because a
+  consumer looking for them will otherwise find neither the values nor a reason.
+
+A third case is silent by construction: **unreadable elevation is read as absent
+(`0.0`)**. ezdxf rejects a non-numeric elevation at assignment, so the condition
+cannot be reached from a file it will open; there is no code for it because a
+symbol for an undemonstrable case is how unreachable vocabulary accumulates.
 
 ## Elevation
 
@@ -166,10 +185,12 @@ because assuming an empty table would make every entity look like a bad referenc
   silently mis-scaled.
 - **Immutable & read-only.** Imported geometry is frozen; future operations
   derive new geometry rather than mutating imports.
-- **Advisory import.** No entity is silently discarded. Zero-length lines, zero
+- **Advisory import.** No *entity* is silently discarded. Zero-length lines, zero
   radii, degenerate polylines, invalid splines, duplicate handles, and
   unsupported types all surface as `GeometryDiagnostic`s (reusing the shared
-  `DiagnosticSeverity` scale).
+  `DiagnosticSeverity` scale). The guarantee is entity-level and does not extend
+  to every property of an entity that survives — see the two silent limits under
+  *fidelity limits* above.
 - **Deterministic bounds.** Arc bounding boxes include cardinal bulge points, not
   just endpoints.
 
@@ -187,19 +208,45 @@ noise from CAD exports is caught rather than slipping past an exact `== 0`.
 `geometry.diagnostics.CANONICAL_CODES` is the authoritative list; this paragraph
 is a convenience copy, and a test asserts the two agree so it cannot drift.
 
-**Live:** both OCS codes, since F1 (#14) and its hardening (#16);
-`FIT_POINT_SPLINE_UNREPRESENTED`, `RATIONAL_SPLINE_WEIGHTS_DROPPED` and
-`EMPTY_SPLINE_GEOMETRY` since the spline increment — each fires only on genuine
-loss, see *Splines* below; and `MISSING_LAYER`, since the F7 increment gave it
-defined semantics (see *Layer evidence* above).
+### Vocabulary status (classified at CS-008R closure)
 
-**Reserved and no longer reachable:** `LWPOLYLINE_ELEVATION_DROPPED`. It was
-registered for the defect F5 has now fixed — elevation is preserved, so nothing
-emits it. It is deliberately **not** repurposed: giving an existing code a new
-meaning would make historical findings ambiguous, and a "dropped elevation"
-symbol should not quietly come to mean something else. It remains registered
-pending disposition by the CS-008R closure audit, which is the right place to
-decide whether to retire it.
+Every registered code is **live** or **reserved**. Nothing is retired: no code has
+ever been removed, and none is being removed now. "Live" is evidenced by an
+emission site in this repository, not by intent.
+
+| Code | Status | Emitted at |
+|---|---|---|
+| `UNSUPPORTED_ENTITY` | live | `entities.py:539` |
+| `MISSING_LAYER` | live | `entities.py:379` |
+| `ZERO_LENGTH_LINE` | live | `entities.py:401` |
+| `ZERO_RADIUS` | live | `entities.py:432`, `:460` |
+| `INVALID_SPLINE` | live | `entities.py:600`, `:611`, `:674` |
+| `UNKNOWN_UNITS` | live | `importer.py:84` |
+| `EMPTY_FILE` | live | `importer.py:125` |
+| `DUPLICATE_HANDLE` | live | `importer.py:107` |
+| `DEGENERATE_POLYLINE` | live | `entities.py:486`, `:522` |
+| `POLYLINE_BULGE_IGNORED` | live | `entities.py:490`, `:526` |
+| `FIT_POINT_SPLINE_UNREPRESENTED` | live | `entities.py:661` |
+| `RATIONAL_SPLINE_WEIGHTS_DROPPED` | live | `entities.py:644` |
+| `OCS_TRANSFORM_FAILED` | live | `entities.py:316`, `:332` |
+| `NON_PLANAR_GEOMETRY` | live | `entities.py:287`, `:426`, `:455` |
+| `EMPTY_SPLINE_GEOMETRY` | live | `entities.py:617` |
+| `LWPOLYLINE_ELEVATION_DROPPED` | **reserved** | *(nothing emits it)* |
+
+**Reserved: `LWPOLYLINE_ELEVATION_DROPPED`.** It was registered for the defect F5
+fixed — elevation is preserved, so nothing emits it, and a closure probe confirms
+no fixture in the corpus produces it.
+
+Retiring it was considered at closure and **refused**. It is public vocabulary
+with unknown external consumers; a consumer matching on the exact code name would
+break for no gain beyond tidiness, and the cost of keeping an unreachable constant
+is a documentation line. Compatibility outranks vocabulary hygiene here. The
+classification is enforced by a test, so if anything ever emits it the claim fails
+loudly instead of going quietly false.
+
+It is equally deliberately **not** repurposed: giving an existing code a new
+meaning would make historical findings ambiguous, and a "dropped elevation" symbol
+should not quietly come to mean something else.
 
 There is no malformed-elevation code. ezdxf rejects non-numeric elevation at
 assignment, so the condition cannot be demonstrated, and naming a symbol for an
@@ -393,6 +440,28 @@ pip install -e .[dxf]     # ezdxf >=1.4,<2
 Calling `import_dxf` without `ezdxf` present raises `EzdxfNotInstalled` with an
 actionable install hint. A missing, unreadable, or corrupt file raises
 `DxfImportError`.
+
+### Numeric types on the LWPOLYLINE path (accepted limitation, CS-008R F9)
+
+ezdxf returns LWPOLYLINE vertex coordinates as `numpy.float64`, and that path is
+the one place the importer does not coerce them back to a plain `float`. Every
+other entity path does. `numpy` is not a declared dependency; it arrives
+transitively through ezdxf.
+
+This is **accepted, not overlooked** — ruled at CS-008R closure after probing the
+whole contract surface. `numpy.float64` subclasses `float`, so value equality,
+arithmetic, `math.isfinite`, the JSON metadata contract, `json.dumps`, the
+`to_dict` / `from_dict` round-trip, and entity equality all behave correctly, and
+a serialized document contains ordinary JSON numbers that reparse as plain
+`float`. Nothing downstream can observe a difference in *behaviour*.
+
+One artefact is observable and is recorded rather than hidden: the dataclass
+`repr` renders `Point(x=np.float64(10.0), ...)` in debug output and logs. It does
+not reach the CLI or any serialized artefact.
+
+What would reopen this: a consumer that requires an exact `type(x) is float`, or
+the repr surfacing in a user-facing artefact. Absent either, a coercion here
+would be cleanup without evidence of impact, which closure is not the place for.
 
 ## Boundaries
 
