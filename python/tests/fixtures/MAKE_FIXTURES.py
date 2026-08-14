@@ -145,6 +145,37 @@ def weighted_spline():
     return doc, "weighted_spline.dxf"
 
 
+def periodic_spline():
+    """CS-008R F10 control: a merely **closed** spline beside a genuinely **periodic** one.
+
+    The audit could not determine whether the two are distinguishable after import.
+    Its P5b fixture set only the CLOSED bit (1), so ``periodic`` was never exercised
+    on real DXF; the one existing assertion runs through a duck-typed stub, not a
+    file. Absence of evidence was correctly refused as a pass, leaving F10 open.
+
+    Both splines live in one file on purpose. The question is not "does a periodic
+    spline import" but "is a periodic spline *distinguishable from* a closed one",
+    which is a comparison — splitting it across two files would let the two halves
+    drift independently and reintroduce exactly the fixture-authored asymmetry that
+    the withdrawn ``polyline_elevated`` control produced.
+
+    Modelspace order is the control: index 0 is closed-only, index 1 is closed and
+    periodic. Identical control points, so the *only* difference is the flag bit.
+
+    Authored with ``add_open_spline`` — control points, not fit points. Periodicity
+    is a property of the control-point/knot representation, so a fit-point spline
+    would answer F10 through F2's machinery instead of its own and leave the real
+    question untested.
+    """
+    doc, msp = _new()
+    points = [(0, 0), (10, 10), (20, 0), (30, 10)]
+    closed_only = msp.add_open_spline(points, degree=3)
+    closed_only.dxf.flags = 1                      # CLOSED
+    closed_and_periodic = msp.add_open_spline(points, degree=3)
+    closed_and_periodic.dxf.flags = 1 | 2          # CLOSED | PERIODIC
+    return doc, "periodic_spline.dxf"
+
+
 def unsupported_entity():
     """An ELLIPSE plus one LINE — the unsupported path, with survivors alongside.
 
@@ -165,6 +196,7 @@ BUILDERS = (
     ocs_arc,
     fit_spline,
     weighted_spline,
+    periodic_spline,
     unsupported_entity,
 )
 
