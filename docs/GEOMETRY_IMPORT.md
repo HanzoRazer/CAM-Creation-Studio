@@ -208,19 +208,45 @@ noise from CAD exports is caught rather than slipping past an exact `== 0`.
 `geometry.diagnostics.CANONICAL_CODES` is the authoritative list; this paragraph
 is a convenience copy, and a test asserts the two agree so it cannot drift.
 
-**Live:** both OCS codes, since F1 (#14) and its hardening (#16);
-`FIT_POINT_SPLINE_UNREPRESENTED`, `RATIONAL_SPLINE_WEIGHTS_DROPPED` and
-`EMPTY_SPLINE_GEOMETRY` since the spline increment — each fires only on genuine
-loss, see *Splines* below; and `MISSING_LAYER`, since the F7 increment gave it
-defined semantics (see *Layer evidence* above).
+### Vocabulary status (classified at CS-008R closure)
 
-**Reserved and no longer reachable:** `LWPOLYLINE_ELEVATION_DROPPED`. It was
-registered for the defect F5 has now fixed — elevation is preserved, so nothing
-emits it. It is deliberately **not** repurposed: giving an existing code a new
-meaning would make historical findings ambiguous, and a "dropped elevation"
-symbol should not quietly come to mean something else. It remains registered
-pending disposition by the CS-008R closure audit, which is the right place to
-decide whether to retire it.
+Every registered code is **live** or **reserved**. Nothing is retired: no code has
+ever been removed, and none is being removed now. "Live" is evidenced by an
+emission site in this repository, not by intent.
+
+| Code | Status | Emitted at |
+|---|---|---|
+| `UNSUPPORTED_ENTITY` | live | `entities.py:539` |
+| `MISSING_LAYER` | live | `entities.py:379` |
+| `ZERO_LENGTH_LINE` | live | `entities.py:401` |
+| `ZERO_RADIUS` | live | `entities.py:432`, `:460` |
+| `INVALID_SPLINE` | live | `entities.py:600`, `:611`, `:674` |
+| `UNKNOWN_UNITS` | live | `importer.py:84` |
+| `EMPTY_FILE` | live | `importer.py:125` |
+| `DUPLICATE_HANDLE` | live | `importer.py:107` |
+| `DEGENERATE_POLYLINE` | live | `entities.py:486`, `:522` |
+| `POLYLINE_BULGE_IGNORED` | live | `entities.py:490`, `:526` |
+| `FIT_POINT_SPLINE_UNREPRESENTED` | live | `entities.py:661` |
+| `RATIONAL_SPLINE_WEIGHTS_DROPPED` | live | `entities.py:644` |
+| `OCS_TRANSFORM_FAILED` | live | `entities.py:316`, `:332` |
+| `NON_PLANAR_GEOMETRY` | live | `entities.py:287`, `:426`, `:455` |
+| `EMPTY_SPLINE_GEOMETRY` | live | `entities.py:617` |
+| `LWPOLYLINE_ELEVATION_DROPPED` | **reserved** | *(nothing emits it)* |
+
+**Reserved: `LWPOLYLINE_ELEVATION_DROPPED`.** It was registered for the defect F5
+fixed — elevation is preserved, so nothing emits it, and a closure probe confirms
+no fixture in the corpus produces it.
+
+Retiring it was considered at closure and **refused**. It is public vocabulary
+with unknown external consumers; a consumer matching on the exact code name would
+break for no gain beyond tidiness, and the cost of keeping an unreachable constant
+is a documentation line. Compatibility outranks vocabulary hygiene here. The
+classification is enforced by a test, so if anything ever emits it the claim fails
+loudly instead of going quietly false.
+
+It is equally deliberately **not** repurposed: giving an existing code a new
+meaning would make historical findings ambiguous, and a "dropped elevation" symbol
+should not quietly come to mean something else.
 
 There is no malformed-elevation code. ezdxf rejects non-numeric elevation at
 assignment, so the condition cannot be demonstrated, and naming a symbol for an

@@ -75,6 +75,20 @@ POLYLINE_BULGE_IGNORED = "POLYLINE_BULGE_IGNORED"
 # entity/import metadata; only failure earns a diagnostic.
 FIT_POINT_SPLINE_UNREPRESENTED = "FIT_POINT_SPLINE_UNREPRESENTED"
 RATIONAL_SPLINE_WEIGHTS_DROPPED = "RATIONAL_SPLINE_WEIGHTS_DROPPED"
+# RESERVED — classified at CS-008R closure; nothing emits this.
+#
+# It named the defect F5 fixed: elevation is preserved on both 2D polyline paths,
+# so the condition no longer exists. Retirement was considered and refused. This is
+# public vocabulary with unknown external consumers, and a consumer matching the
+# exact name would break for no gain beyond tidiness; the cost of keeping an
+# unreachable constant is this comment. Compatibility outranks vocabulary hygiene.
+#
+# Do not repurpose it. Giving an existing code a new meaning makes every historical
+# finding that cites it ambiguous. If a future malformed-elevation case is ever
+# demonstrable, it earns its own code.
+#
+# test_cs008r_closure.py asserts nothing in the fixture corpus emits it, so this
+# claim fails loudly rather than going quietly false.
 LWPOLYLINE_ELEVATION_DROPPED = "LWPOLYLINE_ELEVATION_DROPPED"
 EMPTY_SPLINE_GEOMETRY = "EMPTY_SPLINE_GEOMETRY"
 # The two OCS codes are live — F1 landed in #14 and its hardening in #16 — and
