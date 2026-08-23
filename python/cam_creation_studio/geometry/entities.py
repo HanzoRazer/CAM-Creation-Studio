@@ -14,13 +14,14 @@ silently.
 
 Fidelity limits, most of them surfaced as diagnostics: polyline *bulges* are
 flattened to chords (:data:`~geometry.diagnostics.POLYLINE_BULGE_IGNORED`);
-ELLIPSE, TEXT, HATCH, DIMENSION, and INSERT/block references are unsupported
+polygon-mesh and polyface ``POLYLINE`` topology is dropped
+(:data:`~geometry.diagnostics.POLYLINE_MESH_TOPOLOGY_DROPPED`); ELLIPSE, TEXT,
+HATCH, DIMENSION, and INSERT/block references are unsupported
 (:data:`~geometry.diagnostics.UNSUPPORTED_ENTITY`).
 
-Two are **not** signalled, and saying "never silent" here was the substance of
-audit finding F8: a mesh-flavour POLYLINE imports as an ordinary flat chain, and
-display attributes (colour, linetype, lineweight) are dropped. See the fidelity
-table in ``docs/GEOMETRY_IMPORT.md`` for both.
+Display attributes (colour, linetype, lineweight) are dropped without a
+diagnostic. That is deliberate — presentation is not geometry — and is the
+remaining silent limit. See the fidelity table in ``docs/GEOMETRY_IMPORT.md``.
 
 Splines preserve whichever representation the source used — control points or
 fit points — along with knots, weights, degree, closure, and periodicity. Neither
