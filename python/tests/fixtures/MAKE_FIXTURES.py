@@ -10,9 +10,11 @@ new file, which is precisely the class of invisible change CS-008 remediation
 exists to prevent. If a fixture genuinely needs to change, add a new one with a
 new name and leave the old file alone.
 
-To regenerate deliberately (e.g. a new fixture):
+To regenerate deliberately (e.g. a new fixture), add a builder and write
+*only that file*. Do not run ``main()`` to add a fixture — it rewrites the
+whole corpus:
 
-    python python/tests/fixtures/MAKE_FIXTURES.py
+    python -c "from MAKE_FIXTURES import write_new_mesh_fixtures; write_new_mesh_fixtures()"
 
 Requires the optional ``ezdxf`` extra. Written with ezdxf 1.4.3.
 
@@ -176,6 +178,59 @@ def periodic_spline():
     return doc, "periodic_spline.dxf"
 
 
+def polygon_mesh():
+    """CS-008R-D1: a genuine DXF polygon-mesh POLYLINE, not a vertex chain.
+
+    ``add_polymesh`` sets POLYLINE flag bit 16 (``is_polygon_mesh``). The source
+    is an M×N vertex grid with implicit mesh topology. That is a different
+    family from:
+
+    * 2D POLYLINE (OCS vertices + elevation, no mesh flag);
+    * 3D POLYLINE (flag bit 8, a single WCS chain, no grid topology).
+
+    Substituting either of those would not demonstrate the defect this fixture
+    exists to pin: the importer currently flattens the grid to ``Polyline2D``
+    and reports the import as lossless. Do not replace this file with a 2D/3D
+    polyline of the same corner points.
+    """
+    doc, msp = _new()
+    mesh = msp.add_polymesh(size=(2, 3))
+    for m, n, xyz in (
+        (0, 0, (0.0, 0.0, 0.0)),
+        (0, 1, (10.0, 0.0, 1.0)),
+        (0, 2, (20.0, 0.0, 0.0)),
+        (1, 0, (0.0, 8.0, 0.0)),
+        (1, 1, (10.0, 8.0, 2.0)),
+        (1, 2, (20.0, 8.0, 0.0)),
+    ):
+        mesh.set_mesh_vertex((m, n), xyz)
+    return doc, "polygon_mesh.dxf"
+
+
+def polyface_mesh():
+    """CS-008R-D1: a genuine DXF polyface POLYLINE with face records.
+
+    ``add_polyface`` sets POLYLINE flag bit 64 (``is_poly_face_mesh``).
+    ``append_face`` writes VERTEX face records (flag 128) in addition to the
+    geometric vertices. A 3D polyline through the same corners would carry no
+    face topology and would not exercise the defect.
+
+    The cube has eight corners and six faces so the flattened chain is
+    distinguishable from an ordinary profile: face-record vertices sit at the
+    origin after the geometric ones, which is the current importer output this
+    order must preserve.
+    """
+    doc, msp = _new()
+    pf = msp.add_polyface()
+    pf.append_face([(0, 0, 0), (10, 0, 0), (10, 10, 0), (0, 10, 0)])
+    pf.append_face([(0, 0, 10), (10, 0, 10), (10, 10, 10), (0, 10, 10)])
+    pf.append_face([(0, 0, 0), (10, 0, 0), (10, 0, 10), (0, 0, 10)])
+    pf.append_face([(10, 0, 0), (10, 10, 0), (10, 10, 10), (10, 0, 10)])
+    pf.append_face([(10, 10, 0), (0, 10, 0), (0, 10, 10), (10, 10, 10)])
+    pf.append_face([(0, 10, 0), (0, 0, 0), (0, 0, 10), (0, 10, 10)])
+    return doc, "polyface_mesh.dxf"
+
+
 def unsupported_entity():
     """An ELLIPSE plus one LINE — the unsupported path, with survivors alongside.
 
@@ -197,8 +252,24 @@ BUILDERS = (
     fit_spline,
     weighted_spline,
     periodic_spline,
+    polygon_mesh,
+    polyface_mesh,
     unsupported_entity,
 )
+
+# CS-008R-D1 fixtures only. ``main()`` rewrites the whole corpus and must not
+# be used to add these files — regenerating would silently re-baseline every
+# existing characterization assertion.
+_NEW_MESH_BUILDERS = (polygon_mesh, polyface_mesh)
+
+
+def write_new_mesh_fixtures() -> None:
+    """Write only the CS-008R-D1 mesh/polyface fixtures."""
+    for build in _NEW_MESH_BUILDERS:
+        doc, name = build()
+        path = os.path.join(HERE, name)
+        doc.saveas(path)
+        print(f"wrote {name}")
 
 
 def main() -> None:
