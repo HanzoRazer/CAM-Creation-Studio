@@ -107,6 +107,13 @@ OCS_TRANSFORM_FAILED = "OCS_TRANSFORM_FAILED"
 # foreshortened. Nothing failed and nothing is misplaced; what is lost is the
 # guarantee that reading the entity as a planar profile recovers the authored shape.
 NON_PLANAR_GEOMETRY = "NON_PLANAR_GEOMETRY"
+# Source POLYLINE carried polygon-mesh or polyface topology that the neutral
+# Polyline2D model does not preserve. The flattened vertex chain is retained as
+# partial evidence; the grid or face topology is gone. One code covers both
+# families: the loss semantics are the same, and metadata names the source
+# family. Do not reuse UNSUPPORTED_ENTITY, NON_PLANAR_GEOMETRY, or
+# POLYLINE_BULGE_IGNORED — none of those describes discarded mesh topology.
+POLYLINE_MESH_TOPOLOGY_DROPPED = "POLYLINE_MESH_TOPOLOGY_DROPPED"
 
 CANONICAL_CODES = (
     UNSUPPORTED_ENTITY,
@@ -125,6 +132,7 @@ CANONICAL_CODES = (
     NON_PLANAR_GEOMETRY,
     LWPOLYLINE_ELEVATION_DROPPED,
     EMPTY_SPLINE_GEOMETRY,
+    POLYLINE_MESH_TOPOLOGY_DROPPED,
 )
 
 # Codes meaning source information did not survive the import. Everything else
@@ -147,6 +155,7 @@ LOSS_CODES = frozenset({
     LWPOLYLINE_ELEVATION_DROPPED,
     EMPTY_SPLINE_GEOMETRY,
     NON_PLANAR_GEOMETRY,
+    POLYLINE_MESH_TOPOLOGY_DROPPED,
 })
 
 

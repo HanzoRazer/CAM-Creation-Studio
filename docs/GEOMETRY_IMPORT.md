@@ -62,25 +62,25 @@ blanket promise. A consumer that needs faithful geometry must check them:
 | **ELLIPSE**, **TEXT**, **MTEXT**, **HATCH**, **DIMENSION** | Not represented | `UNSUPPORTED_ENTITY` |
 | **INSERT** / block references | Not expanded; block contents do not appear | `UNSUPPORTED_ENTITY` |
 | 3D solids, `MESH` entities, Z-depth beyond point Z | Not represented | `UNSUPPORTED_ENTITY` |
-| `POLYLINE` in a **mesh** flavour (polygon / polyface) | Vertices kept in source order as a flat chain — a mesh is not a profile, so the result is rarely meaningful as one | **(none — silent)** |
+| `POLYLINE` **polygon mesh** | Flattened `Polyline2D` vertex evidence; grid topology not represented | `POLYLINE_MESH_TOPOLOGY_DROPPED` |
+| `POLYLINE` **polyface mesh** | Flattened `Polyline2D` vertex evidence, including face-record vertices; face topology not represented | `POLYLINE_MESH_TOPOLOGY_DROPPED` |
 | Entity **display attributes**: colour, linetype, lineweight, transparency | Not represented; the models carry `layer` and nothing else | **(none — silent)** |
 
-To detect an incomplete import at a glance, read
-`collection.metadata.has_lossy_import` (True when any entity was dropped), or the
-`raw_entity_count` / `unsupported_entity_count` / `entity_count` fields for the
-exact breakdown.
+Two different flags answer two different questions. Do not collapse them:
 
-**Two limits are genuinely silent, and neither moves `has_lossy_import`.** They
-are called out here because the rest of this page is built on the opposite habit,
-and an exception that is only visible as a blank table cell is not documented:
+| Surface | Means | Mesh/polyface flattening |
+|---|---|---|
+| `collection.metadata.has_lossy_import` | one or more source entities produced **no geometry at all** | **False** — the `Polyline2D` is kept |
+| `collection.report().has_loss` | some source information failed to survive | **True** — topology was discarded |
 
-* a **mesh-flavour `POLYLINE`** imports as an ordinary flat chain. No diagnostic
-  is raised and `has_lossy_import` stays `False`, so a polyface reads as a clean
-  import of a profile it never was;
-* **display attributes** are dropped without a diagnostic. This one is deliberate
-  and is not a defect to fix: colour and linetype are presentation, not geometry,
-  and this importer's contract is geometric fidelity. It is recorded because a
-  consumer looking for them will otherwise find neither the values nor a reason.
+`raw_entity_count` / `unsupported_entity_count` / `entity_count` still give the
+dropped-entity breakdown.
+
+**One limit is genuinely silent, and it does not move either flag.** Display
+attributes are dropped without a diagnostic. That is deliberate and is not a
+defect to fix: colour and linetype are presentation, not geometry, and this
+importer's contract is geometric fidelity. It is recorded because a consumer
+looking for them will otherwise find neither the values nor a reason.
 
 A third case is silent by construction: **unreadable elevation is read as absent
 (`0.0`)**. ezdxf rejects a non-numeric elevation at assignment, so the condition
@@ -119,7 +119,23 @@ against ezdxf's own transform as an independent oracle.
 
 A 3D `POLYLINE` is **not** given an elevation — it has none, and reading one
 would double-count the z its vertices already carry. Mesh flavours are likewise
-untouched.
+untouched: their vertices are already WCS.
+
+### POLYLINE families
+
+All four DXF families become `Polyline2D`. They are not equally complete:
+
+| Source | Neutral representation | Fidelity |
+|---|---|---|
+| 2D `POLYLINE` | `Polyline2D` | supported where the 2D contract applies |
+| 3D `POLYLINE` | `Polyline2D` with 3D `Point`s | partial / current contract; no mesh diagnostic |
+| Polygon mesh | flattened `Polyline2D` evidence | topology lost; `POLYLINE_MESH_TOPOLOGY_DROPPED` |
+| Polyface mesh | flattened `Polyline2D` evidence | face topology lost; `POLYLINE_MESH_TOPOLOGY_DROPPED` |
+
+Polygon mesh and polyface mesh are **partial**. The importer does not add a mesh
+model. The flattened chain is retained as evidence; `POLYLINE_MESH_TOPOLOGY_DROPPED`
+is an unrecoverable loss finding. Do not read a surviving polyline as a faithful
+mesh.
 
 > **Historical note.** An earlier revision claimed `LWPOLYLINE` dropped elevation
 > while `POLYLINE` kept it. **That asymmetry was never real.** It came from
@@ -186,10 +202,11 @@ because assuming an empty table would make every entity look like a bad referenc
 - **Immutable & read-only.** Imported geometry is frozen; future operations
   derive new geometry rather than mutating imports.
 - **Advisory import.** No *entity* is silently discarded. Zero-length lines, zero
-  radii, degenerate polylines, invalid splines, duplicate handles, and
-  unsupported types all surface as `GeometryDiagnostic`s (reusing the shared
-  `DiagnosticSeverity` scale). The guarantee is entity-level and does not extend
-  to every property of an entity that survives — see the two silent limits under
+  radii, degenerate polylines, invalid splines, duplicate handles,
+  unsupported types, and mesh/polyface topology loss all surface as
+  `GeometryDiagnostic`s (reusing the shared `DiagnosticSeverity` scale). The
+  guarantee is entity-level and does not extend to every property of an entity
+  that survives — display attributes remain the silent exception under
   *fidelity limits* above.
 - **Deterministic bounds.** Arc bounding boxes include cardinal bulge points, not
   just endpoints.
@@ -201,7 +218,8 @@ Stable codes in `geometry/diagnostics.py`: `UNSUPPORTED_ENTITY`, `MISSING_LAYER`
 `EMPTY_FILE`, `DUPLICATE_HANDLE`, `DEGENERATE_POLYLINE`, `POLYLINE_BULGE_IGNORED`,
 `OCS_TRANSFORM_FAILED`, `NON_PLANAR_GEOMETRY`,
 `FIT_POINT_SPLINE_UNREPRESENTED`, `RATIONAL_SPLINE_WEIGHTS_DROPPED`,
-`LWPOLYLINE_ELEVATION_DROPPED`, `EMPTY_SPLINE_GEOMETRY`.
+`LWPOLYLINE_ELEVATION_DROPPED`, `EMPTY_SPLINE_GEOMETRY`,
+`POLYLINE_MESH_TOPOLOGY_DROPPED`.
 Degeneracy checks (zero length/radius, bulge) use a small tolerance, so float
 noise from CAD exports is caught rather than slipping past an exact `== 0`.
 
@@ -216,21 +234,22 @@ emission site in this repository, not by intent.
 
 | Code | Status | Emitted at |
 |---|---|---|
-| `UNSUPPORTED_ENTITY` | live | `entities.py:539` |
-| `MISSING_LAYER` | live | `entities.py:379` |
-| `ZERO_LENGTH_LINE` | live | `entities.py:401` |
-| `ZERO_RADIUS` | live | `entities.py:432`, `:460` |
-| `INVALID_SPLINE` | live | `entities.py:600`, `:611`, `:674` |
+| `UNSUPPORTED_ENTITY` | live | `entities.py:624` |
+| `MISSING_LAYER` | live | `entities.py:450` |
+| `ZERO_LENGTH_LINE` | live | `entities.py:472` |
+| `ZERO_RADIUS` | live | `entities.py:503`, `:531` |
+| `INVALID_SPLINE` | live | `entities.py:685`, `:696`, `:759` |
 | `UNKNOWN_UNITS` | live | `importer.py:84` |
 | `EMPTY_FILE` | live | `importer.py:125` |
 | `DUPLICATE_HANDLE` | live | `importer.py:107` |
-| `DEGENERATE_POLYLINE` | live | `entities.py:486`, `:522` |
-| `POLYLINE_BULGE_IGNORED` | live | `entities.py:490`, `:526` |
-| `FIT_POINT_SPLINE_UNREPRESENTED` | live | `entities.py:661` |
-| `RATIONAL_SPLINE_WEIGHTS_DROPPED` | live | `entities.py:644` |
-| `OCS_TRANSFORM_FAILED` | live | `entities.py:316`, `:332` |
-| `NON_PLANAR_GEOMETRY` | live | `entities.py:287`, `:426`, `:455` |
-| `EMPTY_SPLINE_GEOMETRY` | live | `entities.py:617` |
+| `DEGENERATE_POLYLINE` | live | `entities.py:557`, `:594` |
+| `POLYLINE_BULGE_IGNORED` | live | `entities.py:561`, `:598` |
+| `FIT_POINT_SPLINE_UNREPRESENTED` | live | `entities.py:746` |
+| `RATIONAL_SPLINE_WEIGHTS_DROPPED` | live | `entities.py:729` |
+| `OCS_TRANSFORM_FAILED` | live | `entities.py:387`, `:403` |
+| `NON_PLANAR_GEOMETRY` | live | `entities.py:358`, `:497`, `:526` |
+| `EMPTY_SPLINE_GEOMETRY` | live | `entities.py:702` |
+| `POLYLINE_MESH_TOPOLOGY_DROPPED` | live | `entities.py:608` |
 | `LWPOLYLINE_ELEVATION_DROPPED` | **reserved** | *(nothing emits it)* |
 
 **Reserved: `LWPOLYLINE_ELEVATION_DROPPED`.** It was registered for the defect F5

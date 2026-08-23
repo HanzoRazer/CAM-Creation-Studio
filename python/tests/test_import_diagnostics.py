@@ -108,6 +108,7 @@ def test_fidelity_codes_are_registered():
         diag.OCS_TRANSFORM_FAILED,
         diag.LWPOLYLINE_ELEVATION_DROPPED,
         diag.EMPTY_SPLINE_GEOMETRY,
+        diag.POLYLINE_MESH_TOPOLOGY_DROPPED,
     ):
         assert code in diag.CANONICAL_CODES
 
@@ -130,9 +131,26 @@ def test_successful_ocs_normalization_has_no_code():
 def test_is_loss_distinguishes_cost_from_observation():
     assert diag.is_loss(diag.LWPOLYLINE_ELEVATION_DROPPED)
     assert diag.is_loss(diag.UNSUPPORTED_ENTITY)
+    assert diag.is_loss(diag.POLYLINE_MESH_TOPOLOGY_DROPPED)
     assert not diag.is_loss(diag.ZERO_RADIUS)         # geometry arrived intact
     assert not diag.is_loss(diag.UNKNOWN_UNITS)       # an assumption, not a loss
     assert not diag.is_loss(diag.OCS_TRANSFORM_FAILED)  # failure, not fidelity cost
+
+
+def test_mesh_topology_loss_is_unrecoverable_and_json_safe():
+    """A flattened mesh cannot reconstruct grid or face topology."""
+    d = diag.loss(
+        diag.POLYLINE_MESH_TOPOLOGY_DROPPED,
+        "Source POLYLINE is a polyface mesh whose topology is not represented.",
+        recoverable=False,
+        metadata={"source_family": "polyface_mesh", "vertex_count": 14,
+                  "face_record_count": 6},
+        entity_type="POLYLINE", handle="2F", layer="0",
+    )
+    assert d.is_loss is True
+    assert d.recoverable is False
+    assert d.metadata["source_family"] == "polyface_mesh"
+    diag.ensure_json_safe(d.metadata)
 
 
 def test_the_two_ocs_codes_are_classified_oppositely():
