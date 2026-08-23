@@ -33,7 +33,7 @@ ezdxf = pytest.importorskip("ezdxf")
 
 from cam_creation_studio.geometry import diagnostics as diag
 from cam_creation_studio.geometry import import_dxf
-from cam_creation_studio.geometry.entities import translate
+from cam_creation_studio.geometry.entities import _face_record_count, translate
 from cam_creation_studio.geometry.models import (
     GeometryCollection,
     Polyline2D,
@@ -105,9 +105,28 @@ class _NS:
 
 
 class _FakeVertex:
-    def __init__(self, location, bulge=0.0, flags=0, is_face_record=False):
+    """Duck-typed VERTEX. ``is_face_record`` is omitted unless supplied.
+
+    That omission matters: ``_face_record_count`` treats a present
+    ``is_face_record`` as authoritative and will not consult ``dxf.flags``.
+    A default of ``False`` would silently block the flags fallback.
+    """
+
+    def __init__(self, location, bulge=0.0, flags=0, is_face_record=None):
         self.dxf = _NS(location=location, bulge=bulge, flags=flags)
-        self.is_face_record = is_face_record
+        if is_face_record is not None:
+            self.is_face_record = is_face_record
+
+
+class _FlagsOnlyVertex:
+    """VERTEX stand-in with DXF flags only — no ``is_face_record`` attribute.
+
+    This is the stub the fallback path claims to support. Flag bit 128 marks
+    a polyface face record in DXF.
+    """
+
+    def __init__(self, location, flags):
+        self.dxf = _NS(location=location, bulge=0.0, flags=flags)
 
 
 class _FakePolyline:
@@ -280,6 +299,37 @@ def test_degenerate_mesh_keeps_the_entity_and_reports_both_facts(points, family)
     finding = _mesh_findings(diags)[0]
     assert finding.recoverable is False
     assert finding.is_loss is True
+
+
+# --------------------------------------------------------------------------- #
+# Face-record count: is_face_record is authoritative; flags are fallback only
+# --------------------------------------------------------------------------- #
+def test_face_record_count_falls_back_to_flag_bit_128_when_attribute_absent():
+    """A flags-only stub must exercise the documented fallback, not skip it.
+
+    ``_FakeVertex`` used to define ``is_face_record=False`` on every instance,
+    so ``flags=128`` could never be counted. That claimed coverage it did not
+    provide.
+    """
+    geometric = _FlagsOnlyVertex((1.0, 0.0, 0.0), flags=0)
+    face = _FlagsOnlyVertex((0.0, 0.0, 0.0), flags=128)
+    assert not hasattr(geometric, "is_face_record")
+    assert not hasattr(face, "is_face_record")
+
+    entity = _FakePolyline(
+        [geometric, geometric, face, face], family="polyface_mesh")
+    assert _face_record_count(entity) == 2
+
+    _, diags = translate(entity, 1.0)
+    finding = _mesh_findings(diags)[0]
+    assert finding.metadata["face_record_count"] == 2
+
+
+def test_face_record_count_trusts_is_face_record_when_present():
+    """A present False must not fall through to flags=128."""
+    vertex = _FakeVertex((0.0, 0.0, 0.0), flags=128, is_face_record=False)
+    entity = _FakePolyline([vertex, vertex], family="polyface_mesh")
+    assert _face_record_count(entity) == 0
 
 
 # --------------------------------------------------------------------------- #
