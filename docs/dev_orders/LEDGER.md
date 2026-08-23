@@ -132,13 +132,15 @@ traceable. Retirement is recorded instead.
 | CS-008R-F5F7 | Import evidence completeness | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-import-evidence-completeness` | Merged (#19) `d6c7a8f` | — | Elevation resolved; `SourceReference` provenance; `MISSING_LAYER` given semantics |
 | CAM-CS-02 *(2nd)* | Shared fret-math extraction study | CAM-CS-01 audit §7 | — | **Retired identifier; unissued** | CS-010 | Cross-repository |
 | CS-REC-01…05 | Session integrity recovery | This ledger | `cs-rec-governance` | Merged (#15) `4cc28a9` | — | Governance only |
-| CS-008R-CL | Audit disposition and import closure | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-closure` | **Open** | — | F8/F9/F10 disposed; vocabulary classified; CS-008R **CLOSED**; importer frozen |
+| CS-008R-CL | Audit disposition and import closure | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-closure` | Merged (#21) `beb07b6` | — | F8/F9/F10 disposed; vocabulary classified; CS-008R **CLOSED**; importer frozen |
+| CS-008R-D1 | Mesh / Polyface Import Fidelity Evidence | `docs/audits/CS-008R_CLOSURE.md` | `cursor/cs-008r-d1-mesh-fidelity-d47b` | **Open** (#22) | — | Additive `POLYLINE_MESH_TOPOLOGY_DROPPED`; no mesh model; `has_lossy_import` unchanged |
 
-*Status column last refreshed 2026-08-13.* Confirm against GitHub before relying
+*Status column last refreshed 2026-08-23.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
-**One CS-008 order is open: CS-008R-CL**, the closure audit recorded in this table.
-Every other branch in this index is merged, closed, or explicitly unissued.
+**One CS-008 order is open: CS-008R-D1**, a post-closure importer defect.
+CS-008R-CL is merged (#21). Every other branch in this index is merged, closed,
+or explicitly unissued. This is not a reopening of CS-008R.
 
 ---
 
@@ -333,15 +335,27 @@ to 3 below are done; step 4 is now the live question.
    under **feature freeze — defects only**. New capabilities require a new,
    externally justified requirement; bug fixes continue through normal defect
    orders.
-4. **Authorize the first neutral-geometry consumer.** ← **now live.** The importer
-   produces evidence nothing consumes; that is the next real product question. It
-   needs its own dev order and is deliberately unnumbered here — closure does not
-   get to assign the next capability.
+4. **Authorize the first neutral-geometry consumer.** ← **now live** once
+   CS-008R-D1 merges. The importer produces evidence nothing consumes; that is
+   the next real product question. It needs its own dev order and is deliberately
+   unnumbered here — closure does not get to assign the next capability.
 
-**Known and unfixed, available as defect orders when someone wants them:** the
-mesh-flavour `POLYLINE` silence (documented at closure; fixing it means adding a
-diagnostic, which is a runtime-vocabulary change and needs its own evidence), and
-F9's `numpy` type should any of its recorded reopening triggers occur.
+**Known and unfixed, available as defect orders when someone wants them:** F9's
+`numpy` type should any of its recorded reopening triggers occur. The
+mesh-flavour `POLYLINE` silence documented at closure is the subject of
+**CS-008R-D1** (#22), not an open follow-up.
+
+### Post-closure defect — CS-008R-D1
+
+Not a reopening of CS-008R. Closure correctly recorded the mesh/polyface
+silence as a carried limitation; this order adds the runtime evidence that
+closure refused to invent.
+
+* Polygon-mesh and polyface `POLYLINE` still import as flattened `Polyline2D`.
+* Each emits one unrecoverable `POLYLINE_MESH_TOPOLOGY_DROPPED` loss.
+* `collection.report().has_loss` becomes true; `metadata.has_lossy_import`
+  stays false while the entity is retained.
+* No mesh geometry model. Coordinates unchanged from pre-fix behaviour.
 
 ### The closure standard
 
