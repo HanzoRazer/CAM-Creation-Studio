@@ -223,6 +223,78 @@ def _xy_planar(ext: Optional[tuple]) -> bool:
     return abs(x) <= _PLANAR_EPS and abs(y) <= _PLANAR_EPS and abs(abs(z) - 1.0) <= _PLANAR_EPS
 
 
+# POLYLINE source families. ezdxf's own predicates are the authority; do not
+# infer family from Z, vertex count, closed state, or filename.
+_FAMILY_TWO_D = "two_d"
+_FAMILY_THREE_D = "three_d"
+_FAMILY_POLYGON_MESH = "polygon_mesh"
+_FAMILY_POLYFACE_MESH = "polyface_mesh"
+_MESH_FAMILIES = frozenset({_FAMILY_POLYGON_MESH, _FAMILY_POLYFACE_MESH})
+
+
+def _polyline_family(entity) -> str:
+    """Classify a POLYLINE by ezdxf flags, not by the shape of its vertices."""
+    if bool(getattr(entity, "is_poly_face_mesh", False)):
+        return _FAMILY_POLYFACE_MESH
+    if bool(getattr(entity, "is_polygon_mesh", False)):
+        return _FAMILY_POLYGON_MESH
+    if bool(getattr(entity, "is_3d_polyline", False)):
+        return _FAMILY_THREE_D
+    return _FAMILY_TWO_D
+
+
+def _face_record_count(entity) -> Optional[int]:
+    """Count VERTEX face records when ezdxf (or a stub) can identify them.
+
+    Returns ``None`` rather than guessing: an approximate face count would
+    overstate what we know. ``is_face_record`` is the authority when present;
+    DXF flag bit 128 is the fallback for a stub that only carries flags.
+    """
+    vertices = getattr(entity, "vertices", None)
+    if vertices is None:
+        return None
+    counted = 0
+    saw_classifier = False
+    try:
+        for vertex in vertices:
+            flag = getattr(vertex, "is_face_record", None)
+            if flag is None:
+                dxf = getattr(vertex, "dxf", None)
+                flags = getattr(dxf, "flags", None) if dxf is not None else None
+                if flags is None:
+                    continue
+                try:
+                    flag = bool(int(flags) & 128)
+                except (TypeError, ValueError):
+                    continue
+            saw_classifier = True
+            if flag:
+                counted += 1
+    except TypeError:
+        return None
+    return counted if saw_classifier else None
+
+
+def _mesh_topology_loss_metadata(entity, family: str, vertex_count: int) -> dict:
+    """JSON-safe particulars of discarded mesh/polyface topology."""
+    metadata = {
+        "source_family": family,
+        "vertex_count": int(vertex_count),
+    }
+    if family == _FAMILY_POLYGON_MESH:
+        dxf = getattr(entity, "dxf", None)
+        m_count = getattr(dxf, "m_count", None)
+        n_count = getattr(dxf, "n_count", None)
+        if isinstance(m_count, int) and isinstance(n_count, int):
+            metadata["m_count"] = m_count
+            metadata["n_count"] = n_count
+    if family == _FAMILY_POLYFACE_MESH:
+        face_record_count = _face_record_count(entity)
+        if face_record_count is not None:
+            metadata["face_record_count"] = face_record_count
+    return metadata
+
+
 def _polyline_vertices_are_wcs(entity) -> bool:
     """True for POLYLINE flavours whose vertices are already WCS, not OCS.
 
@@ -232,8 +304,7 @@ def _polyline_vertices_are_wcs(entity) -> bool:
     yet also store WCS vertices, so keying only off ``is_3d_polyline`` mirrors them
     wrongly.
     """
-    return any(bool(getattr(entity, flag, False)) for flag in (
-        "is_3d_polyline", "is_polygon_mesh", "is_poly_face_mesh"))
+    return _polyline_family(entity) != _FAMILY_TWO_D
 
 
 def _source_elevation(entity) -> float:
@@ -494,6 +565,7 @@ def _translate(entity, scale: float) -> TranslationResult:
 
     if dxftype == "POLYLINE":
         diags = []
+        family = _polyline_family(entity)
         # Only a 2D POLYLINE is OCS-defined; 3D polylines and the mesh flavours
         # already store WCS vertices, so they must not be transformed.
         wcs_vertices = _polyline_vertices_are_wcs(entity)
@@ -525,6 +597,19 @@ def _translate(entity, scale: float) -> TranslationResult:
             diags.append(diag.warning(
                 diag.POLYLINE_BULGE_IGNORED,
                 "Polyline has bulge (arc) segments; flattened to straight chords.",
+                **loc))
+        if family in _MESH_FAMILIES:
+            # Topology is not represented by Polyline2D. The flattened chain is
+            # kept as partial evidence; the loss is unrecoverable from it.
+            label = "polygon mesh" if family == _FAMILY_POLYGON_MESH else (
+                "polyface mesh")
+            diags.append(diag.loss(
+                diag.POLYLINE_MESH_TOPOLOGY_DROPPED,
+                f"Source POLYLINE is a {label} whose topology is not represented "
+                "by the neutral Polyline2D model; the flattened vertex chain is "
+                "retained as partial evidence.",
+                recoverable=False,
+                metadata=_mesh_topology_loss_metadata(entity, family, len(verts)),
                 **loc))
         return (
             Polyline2D(vertices=verts, closed=bool(entity.is_closed), layer=layer),

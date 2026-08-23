@@ -176,6 +176,9 @@ def test_polygon_mesh_emits_exactly_one_unrecoverable_topology_loss():
     assert finding.handle
     assert finding.layer == "0"
     assert finding.metadata["source_family"] == "polygon_mesh"
+    if "m_count" in finding.metadata:
+        assert finding.metadata["m_count"] == 2
+        assert finding.metadata["n_count"] == 3
     diag.ensure_json_safe(finding.metadata)
 
 
