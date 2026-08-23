@@ -31,10 +31,10 @@ import pytest
 
 ezdxf = pytest.importorskip("ezdxf")
 
-from cam_creation_studio.geometry import diagnostics as diag  # noqa: E402
-from cam_creation_studio.geometry import import_dxf  # noqa: E402
-from cam_creation_studio.geometry.entities import translate  # noqa: E402
-from cam_creation_studio.geometry.models import (  # noqa: E402
+from cam_creation_studio.geometry import diagnostics as diag
+from cam_creation_studio.geometry import import_dxf
+from cam_creation_studio.geometry.entities import translate
+from cam_creation_studio.geometry.models import (
     GeometryCollection,
     Polyline2D,
 )
@@ -93,7 +93,7 @@ def _xyz(entity):
 
 def _source_entity(name):
     doc = ezdxf.readfile(os.path.join(FIXTURES, name))
-    return list(doc.modelspace())[0]
+    return next(iter(doc.modelspace()))
 
 
 class _NS:
@@ -288,7 +288,7 @@ def test_degenerate_mesh_keeps_the_entity_and_reports_both_facts(points, family)
 def test_two_d_polyline_fixture_has_no_mesh_diagnostic():
     collection = _load("polyline2d_elevation.dxf")
     assert MESH_LOSS not in _codes(collection)
-    polyline = [e for e in collection.entities if e.kind == "polyline"][0]
+    polyline = next(e for e in collection.entities if e.kind == "polyline")
     assert all(v.z == pytest.approx(25.0) for v in polyline.vertices)
     assert collection.report().has_loss is False
 
@@ -296,7 +296,7 @@ def test_two_d_polyline_fixture_has_no_mesh_diagnostic():
 def test_lwpolyline_elevation_fixture_has_no_mesh_diagnostic():
     collection = _load("lwpolyline_elevation.dxf")
     assert MESH_LOSS not in _codes(collection)
-    polyline = [e for e in collection.entities if e.kind == "polyline"][0]
+    polyline = next(e for e in collection.entities if e.kind == "polyline")
     assert all(v.z == pytest.approx(25.0) for v in polyline.vertices)
     assert collection.report().has_loss is False
 
