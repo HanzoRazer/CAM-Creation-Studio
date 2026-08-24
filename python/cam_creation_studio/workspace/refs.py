@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from ..geometry.models import Entity
 from .errors import WorkspaceError
-from .models import GeometrySelection, GeometryWorkspace
+from .models import GeometryGroup, GeometrySelection, GeometryWorkspace, OperationIntent
 
 
 def resolve_entity(workspace: GeometryWorkspace, entity_id: str) -> Entity:
@@ -25,6 +25,24 @@ def resolve_selection(
         if selection.id == selection_id:
             return selection
     raise WorkspaceError(f"unknown selection ID {selection_id!r}")
+
+
+def resolve_group(workspace: GeometryWorkspace, group_id: str) -> GeometryGroup:
+    """Return the named group, or raise."""
+    for group in workspace.groups:
+        if group.id == group_id:
+            return group
+    raise WorkspaceError(f"unknown group ID {group_id!r}")
+
+
+def resolve_operation(
+    workspace: GeometryWorkspace, operation_id: str,
+) -> OperationIntent:
+    """Return the named operation intent, or raise."""
+    for operation in workspace.operations:
+        if operation.id == operation_id:
+            return operation
+    raise WorkspaceError(f"unknown operation ID {operation_id!r}")
 
 
 def workspace_replace(

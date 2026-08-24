@@ -26,7 +26,13 @@ from .models import (
     OperationIntent,
     OperationKind,
 )
-from .refs import resolve_entity, resolve_selection
+from .groups import create_group, remove_group, replace_group
+from .refs import (
+    resolve_entity,
+    resolve_group,
+    resolve_selection,
+)
+from .selections import create_selection, remove_selection, replace_selection
 from .validation import validate_workspace
 
 __all__ = [
@@ -41,12 +47,19 @@ __all__ = [
     "WorkspaceError",
     "WorkspaceInspection",
     "build_workspace",
+    "create_group",
+    "create_selection",
     "entity_diagnostics",
     "inspect_entity",
     "inspect_workspace",
     "make_workspace_entity_id",
     "make_workspace_object_id",
+    "remove_group",
+    "remove_selection",
+    "replace_group",
+    "replace_selection",
     "resolve_entity",
+    "resolve_group",
     "resolve_selection",
     "validate_workspace",
 ]
