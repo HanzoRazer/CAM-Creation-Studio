@@ -15,15 +15,13 @@ Neither path uses :func:`~cam_creation_studio.shared.ids.new_id` / uuid4.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from ..shared.ids import stable_id
 
 
 def make_workspace_entity_id(
     entity_index: int,
-    handle: Optional[str],
-    ordinal: Optional[int],
+    handle: str | None,
+    ordinal: int | None,
 ) -> str:
     """Stable ID for the retained entity at ``entity_index``.
 

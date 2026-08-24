@@ -18,17 +18,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
-from cam_creation_studio.enums import DiagnosticSeverity  # noqa: E402
-from cam_creation_studio.geometry import diagnostics as diag  # noqa: E402
-from cam_creation_studio.geometry.diagnostics import GeometryDiagnostic  # noqa: E402
-from cam_creation_studio.geometry.models import (  # noqa: E402
+from cam_creation_studio.enums import DiagnosticSeverity
+from cam_creation_studio.geometry import diagnostics as diag
+from cam_creation_studio.geometry.diagnostics import GeometryDiagnostic
+from cam_creation_studio.geometry.importer import DxfImportError, EzdxfNotInstalled
+from cam_creation_studio.geometry.models import (
     Circle2D,
     GeometryCollection,
     ImportMetadata,
     Line2D,
 )
-from cam_creation_studio.shared.geometry import Point  # noqa: E402
-from cam_creation_studio.workspace import (  # noqa: E402
+from cam_creation_studio.shared.geometry import Point
+from cam_creation_studio.workspace import (
     OperationKind,
     assign_operation,
     build_workspace,
@@ -53,7 +54,7 @@ def _load_collection() -> GeometryCollection:
     try:
         from cam_creation_studio.geometry import import_dxf
         return import_dxf(str(FIXTURE))
-    except Exception as exc:  # ezdxf missing, or fixture unreadable
+    except (EzdxfNotInstalled, DxfImportError, OSError) as exc:
         print(f"DXF import unavailable ({exc}); using constructed geometry.")
         return GeometryCollection(
             entities=[

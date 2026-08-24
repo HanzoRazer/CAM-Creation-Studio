@@ -20,7 +20,6 @@ from cam_creation_studio.workspace.operations import (
 )
 from cam_creation_studio.workspace.selections import create_selection
 
-
 _FORBIDDEN_FIELDS = (
     "tool",
     "tool_id",
