@@ -16,6 +16,7 @@ cam_creation_studio/
   gcode/         formatter, dialects, generator, parser, validator
   feeds_speeds/  calculator, materials, tools, machines (advisory)
   geometry/      DXF import -> neutral 2D geometry model (optional: ezdxf)
+  workspace/     planning state over imported geometry (select / group / intend)
   preview/       toolpath_model (neutral travel/cut/burn segments)
   image/         field, marching_squares, raster_etch, outline_etch
   safety/        rules (standing safety reminders + checklist)
@@ -80,6 +81,31 @@ restored = collection.__class__.from_json(text)    # kind-dispatched round-trip
 Calling `import_dxf` without `ezdxf` installed raises `EzdxfNotInstalled` with an
 install hint. See [../docs/GEOMETRY_IMPORT.md](../docs/GEOMETRY_IMPORT.md) for the
 full architecture and public API.
+
+## Geometry workspace (planning, not execution)
+
+`workspace` is the first authorized consumer of a `GeometryCollection`. Load
+imported geometry, inspect it, select and group entities, and record a
+non-executable operation category. It does not generate toolpaths, feeds, or
+G-code.
+
+```python
+from cam_creation_studio.workspace import (
+    build_workspace, create_selection, assign_operation,
+    OperationKind, summarize, workspace_to_json,
+)
+
+workspace = build_workspace(collection)
+workspace = create_selection(workspace, "profile", [workspace.geometry_refs[0].id])
+workspace = assign_operation(workspace, "outer", OperationKind.CONTOUR,
+                             workspace.selections[0].id)
+print(summarize(workspace))
+text = workspace_to_json(workspace)
+```
+
+See [../docs/GEOMETRY_WORKSPACE.md](../docs/GEOMETRY_WORKSPACE.md) for identity
+rules, diagnostic attachment, and the validation contract. A demo lives at
+[`../examples/geometry_workspace_demo.py`](../examples/geometry_workspace_demo.py).
 
 ## Command-line interface
 

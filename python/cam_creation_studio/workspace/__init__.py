@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .builder import build_workspace
 from .errors import WorkspaceError
+from .groups import create_group, remove_group, replace_group
 from .ids import make_workspace_entity_id, make_workspace_object_id
 from .inspection import (
     EntityInspection,
@@ -26,7 +27,6 @@ from .models import (
     OperationIntent,
     OperationKind,
 )
-from .groups import create_group, remove_group, replace_group
 from .operations import assign_operation, remove_operation, replace_operation
 from .refs import (
     resolve_entity,
