@@ -27,9 +27,11 @@ from .models import (
     OperationKind,
 )
 from .groups import create_group, remove_group, replace_group
+from .operations import assign_operation, remove_operation, replace_operation
 from .refs import (
     resolve_entity,
     resolve_group,
+    resolve_operation,
     resolve_selection,
 )
 from .selections import create_selection, remove_selection, replace_selection
@@ -46,6 +48,7 @@ __all__ = [
     "OperationKind",
     "WorkspaceError",
     "WorkspaceInspection",
+    "assign_operation",
     "build_workspace",
     "create_group",
     "create_selection",
@@ -55,11 +58,14 @@ __all__ = [
     "make_workspace_entity_id",
     "make_workspace_object_id",
     "remove_group",
+    "remove_operation",
     "remove_selection",
     "replace_group",
+    "replace_operation",
     "replace_selection",
     "resolve_entity",
     "resolve_group",
+    "resolve_operation",
     "resolve_selection",
     "validate_workspace",
 ]
