@@ -35,6 +35,12 @@ from .refs import (
     resolve_selection,
 )
 from .selections import create_selection, remove_selection, replace_selection
+from .serialization import (
+    workspace_from_dict,
+    workspace_from_json,
+    workspace_to_dict,
+    workspace_to_json,
+)
 from .validation import validate_workspace
 
 __all__ = [
@@ -68,4 +74,8 @@ __all__ = [
     "resolve_operation",
     "resolve_selection",
     "validate_workspace",
+    "workspace_from_dict",
+    "workspace_from_json",
+    "workspace_to_dict",
+    "workspace_to_json",
 ]
