@@ -61,8 +61,13 @@ def test_geometry_ref_count_must_match_entities():
 
 
 def test_geometry_ref_indexes_must_be_source_order():
-    workspace = _workspace(refs=(GeometryRef(id="geom-0", entity_index=1),),
-                           extra_entities=1)
+    workspace = _workspace(
+        refs=(
+            GeometryRef(id="geom-1", entity_index=1),
+            GeometryRef(id="geom-0", entity_index=0),
+        ),
+        extra_entities=1,
+    )
     with pytest.raises(WorkspaceError, match="source order"):
         validate_workspace(workspace)
 
