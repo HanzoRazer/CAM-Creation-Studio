@@ -41,6 +41,7 @@ from .serialization import (
     workspace_to_dict,
     workspace_to_json,
 )
+from .summary import WorkspaceSummary, summarize
 from .validation import validate_workspace
 
 __all__ = [
@@ -54,6 +55,7 @@ __all__ = [
     "OperationKind",
     "WorkspaceError",
     "WorkspaceInspection",
+    "WorkspaceSummary",
     "assign_operation",
     "build_workspace",
     "create_group",
@@ -73,6 +75,7 @@ __all__ = [
     "resolve_group",
     "resolve_operation",
     "resolve_selection",
+    "summarize",
     "validate_workspace",
     "workspace_from_dict",
     "workspace_from_json",
