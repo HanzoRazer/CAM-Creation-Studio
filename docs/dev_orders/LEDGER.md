@@ -134,16 +134,15 @@ traceable. Retirement is recorded instead.
 | CS-REC-01…05 | Session integrity recovery | This ledger | `cs-rec-governance` | Merged (#15) `4cc28a9` | — | Governance only |
 | CS-008R-CL | Audit disposition and import closure | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-closure` | Merged (#21) `beb07b6` | — | F8/F9/F10 disposed; vocabulary classified; CS-008R **CLOSED**; importer frozen |
 | CS-008R-D1 | Mesh / Polyface Import Fidelity Evidence | `docs/audits/CS-008R_CLOSURE.md` | `cursor/cs-008r-d1-mesh-fidelity-d47b` | Merged (#22) `baa566d` | — | Additive `POLYLINE_MESH_TOPOLOGY_DROPPED`; no mesh model; `has_lossy_import` unchanged |
-| CS-011 | Neutral geometry consumer foundation | `docs/GEOMETRY_IMPORT.md` | `cursor/cs-011-neutral-geometry-consumer-d47b` | **Open** (#24) | — | New `workspace` package; planning state only; no toolpath / feeds / G-code |
+| CS-011 | Neutral geometry consumer foundation | `docs/GEOMETRY_IMPORT.md` | `cursor/cs-011-neutral-geometry-consumer-d47b` | Merged (#24) `a74c99e` | — | New `workspace` package; planning state only; no toolpath / feeds / G-code |
 
 *Status column last refreshed 2026-08-24.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
 **No CS-008 order is open.** CS-008R-D1 merged as #22 (`baa566d`). CS-008R-CL
-merged as #21. Every other CS-008 branch in this index is merged, closed, or
-explicitly unissued. The importer remains under feature freeze — defects only.
-**CS-011** (#24) is the live product order: the first authorized consumer of
-`GeometryCollection`.
+merged as #21. **CS-011** merged as #24 (`a74c99e`). Every other branch in this
+index is merged, closed, or explicitly unissued. The importer remains under
+feature freeze — defects only. No product order in this index is currently open.
 
 ---
 
@@ -325,7 +324,7 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 ## Next orders (sequenced)
 
 The remediation chain is complete and merged, and **closure has landed**. Steps 1
-to 4 below are issued; CS-011 (#24) is the live product order.
+to 4 below are done. No product order in this index is currently open.
 
 1. ~~**F8 / F9 / F10 disposition.**~~ **Done** — CS-008R-CL. F8 remediated
    (documentation), F9 accepted, F10 remediated and verified. None was dropped
@@ -338,11 +337,10 @@ to 4 below are issued; CS-011 (#24) is the live product order.
    under **feature freeze — defects only**. New capabilities require a new,
    externally justified requirement; bug fixes continue through normal defect
    orders.
-4. ~~**Authorize the first neutral-geometry consumer.**~~ **Issued as CS-011**
-   (#24). The `workspace` package is the first authorized consumer of
-   `GeometryCollection`: inspect, select, group, and record non-executable
-   operation intent. No toolpath, feeds/speeds, or G-code. Isolated from the
-   #23 ledger-refresh draft.
+4. ~~**Authorize the first neutral-geometry consumer.**~~ **Done** — CS-011
+   merged as #24 (`a74c99e`). The `workspace` package is the first authorized
+   consumer of `GeometryCollection`: inspect, select, group, and record
+   non-executable operation intent. No toolpath, feeds/speeds, or G-code.
 
 **Known and unfixed, available as defect orders when someone wants them:** F9's
 `numpy` type should any of its recorded reopening triggers occur. The
@@ -363,7 +361,7 @@ the runtime evidence that closure refused to invent.
 
 ### Neutral geometry consumer — CS-011
 
-**Open (#24).** First authorized application-layer consumer of
+**Merged (#24) `a74c99e`.** First authorized application-layer consumer of
 `GeometryCollection`. Planning state only: inspect, select, group, record
 operation category. No toolpath, feeds/speeds, G-code, CAM Assist, or
 Luthier domain objects.
