@@ -29,6 +29,15 @@ from .models import (
     SlotDefinition,
     definition_type_name,
 )
+from .plan import (
+    OPERATION_PLAN_VERSION,
+    OperationPlan,
+    add_definition,
+    build_operation_plan,
+    remove_definition,
+    replace_definition,
+    validate_operation_plan,
+)
 from .validation import (
     require_intent_kind,
     resolve_intent,
@@ -40,6 +49,7 @@ from .validation import (
 )
 
 __all__ = [
+    "OPERATION_PLAN_VERSION",
     "ContourDefinition",
     "ContourRelation",
     "CutDirection",
@@ -47,10 +57,13 @@ __all__ = [
     "EngraveDefinition",
     "OperationDefinition",
     "OperationDefinitionError",
+    "OperationPlan",
     "PocketDefinition",
     "ReferenceDefinition",
     "SlotDefinition",
     "SlotRelation",
+    "add_definition",
+    "build_operation_plan",
     "define_contour",
     "define_drill",
     "define_engrave",
@@ -59,11 +72,14 @@ __all__ = [
     "define_slot",
     "definition_type_name",
     "make_operation_definition_id",
+    "remove_definition",
+    "replace_definition",
     "require_intent_kind",
     "resolve_intent",
     "validate_nonnegative_optional_distance",
     "validate_operation_definition",
     "validate_operation_definitions",
+    "validate_operation_plan",
     "validate_optional_positive_distance",
     "validate_positive_distance",
 ]
