@@ -46,6 +46,7 @@ from .serialization import (
     operation_plan_to_dict,
     operation_plan_to_json,
 )
+from .summary import OperationPlanSummary, summarize_operation_plan
 from .validation import (
     require_intent_kind,
     resolve_intent,
@@ -66,6 +67,7 @@ __all__ = [
     "OperationDefinition",
     "OperationDefinitionError",
     "OperationPlan",
+    "OperationPlanSummary",
     "PocketDefinition",
     "ReferenceDefinition",
     "SlotDefinition",
@@ -90,6 +92,7 @@ __all__ = [
     "replace_definition",
     "require_intent_kind",
     "resolve_intent",
+    "summarize_operation_plan",
     "validate_nonnegative_optional_distance",
     "validate_operation_definition",
     "validate_operation_definitions",
