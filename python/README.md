@@ -17,6 +17,7 @@ cam_creation_studio/
   feeds_speeds/  calculator, materials, tools, machines (advisory)
   geometry/      DXF import -> neutral 2D geometry model (optional: ezdxf)
   workspace/     planning state over imported geometry (select / group / intend)
+  operations/    manufacturing operation definition v1 (planning parameters)
   preview/       toolpath_model (neutral travel/cut/burn segments)
   image/         field, marching_squares, raster_etch, outline_etch
   safety/        rules (standing safety reminders + checklist)
@@ -106,6 +107,34 @@ text = workspace_to_json(workspace)
 See [../docs/GEOMETRY_WORKSPACE.md](../docs/GEOMETRY_WORKSPACE.md) for identity
 rules, diagnostic attachment, and the validation contract. A demo lives at
 [`../examples/geometry_workspace_demo.py`](../examples/geometry_workspace_demo.py).
+
+## Operation definition (planning parameters, not execution)
+
+`operations` extends a CS-011 `OperationIntent` with geometry-relative
+manufacturing parameters: target depth, contour relationship, cut-direction
+preference, allowances, optional drill peck/retract, optional finished slot
+width. Definitions live on a separate `OperationPlan` document so the
+workspace package does not import `operations`. No tool, material,
+feeds/speeds, toolpath, or G-code is produced.
+
+```python
+from cam_creation_studio.operations import (
+    ContourRelation, CutDirection, define_contour,
+    build_operation_plan, operation_plan_to_json, summarize_operation_plan,
+)
+
+definition = define_contour(
+    workspace, workspace.operations[0].id, 6.0,
+    relation=ContourRelation.OUTSIDE, direction=CutDirection.CLIMB)
+plan = build_operation_plan(workspace, (definition,))
+print(summarize_operation_plan(plan))
+text = operation_plan_to_json(plan)
+```
+
+See [../docs/OPERATION_DEFINITION.md](../docs/OPERATION_DEFINITION.md) for
+parameter semantics, the positive-depth convention, and constitutional
+boundaries. A demo lives at
+[`../examples/operation_definition_demo.py`](../examples/operation_definition_demo.py).
 
 ## Command-line interface
 
