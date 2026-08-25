@@ -10,8 +10,8 @@ from __future__ import annotations
 import math
 
 from ..workspace.models import GeometryWorkspace, OperationIntent, OperationKind
-from .errors import OperationDefinitionError
 from .enums import ContourRelation, CutDirection, SlotRelation
+from .errors import OperationDefinitionError
 from .models import (
     ContourDefinition,
     DrillDefinition,

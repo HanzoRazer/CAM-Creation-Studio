@@ -8,7 +8,7 @@ valid. Unknown versions, discriminators, and enum values fail closed.
 from __future__ import annotations
 
 import json
-from typing import Callable
+from collections.abc import Callable
 
 from ..workspace.errors import WorkspaceError
 from ..workspace.models import WORKSPACE_VERSION

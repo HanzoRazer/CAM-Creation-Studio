@@ -16,7 +16,6 @@ distance, not a signed machine Z coordinate. Optional parameters use
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
 
 from .enums import ContourRelation, CutDirection, SlotRelation
 
@@ -108,14 +107,14 @@ class ReferenceDefinition:
     intent_id: str
 
 
-OperationDefinition = Union[
-    ContourDefinition,
-    PocketDefinition,
-    DrillDefinition,
-    EngraveDefinition,
-    SlotDefinition,
-    ReferenceDefinition,
-]
+OperationDefinition = (
+    ContourDefinition
+    | PocketDefinition
+    | DrillDefinition
+    | EngraveDefinition
+    | SlotDefinition
+    | ReferenceDefinition
+)
 
 _TYPE_NAME = {
     ContourDefinition: "contour",

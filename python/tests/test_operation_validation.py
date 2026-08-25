@@ -14,14 +14,12 @@ from cam_creation_studio.operations.builder import (
     define_contour,
     define_drill,
     define_pocket,
-    define_reference,
 )
 from cam_creation_studio.operations.enums import ContourRelation, CutDirection
 from cam_creation_studio.operations.errors import OperationDefinitionError
 from cam_creation_studio.operations.models import (
     ContourDefinition,
     DrillDefinition,
-    PocketDefinition,
     ReferenceDefinition,
 )
 from cam_creation_studio.operations.validation import (
