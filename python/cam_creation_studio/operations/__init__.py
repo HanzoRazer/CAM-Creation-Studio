@@ -38,6 +38,14 @@ from .plan import (
     replace_definition,
     validate_operation_plan,
 )
+from .serialization import (
+    operation_definition_from_dict,
+    operation_definition_to_dict,
+    operation_plan_from_dict,
+    operation_plan_from_json,
+    operation_plan_to_dict,
+    operation_plan_to_json,
+)
 from .validation import (
     require_intent_kind,
     resolve_intent,
@@ -72,6 +80,12 @@ __all__ = [
     "define_slot",
     "definition_type_name",
     "make_operation_definition_id",
+    "operation_definition_from_dict",
+    "operation_definition_to_dict",
+    "operation_plan_from_dict",
+    "operation_plan_from_json",
+    "operation_plan_to_dict",
+    "operation_plan_to_json",
     "remove_definition",
     "replace_definition",
     "require_intent_kind",
