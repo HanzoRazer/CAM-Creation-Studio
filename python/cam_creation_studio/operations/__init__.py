@@ -39,6 +39,13 @@ from .plan import (
     replace_definition,
     validate_operation_plan,
 )
+from .resolution import (
+    require_bindable_definition,
+    require_definition,
+    resolve_definition,
+    resolve_material,
+    resolve_tool,
+)
 from .serialization import (
     operation_definition_from_dict,
     operation_definition_to_dict,
@@ -93,8 +100,13 @@ __all__ = [
     "operation_plan_to_json",
     "remove_definition",
     "replace_definition",
+    "require_bindable_definition",
+    "require_definition",
     "require_intent_kind",
+    "resolve_definition",
     "resolve_intent",
+    "resolve_material",
+    "resolve_tool",
     "summarize_operation_plan",
     "validate_nonnegative_optional_distance",
     "validate_operation_definition",
