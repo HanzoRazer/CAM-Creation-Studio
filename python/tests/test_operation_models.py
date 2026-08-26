@@ -15,11 +15,15 @@ from cam_creation_studio.operations.enums import (
     CutDirection,
     SlotRelation,
 )
-from cam_creation_studio.operations.errors import OperationDefinitionError
+from cam_creation_studio.operations.errors import (
+    BindingError,
+    OperationDefinitionError,
+)
 from cam_creation_studio.operations.models import (
     ContourDefinition,
     DrillDefinition,
     EngraveDefinition,
+    OperationBinding,
     PocketDefinition,
     ReferenceDefinition,
     SlotDefinition,
@@ -188,3 +192,47 @@ def test_operation_definition_error_is_the_structural_exception():
     assert issubclass(OperationDefinitionError, ValueError)
     with pytest.raises(OperationDefinitionError, match="missing intent"):
         raise OperationDefinitionError("missing intent 'op-1'")
+
+
+def test_operation_binding_is_ids_only():
+    binding = OperationBinding(
+        id="b1", definition_id="d1",
+        tool_id="endmill_1_4", material_id="hardwood")
+    names = {field.name for field in dataclasses.fields(binding)}
+    assert names == {"id", "definition_id", "tool_id", "material_id"}
+    assert binding.__dataclass_params__.frozen is True
+    assert binding.__dataclass_params__.slots is True
+
+
+def test_operation_binding_equality_is_deterministic():
+    first = OperationBinding(
+        id="b1", definition_id="d1",
+        tool_id="endmill_1_4", material_id="hardwood")
+    second = OperationBinding(
+        id="b1", definition_id="d1",
+        tool_id="endmill_1_4", material_id="hardwood")
+    third = OperationBinding(
+        id="b1", definition_id="d1",
+        tool_id="endmill_1_8", material_id="hardwood")
+    assert first == second
+    assert first != third
+
+
+def test_operation_binding_does_not_copy_catalog_fields():
+    names = {field.name for field in dataclasses.fields(OperationBinding)}
+    for forbidden in (
+        "diameter_mm", "flutes", "kind", "label", "notes",
+        "chipload_mm", "chipload_mid", "tool", "material",
+        "rpm", "feed", "feed_rate", "chipload", "surface_speed",
+        "stepdown", "stepover", "machine", "machine_id",
+        "postprocessor", "gcode",
+    ):
+        assert forbidden not in names
+
+
+def test_binding_error_is_an_operation_definition_error():
+    assert issubclass(BindingError, OperationDefinitionError)
+    with pytest.raises(BindingError, match="unknown tool"):
+        raise BindingError("unknown tool 'missing'")
+    with pytest.raises(OperationDefinitionError, match="unknown tool"):
+        raise BindingError("unknown tool 'missing'")

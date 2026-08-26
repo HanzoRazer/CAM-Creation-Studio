@@ -17,12 +17,13 @@ from .builder import (
     define_slot,
 )
 from .enums import ContourRelation, CutDirection, SlotRelation
-from .errors import OperationDefinitionError
+from .errors import BindingError, OperationDefinitionError
 from .ids import make_operation_definition_id
 from .models import (
     ContourDefinition,
     DrillDefinition,
     EngraveDefinition,
+    OperationBinding,
     OperationDefinition,
     PocketDefinition,
     ReferenceDefinition,
@@ -59,11 +60,13 @@ from .validation import (
 
 __all__ = [
     "OPERATION_PLAN_VERSION",
+    "BindingError",
     "ContourDefinition",
     "ContourRelation",
     "CutDirection",
     "DrillDefinition",
     "EngraveDefinition",
+    "OperationBinding",
     "OperationDefinition",
     "OperationDefinitionError",
     "OperationPlan",
