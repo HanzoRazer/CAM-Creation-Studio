@@ -1,14 +1,17 @@
-"""Deterministic operation-plan summary (CS-012).
+"""Deterministic operation-plan summary (CS-012/CS-013).
 
-Counts only — no machining recommendations, no toolpath claims, and no
-readiness judgement. Tools are intentionally out of scope; a count of
-definitions without tool assignment is descriptive, not an error.
+Counts only — no wall-clock, no machining recommendations, no toolpath
+claims, and no readiness judgement. CS-012 ``OperationPlanSummary`` remains
+definition-oriented. CS-013 ``BindingSummary`` reports bound vs unbound
+state without scoring quality.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..feeds_speeds.materials import list_materials
+from ..feeds_speeds.tools import list_tools
 from .models import (
     ContourDefinition,
     OperationDefinition,
@@ -17,6 +20,7 @@ from .models import (
     definition_type_name,
 )
 from .plan import OperationPlan
+from .resolution import resolve_material, resolve_tool
 
 _TYPE_KEYS = (
     "contour", "pocket", "drill", "engrave", "slot", "reference",
@@ -58,6 +62,34 @@ def summarize_operation_plan(plan: OperationPlan) -> OperationPlanSummary:
         declared_depth_count=depth_count,
         allowance_count=allowance_count,
         definitions_without_tool_count=len(plan.definitions),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class BindingSummary:
+    """Binding-state counts. Unbound is incomplete context, not an error."""
+
+    definition_count: int
+    bound_definition_count: int
+    unbound_definition_count: int
+    counts_by_tool_kind: dict[str, int]
+    counts_by_material: dict[str, int]
+
+
+def summarize_bindings(plan: OperationPlan) -> BindingSummary:
+    """Return bound/unbound counts. No suitability score or ready flag."""
+    kind_counts = {tool.kind: 0 for tool in list_tools()}
+    material_counts = {material.id: 0 for material in list_materials()}
+    for binding in plan.bindings:
+        kind_counts[resolve_tool(binding).kind] += 1
+        material_counts[resolve_material(binding).id] += 1
+    bound = len(plan.bindings)
+    return BindingSummary(
+        definition_count=len(plan.definitions),
+        bound_definition_count=bound,
+        unbound_definition_count=len(plan.definitions) - bound,
+        counts_by_tool_kind=kind_counts,
+        counts_by_material=material_counts,
     )
 
 

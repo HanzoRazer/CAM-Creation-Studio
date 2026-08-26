@@ -60,7 +60,12 @@ from .serialization import (
     operation_plan_to_dict,
     operation_plan_to_json,
 )
-from .summary import OperationPlanSummary, summarize_operation_plan
+from .summary import (
+    BindingSummary,
+    OperationPlanSummary,
+    summarize_bindings,
+    summarize_operation_plan,
+)
 from .validation import (
     require_intent_kind,
     resolve_intent,
@@ -77,6 +82,7 @@ __all__ = [
     "OPERATION_PLAN_V2",
     "OPERATION_PLAN_VERSION",
     "BindingError",
+    "BindingSummary",
     "ContourDefinition",
     "ContourRelation",
     "CutDirection",
@@ -123,6 +129,7 @@ __all__ = [
     "resolve_intent",
     "resolve_material",
     "resolve_tool",
+    "summarize_bindings",
     "summarize_operation_plan",
     "validate_nonnegative_optional_distance",
     "validate_operation_bindings",
