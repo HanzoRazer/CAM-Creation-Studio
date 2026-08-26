@@ -25,8 +25,7 @@ from .validation import (
 
 OPERATION_PLAN_V1 = "camstudio_operation_plan_v1"
 OPERATION_PLAN_V2 = "camstudio_operation_plan_v2"
-# Current write token for newly built plans. Binding mutation always writes v2.
-OPERATION_PLAN_VERSION = OPERATION_PLAN_V1
+OPERATION_PLAN_VERSION = OPERATION_PLAN_V2
 _SUPPORTED_PLAN_VERSIONS = frozenset({OPERATION_PLAN_V1, OPERATION_PLAN_V2})
 
 
@@ -46,7 +45,7 @@ def build_operation_plan(
     bindings: tuple[OperationBinding, ...] = (),
 ) -> OperationPlan:
     """Wrap ``workspace``, ``definitions``, and ``bindings`` in a validated plan."""
-    version = OPERATION_PLAN_V2 if bindings else OPERATION_PLAN_VERSION
+    version = OPERATION_PLAN_VERSION
     plan = OperationPlan(
         version=version,
         workspace=workspace,

@@ -24,6 +24,7 @@ from cam_creation_studio.operations.ids import make_binding_id
 from cam_creation_studio.operations.plan import (
     OPERATION_PLAN_V1,
     OPERATION_PLAN_V2,
+    OperationPlan,
     add_definition,
     build_operation_plan,
     remove_definition,
@@ -189,7 +190,12 @@ def test_unbound_definitions_remain_valid():
 
 
 def test_bind_operation_upgrades_a_v1_plan():
-    plan = _contour_plan()
+    current = _contour_plan()
+    plan = OperationPlan(
+        version=OPERATION_PLAN_V1,
+        workspace=current.workspace,
+        definitions=current.definitions,
+    )
     assert plan.version == OPERATION_PLAN_V1
     updated = bind_operation(plan, "d1", "endmill_1_4", "hardwood")
     assert updated.version == OPERATION_PLAN_V2

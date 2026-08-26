@@ -51,6 +51,8 @@ from .resolution import (
     resolve_tool,
 )
 from .serialization import (
+    operation_binding_from_dict,
+    operation_binding_to_dict,
     operation_definition_from_dict,
     operation_definition_to_dict,
     operation_plan_from_dict,
@@ -102,6 +104,8 @@ __all__ = [
     "definition_type_name",
     "make_binding_id",
     "make_operation_definition_id",
+    "operation_binding_from_dict",
+    "operation_binding_to_dict",
     "operation_definition_from_dict",
     "operation_definition_to_dict",
     "operation_plan_from_dict",
