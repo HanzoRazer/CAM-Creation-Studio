@@ -11,15 +11,21 @@ import math
 
 from ..workspace.models import GeometryWorkspace, OperationIntent, OperationKind
 from .enums import ContourRelation, CutDirection, SlotRelation
-from .errors import OperationDefinitionError
+from .errors import BindingError, OperationDefinitionError
 from .models import (
     ContourDefinition,
     DrillDefinition,
     EngraveDefinition,
+    OperationBinding,
     OperationDefinition,
     PocketDefinition,
     ReferenceDefinition,
     SlotDefinition,
+)
+from .resolution import (
+    require_bindable_definition,
+    resolve_material,
+    resolve_tool,
 )
 
 _KIND_FOR_TYPE = {
@@ -123,6 +129,46 @@ def validate_operation_definitions(
                 f"intent {definition.intent_id!r} already has a definition")
         seen_intents.add(definition.intent_id)
         validate_operation_definition(workspace, definition)
+
+
+def validate_operation_bindings(
+    definitions: tuple[OperationDefinition, ...],
+    bindings: tuple[OperationBinding, ...],
+) -> None:
+    """Validate binding IDs, one-binding-per-definition, and catalog refs.
+
+    Unbound machining definitions are valid. ``REFERENCE`` definitions
+    cannot be bound. Suitability is not judged.
+    """
+    definition_by_id = {item.id: item for item in definitions}
+    seen_ids: set[str] = set()
+    seen_definitions: set[str] = set()
+    for binding in bindings:
+        if not isinstance(binding, OperationBinding):
+            raise BindingError(
+                f"unknown binding type {type(binding)!r}")
+        if not binding.id:
+            raise BindingError("binding ID must not be empty")
+        if binding.id in seen_ids:
+            raise BindingError(f"duplicate binding ID {binding.id!r}")
+        seen_ids.add(binding.id)
+        if not binding.definition_id:
+            raise BindingError("binding definition_id must not be empty")
+        if binding.definition_id in seen_definitions:
+            raise BindingError(
+                f"definition {binding.definition_id!r} already has a binding")
+        seen_definitions.add(binding.definition_id)
+        definition = definition_by_id.get(binding.definition_id)
+        if definition is None:
+            raise BindingError(
+                f"unknown definition ID {binding.definition_id!r}")
+        require_bindable_definition(definition)
+        if not binding.tool_id:
+            raise BindingError("tool_id must not be empty")
+        if not binding.material_id:
+            raise BindingError("material_id must not be empty")
+        resolve_tool(binding)
+        resolve_material(binding)
 
 
 def _validate_dimensions(definition: OperationDefinition) -> None:

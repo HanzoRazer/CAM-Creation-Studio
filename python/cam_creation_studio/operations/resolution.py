@@ -7,6 +7,8 @@ not copied into the binding.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ..feeds_speeds.materials import Material, get_material
 from ..feeds_speeds.tools import Tool, get_tool
 from .errors import BindingError
@@ -15,7 +17,9 @@ from .models import (
     OperationDefinition,
     ReferenceDefinition,
 )
-from .plan import OperationPlan
+
+if TYPE_CHECKING:
+    from .plan import OperationPlan
 
 
 def resolve_tool(binding: OperationBinding) -> Tool:
@@ -56,3 +60,13 @@ def require_bindable_definition(definition: OperationDefinition) -> None:
     if isinstance(definition, ReferenceDefinition):
         raise BindingError(
             f"REFERENCE definition {definition.id!r} cannot be bound")
+
+
+def binding_for_definition(
+    plan: OperationPlan, definition_id: str,
+) -> OperationBinding | None:
+    """Return the active binding for ``definition_id``, or ``None``."""
+    for binding in plan.bindings:
+        if binding.definition_id == definition_id:
+            return binding
+    return None
