@@ -17,7 +17,7 @@ cam_creation_studio/
   feeds_speeds/  calculator, materials, tools, machines (advisory)
   geometry/      DXF import -> neutral 2D geometry model (optional: ezdxf)
   workspace/     planning state over imported geometry (select / group / intend)
-  operations/    manufacturing operation definition v1 (planning parameters)
+  operations/    operation definition + tool/material binding (planning)
   preview/       toolpath_model (neutral travel/cut/burn segments)
   image/         field, marching_squares, raster_etch, outline_etch
   safety/        rules (standing safety reminders + checklist)
@@ -135,6 +135,29 @@ See [../docs/OPERATION_DEFINITION.md](../docs/OPERATION_DEFINITION.md) for
 parameter semantics, the positive-depth convention, and constitutional
 boundaries. A demo lives at
 [`../examples/operation_definition_demo.py`](../examples/operation_definition_demo.py).
+
+## Tool and material binding (planning context, not calculation)
+
+An `OperationBinding` names one catalog `Tool` and one catalog `Material`
+for a machining `OperationDefinition`. IDs only — diameter, flutes, and
+chipload stay on the canonical objects. Unbound definitions are valid;
+`REFERENCE` cannot be bound. No feeds/speeds, machine profile, or toolpath.
+
+```python
+from cam_creation_studio.operations import (
+    bind_operation, resolve_tool, resolve_material,
+    operation_plan_to_json, summarize_bindings,
+)
+
+plan = bind_operation(plan, plan.definitions[0].id, "endmill_1_4", "hardwood")
+print(resolve_tool(plan.bindings[0]).label)
+print(summarize_bindings(plan))
+text = operation_plan_to_json(plan)   # camstudio_operation_plan_v2
+```
+
+See [../docs/TOOL_MATERIAL_BINDING.md](../docs/TOOL_MATERIAL_BINDING.md).
+A demo lives at
+[`../examples/tool_material_binding_demo.py`](../examples/tool_material_binding_demo.py).
 
 ## Command-line interface
 
