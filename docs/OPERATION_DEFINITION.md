@@ -215,7 +215,8 @@ Not recorded, computed, or implied:
 
 `definitions_without_tool_count` on the summary equals the definition count
 in v1. That is descriptive. Tools being absent is not an error; CS-013 owns
-tool and material binding.
+tool and material binding. See
+[TOOL_MATERIAL_BINDING.md](TOOL_MATERIAL_BINDING.md).
 
 A demo lives at
 [`../examples/operation_definition_demo.py`](../examples/operation_definition_demo.py).

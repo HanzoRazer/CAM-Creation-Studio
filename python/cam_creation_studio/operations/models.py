@@ -107,6 +107,21 @@ class ReferenceDefinition:
     intent_id: str
 
 
+@dataclass(frozen=True, slots=True)
+class OperationBinding:
+    """Declared tool and material for one operation definition (CS-013).
+
+    Stores catalog IDs only. Canonical ``Tool`` and ``Material`` remain
+    authoritative; this object does not copy diameter, flutes, kind, or
+    chipload. It does not judge suitability and does not compute feeds.
+    """
+
+    id: str
+    definition_id: str
+    tool_id: str
+    material_id: str
+
+
 OperationDefinition = (
     ContourDefinition
     | PocketDefinition

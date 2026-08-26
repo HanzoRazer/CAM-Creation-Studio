@@ -135,14 +135,16 @@ traceable. Retirement is recorded instead.
 | CS-008R-CL | Audit disposition and import closure | `docs/audits/CS-008_REAUDIT.md` | `cs-008r-closure` | Merged (#21) `beb07b6` | — | F8/F9/F10 disposed; vocabulary classified; CS-008R **CLOSED**; importer frozen |
 | CS-008R-D1 | Mesh / Polyface Import Fidelity Evidence | `docs/audits/CS-008R_CLOSURE.md` | `cursor/cs-008r-d1-mesh-fidelity-d47b` | Merged (#22) `baa566d` | — | Additive `POLYLINE_MESH_TOPOLOGY_DROPPED`; no mesh model; `has_lossy_import` unchanged |
 | CS-011 | Neutral geometry consumer foundation | `docs/GEOMETRY_IMPORT.md` | `cursor/cs-011-neutral-geometry-consumer-d47b` | Merged (#24) `a74c99e` | — | New `workspace` package; planning state only; no toolpath / feeds / G-code |
-| CS-012 | Operation definition v1 | `docs/GEOMETRY_WORKSPACE.md` | `cursor/cs-012-operation-definition-5005` | Open (#26) | — | New `operations` package; planning parameters; no tool / feeds / toolpath / G-code |
+| CS-012 | Operation definition v1 | `docs/GEOMETRY_WORKSPACE.md` | `cursor/cs-012-operation-definition-5005` | Merged (#26) `29988c7` | — | New `operations` package; planning parameters; no tool / feeds / toolpath / G-code |
+| CS-013 | Tool / material binding | `docs/OPERATION_DEFINITION.md` | `cursor/cs-013-tool-material-binding-5005` | Open (#27) | — | `OperationBinding` on `OperationPlan`; canonical Tool/Material IDs; no feeds / machine / toolpath / G-code |
 
-*Status column last refreshed 2026-08-25.* Confirm against GitHub before relying
+*Status column last refreshed 2026-08-26.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
 **No CS-008 order is open.** CS-008R-D1 merged as #22 (`baa566d`). CS-008R-CL
-merged as #21. **CS-011** merged as #24 (`a74c99e`). **CS-012** is open as #26.
-The importer remains under feature freeze — defects only.
+merged as #21. **CS-011** merged as #24 (`a74c99e`). **CS-012** merged as #26
+(`29988c7`). **CS-013** is open as #27. The importer remains under feature
+freeze — defects only.
 
 ---
 
@@ -324,7 +326,7 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 ## Next orders (sequenced)
 
 The remediation chain is complete and merged, and **closure has landed**. Steps 1
-to 4 below are done. **CS-012** is the open product order (#26).
+to 5 below are done. **CS-013** is the open product order (#27).
 
 1. ~~**F8 / F9 / F10 disposition.**~~ **Done** — CS-008R-CL. F8 remediated
    (documentation), F9 accepted, F10 remediated and verified. None was dropped
@@ -341,11 +343,15 @@ to 4 below are done. **CS-012** is the open product order (#26).
    merged as #24 (`a74c99e`). The `workspace` package is the first authorized
    consumer of `GeometryCollection`: inspect, select, group, and record
    non-executable operation intent. No toolpath, feeds/speeds, or G-code.
-5. **Record manufacturing operation definition.** CS-012, open as #26. Extends
-   CS-011 `OperationIntent` with geometry-relative planning parameters. No tool,
-   material, feeds/speeds, toolpath, or G-code.
-6. **Tool and material binding** — CS-013, unissued. Connects an operation
-   definition to an existing `Tool` and `Material`.
+5. ~~**Record manufacturing operation definition.**~~ **Done** — CS-012 merged
+   as #26 (`29988c7`). `operations` records geometry-relative planning
+   parameters on a separate `OperationPlan`. No tool, material, feeds/speeds,
+   toolpath, or G-code in that increment.
+6. **Tool and material binding.** CS-013, open as #27. Connects an operation
+   definition to an existing catalog `Tool` and `Material`. No feeds/speeds,
+   machine profile, toolpath, or G-code.
+7. **Feeds / Speeds Integration** — CS-014, unissued. Consumes a bound
+   definition plus a machine profile to produce an advisory `FeedRecommendation`.
 
 **Known and unfixed, available as defect orders when someone wants them:** F9's
 `numpy` type should any of its recorded reopening triggers occur. The
@@ -386,12 +392,13 @@ See [`docs/GEOMETRY_WORKSPACE.md`](../GEOMETRY_WORKSPACE.md).
 
 ### Operation definition — CS-012
 
-**Open (#26).** First authorized manufacturing-planning layer above CS-011
-`OperationIntent`. Records geometry-relative parameters (depth, contour
+**Merged (#26) `29988c7`.** First authorized manufacturing-planning layer above
+CS-011 `OperationIntent`. Records geometry-relative parameters (depth, contour
 relation, cut-direction preference, allowances, optional peck/retract,
 optional finished slot width). No tool, material, feeds/speeds, toolpath,
-or G-code. Persistence is a separate `OperationPlan` document
-(`camstudio_operation_plan_v1`) so `workspace` does not import `operations`.
+or G-code. Persistence is a separate `OperationPlan` document so `workspace`
+does not import `operations`. CS-013 extends that same aggregate with
+`bindings`; newly built plans write `camstudio_operation_plan_v2`.
 
 Owner rulings recorded so they are not re-litigated:
 
@@ -406,6 +413,29 @@ Owner rulings recorded so they are not re-litigated:
 | `replace_definition` | Preserve existing ID; cannot steal another definition's intent | The one-definition-per-intent rule applies after every mutation, not only at construction. |
 
 See [`docs/OPERATION_DEFINITION.md`](../OPERATION_DEFINITION.md).
+
+### Tool and material binding — CS-013
+
+**Open (#27).** Binds an existing CS-012 `OperationDefinition` to one
+canonical catalog `Tool` and one canonical catalog `Material`. Planning
+context only: which cutter and workpiece the user intends. No suitability
+judgement, feeds/speeds, machine profile, toolpath, or G-code.
+
+Owner rulings recorded so they are not re-litigated:
+
+| Decision | Ruling | Why the alternative was rejected |
+|---|---|---|
+| Package ownership | Single aggregate in `operations`; `OperationPlan.bindings` | A `planning/` package would duplicate the plan document and risk an `operations ↔ planning` cycle. Dependency stays `operations → workspace`, `operations → feeds_speeds.tools/materials`. |
+| Cardinality | At most one binding per definition | A second binding for the same definition is ambiguous for CS-014. Unbound machining definitions remain valid incomplete context. |
+| `bind_operation` vs `replace_binding` | Second bind on a bound definition is `BindingError`; replace preserves `id` and `definition_id` | Creation versus replacement stays explicit. Replace may change only `tool_id` and `material_id`. |
+| Definition removal | Reject while a binding names the definition; list dependent binding IDs; no cascade | Same referential-integrity sequence as CS-011/CS-012: `remove_binding` then `remove_definition`. |
+| Error type | `BindingError(OperationDefinitionError)`; wrap catalog `ValueError` | Callers of the operation-plan API see one structural family and can still distinguish binding failures. |
+| Persistence | Newly built plans are v2; load v1 retains v1 and `bindings=()`; serialize untouched v1 with no `bindings` key; first binding mutation upgrades to v2; unknown versions and catalog IDs fail closed | `read ≠ migration`. No silent `from_dict` upgrade, no placeholder resources, no dedicated upgrade helper unless a consumer later needs one. |
+| Canonical objects | Reuse `Tool` / `Material`; store IDs only | Copying catalog fields onto the binding would fork identity. Resolution returns the same catalog object. |
+| `REFERENCE` | Cannot be bound | The category is explicitly non-machining. |
+| Summary | `BindingSummary` has no ready/score; `OperationPlanSummary` unchanged | A bound plan is not machine-ready. `definitions_without_tool_count` stays a definition count, not a readiness claim. |
+
+See [`docs/TOOL_MATERIAL_BINDING.md`](../TOOL_MATERIAL_BINDING.md).
 
 ### The closure standard
 

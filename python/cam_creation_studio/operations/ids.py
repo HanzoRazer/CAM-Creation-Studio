@@ -27,3 +27,21 @@ def make_operation_definition_id(
         definition_type, intent_id, existing_count,
         prefix=f"{definition_type}-",
     )
+
+
+def make_binding_id(
+    definition_id: str,
+    tool_id: str,
+    material_id: str,
+    *,
+    existing_count: int,
+) -> str:
+    """Stable ID for a binding at creation time.
+
+    ``existing_count`` is the number of bindings already on the plan.
+    Equivalent helper sequences therefore produce equivalent IDs.
+    """
+    return stable_id(
+        "binding", definition_id, tool_id, material_id, existing_count,
+        prefix="bind-",
+    )

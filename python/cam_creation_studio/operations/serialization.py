@@ -14,11 +14,12 @@ from ..workspace.errors import WorkspaceError
 from ..workspace.models import WORKSPACE_VERSION
 from ..workspace.serialization import workspace_from_dict, workspace_to_dict
 from .enums import ContourRelation, CutDirection, SlotRelation
-from .errors import OperationDefinitionError
+from .errors import BindingError, OperationDefinitionError
 from .models import (
     ContourDefinition,
     DrillDefinition,
     EngraveDefinition,
+    OperationBinding,
     OperationDefinition,
     PocketDefinition,
     ReferenceDefinition,
@@ -26,6 +27,8 @@ from .models import (
     definition_type_name,
 )
 from .plan import (
+    OPERATION_PLAN_V1,
+    OPERATION_PLAN_V2,
     OPERATION_PLAN_VERSION,
     OperationPlan,
     validate_operation_plan,
@@ -78,9 +81,43 @@ def operation_definition_from_dict(data: object) -> OperationDefinition:
     return loader(raw)
 
 
-def operation_plan_to_dict(plan: OperationPlan) -> dict:
-    """JSON-ready plan. No timestamps; nested workspace is CS-011 v1."""
+def operation_binding_to_dict(binding: OperationBinding) -> dict:
+    """JSON-ready binding. Catalog IDs only."""
     return {
+        "id": binding.id,
+        "definition_id": binding.definition_id,
+        "tool_id": binding.tool_id,
+        "material_id": binding.material_id,
+    }
+
+
+def operation_binding_from_dict(data: object) -> OperationBinding:
+    """Rebuild one binding. Catalog membership is checked at plan validation."""
+    raw = _expect_object(data, "operation binding")
+    field = "operation binding"
+    binding_id = _field(raw, "id", field)
+    definition_id = _field(raw, "definition_id", field)
+    tool_id = _field(raw, "tool_id", field)
+    material_id = _field(raw, "material_id", field)
+    if not binding_id:
+        raise BindingError("binding ID must not be empty")
+    if not definition_id:
+        raise BindingError("binding definition_id must not be empty")
+    if not tool_id:
+        raise BindingError("tool_id must not be empty")
+    if not material_id:
+        raise BindingError("material_id must not be empty")
+    return OperationBinding(
+        id=binding_id,
+        definition_id=definition_id,
+        tool_id=tool_id,
+        material_id=material_id,
+    )
+
+
+def operation_plan_to_dict(plan: OperationPlan) -> dict:
+    """JSON-ready plan. v1 omits bindings; v2 includes them."""
+    payload = {
         "version": plan.version,
         "workspace": workspace_to_dict(plan.workspace),
         "definitions": [
@@ -88,6 +125,12 @@ def operation_plan_to_dict(plan: OperationPlan) -> dict:
             for definition in plan.definitions
         ],
     }
+    if plan.version == OPERATION_PLAN_V1:
+        return payload
+    payload["bindings"] = [
+        operation_binding_to_dict(binding) for binding in plan.bindings
+    ]
+    return payload
 
 
 def operation_plan_from_dict(data: object) -> OperationPlan:
@@ -99,14 +142,14 @@ def operation_plan_from_dict(data: object) -> OperationPlan:
             "not an operation plan document: missing version "
             f"{OPERATION_PLAN_VERSION!r}")
     version = data["version"]
-    if version != OPERATION_PLAN_VERSION:
+    if version not in (OPERATION_PLAN_V1, OPERATION_PLAN_V2):
         if version == WORKSPACE_VERSION:
             raise OperationDefinitionError(
                 "not an operation plan document: "
                 f"got geometry workspace version {version!r}")
         raise OperationDefinitionError(
             f"unknown operation-plan version {version!r}; "
-            f"expected {OPERATION_PLAN_VERSION!r}")
+            f"expected {OPERATION_PLAN_V1!r} or {OPERATION_PLAN_V2!r}")
 
     raw_workspace = data.get("workspace")
     try:
@@ -119,8 +162,24 @@ def operation_plan_from_dict(data: object) -> OperationPlan:
         operation_definition_from_dict(item)
         for item in _expect_list(data.get("definitions", []), "definitions")
     )
+    if version == OPERATION_PLAN_V1:
+        extra = data.get("bindings")
+        if extra:
+            raise BindingError(
+                "operation-plan v1 cannot carry bindings; bind_operation "
+                "upgrades the document to v2")
+        bindings: tuple[OperationBinding, ...] = ()
+    else:
+        bindings = tuple(
+            operation_binding_from_dict(item)
+            for item in _expect_list(data.get("bindings", []), "bindings")
+        )
     plan = OperationPlan(
-        version=version, workspace=workspace, definitions=definitions)
+        version=version,
+        workspace=workspace,
+        definitions=definitions,
+        bindings=bindings,
+    )
     validate_operation_plan(plan)
     return plan
 
