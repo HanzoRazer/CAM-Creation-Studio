@@ -17,8 +17,13 @@ from .builder import (
     define_reference,
     define_slot,
 )
-from .enums import ContourRelation, CutDirection, SlotRelation
-from .errors import BindingError, OperationDefinitionError
+from .enums import (
+    ContourRelation,
+    CutDirection,
+    RecommendationStatus,
+    SlotRelation,
+)
+from .errors import BindingError, OperationDefinitionError, RecommendationError
 from .ids import make_binding_id, make_operation_definition_id
 from .models import (
     ContourDefinition,
@@ -26,6 +31,7 @@ from .models import (
     EngraveDefinition,
     OperationBinding,
     OperationDefinition,
+    OperationFeedRecommendation,
     PocketDefinition,
     ReferenceDefinition,
     SlotDefinition,
@@ -91,9 +97,12 @@ __all__ = [
     "OperationBinding",
     "OperationDefinition",
     "OperationDefinitionError",
+    "OperationFeedRecommendation",
     "OperationPlan",
     "OperationPlanSummary",
     "PocketDefinition",
+    "RecommendationError",
+    "RecommendationStatus",
     "ReferenceDefinition",
     "SlotDefinition",
     "SlotRelation",
