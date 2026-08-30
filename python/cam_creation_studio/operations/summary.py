@@ -1,9 +1,10 @@
-"""Deterministic operation-plan summary (CS-012/CS-013).
+"""Deterministic operation-plan summary (CS-012–CS-014).
 
-Counts only — no wall-clock, no machining recommendations, no toolpath
-claims, and no readiness judgement. CS-012 ``OperationPlanSummary`` remains
-definition-oriented. CS-013 ``BindingSummary`` reports bound vs unbound
-state without scoring quality.
+Counts only — no wall-clock, no toolpath claims, and no readiness
+judgement. CS-012 ``OperationPlanSummary`` remains definition-oriented.
+CS-013 ``BindingSummary`` reports bound vs unbound state without scoring
+quality. CS-014 ``FeedRecommendationSummary`` reports current/stale/missing
+advisory recommendations without a safety or readiness score.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 
 from ..feeds_speeds.materials import list_materials
 from ..feeds_speeds.tools import list_tools
+from .enums import RecommendationStatus
 from .models import (
     ContourDefinition,
     OperationDefinition,
@@ -20,6 +22,7 @@ from .models import (
     definition_type_name,
 )
 from .plan import OperationPlan
+from .recommendations import recommendation_status
 from .resolution import resolve_material, resolve_tool
 
 _TYPE_KEYS = (
@@ -90,6 +93,54 @@ def summarize_bindings(plan: OperationPlan) -> BindingSummary:
         unbound_definition_count=len(plan.definitions) - bound,
         counts_by_tool_kind=kind_counts,
         counts_by_material=material_counts,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class FeedRecommendationSummary:
+    """Recommendation-state counts. No readiness or quality score."""
+
+    machining_definition_count: int
+    bound_definition_count: int
+    recommendation_count: int
+    current_count: int
+    stale_count: int
+    missing_count: int
+    warning_count: int
+
+
+def summarize_feed_recommendations(plan: OperationPlan) -> FeedRecommendationSummary:
+    """Count current/stale/missing advice. Does not recalculate feeds."""
+    machining = [
+        definition for definition in plan.definitions
+        if not isinstance(definition, ReferenceDefinition)
+    ]
+    current = 0
+    stale = 0
+    missing = 0
+    for definition in machining:
+        status = recommendation_status(plan, definition.id)
+        if status is RecommendationStatus.CURRENT:
+            current += 1
+        elif status is RecommendationStatus.STALE:
+            stale += 1
+        else:
+            missing += 1
+    warning_count = 0
+    for item in plan.recommendations:
+        warning_count += sum(
+            1
+            for diagnostic in item.recommendation.diagnostics
+            if diagnostic.severity in {"warning", "danger"}
+        )
+    return FeedRecommendationSummary(
+        machining_definition_count=len(machining),
+        bound_definition_count=len(plan.bindings),
+        recommendation_count=len(plan.recommendations),
+        current_count=current,
+        stale_count=stale,
+        missing_count=missing,
+        warning_count=warning_count,
     )
 
 

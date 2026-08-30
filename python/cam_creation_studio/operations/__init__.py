@@ -89,8 +89,10 @@ from .serialization import (
 )
 from .summary import (
     BindingSummary,
+    FeedRecommendationSummary,
     OperationPlanSummary,
     summarize_bindings,
+    summarize_feed_recommendations,
     summarize_operation_plan,
 )
 from .validation import (
@@ -117,6 +119,7 @@ __all__ = [
     "CutDirection",
     "DrillDefinition",
     "EngraveDefinition",
+    "FeedRecommendationSummary",
     "OperationBinding",
     "OperationDefinition",
     "OperationDefinitionError",
@@ -176,6 +179,7 @@ __all__ = [
     "resolve_recommendation_inputs",
     "resolve_tool",
     "summarize_bindings",
+    "summarize_feed_recommendations",
     "summarize_operation_plan",
     "validate_nonnegative_optional_distance",
     "validate_operation_bindings",
