@@ -45,3 +45,20 @@ def make_binding_id(
         "binding", definition_id, tool_id, material_id, existing_count,
         prefix="bind-",
     )
+
+
+def make_recommendation_id(
+    definition_id: str,
+    binding_id: str,
+    machine_profile_id: str,
+    input_fingerprint: str,
+) -> str:
+    """Stable ID for a feed recommendation at creation time."""
+    return stable_id(
+        "feed-recommendation",
+        definition_id,
+        binding_id,
+        machine_profile_id,
+        input_fingerprint,
+        prefix="rec-",
+    )

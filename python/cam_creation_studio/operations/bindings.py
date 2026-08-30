@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from .errors import BindingError
+from .errors import BindingError, RecommendationError
 from .ids import make_binding_id
 from .models import OperationBinding
-from .plan import OPERATION_PLAN_V2, OperationPlan, validate_operation_plan
+from .plan import (
+    OPERATION_PLAN_V2,
+    OPERATION_PLAN_V3,
+    OperationPlan,
+    validate_operation_plan,
+)
 from .resolution import (
     binding_for_definition,
     require_bindable_definition,
@@ -54,7 +59,7 @@ def bind_operation(
     resolve_material(binding)
     updated = replace(
         plan,
-        version=OPERATION_PLAN_V2,
+        version=_binding_document_version(plan),
         bindings=plan.bindings + (binding,),
     )
     validate_operation_plan(updated)
@@ -81,7 +86,8 @@ def replace_binding(
         stored if item.id == binding_id else item
         for item in plan.bindings
     )
-    updated = replace(plan, version=OPERATION_PLAN_V2, bindings=bindings)
+    updated = replace(
+        plan, version=_binding_document_version(plan), bindings=bindings)
     validate_operation_plan(updated)
     return updated
 
@@ -89,13 +95,32 @@ def replace_binding(
 def remove_binding(
     plan: OperationPlan, binding_id: str,
 ) -> OperationPlan:
-    """Remove one binding. The definition remains."""
+    """Remove one binding. The definition remains.
+
+    Rejected while a recommendation still names this binding. Remove the
+    recommendation first; there is no cascade.
+    """
     _resolve_binding(plan, binding_id)
+    dependents = [
+        item.id
+        for item in plan.recommendations
+        if item.binding_id == binding_id
+    ]
+    if dependents:
+        raise RecommendationError(
+            f"cannot remove binding {binding_id!r}: referenced by "
+            f"recommendations {dependents}")
     bindings = tuple(
         item for item in plan.bindings if item.id != binding_id)
     updated = replace(plan, bindings=bindings)
     validate_operation_plan(updated)
     return updated
+
+
+def _binding_document_version(plan: OperationPlan) -> str:
+    if plan.version == OPERATION_PLAN_V3:
+        return OPERATION_PLAN_V3
+    return OPERATION_PLAN_V2
 
 
 def _resolve_binding(

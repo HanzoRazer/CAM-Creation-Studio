@@ -10,15 +10,33 @@ from cam_creation_studio.feeds_speeds.calculator import (
     calculate_feeds,
 )
 from cam_creation_studio.geometry.models import GeometryCollection, Line2D
-from cam_creation_studio.operations.bindings import bind_operation
+from cam_creation_studio.operations.bindings import (
+    bind_operation,
+    remove_binding,
+)
 from cam_creation_studio.operations.builder import (
     define_contour,
     define_drill,
     define_pocket,
     define_slot,
 )
-from cam_creation_studio.operations.plan import build_operation_plan
-from cam_creation_studio.operations.recommendations import calculate_advisory_feeds
+from cam_creation_studio.operations.errors import RecommendationError
+from cam_creation_studio.operations.ids import make_recommendation_id
+from cam_creation_studio.operations.plan import (
+    OPERATION_PLAN_V1,
+    OPERATION_PLAN_V3,
+    OperationPlan,
+    build_operation_plan,
+    remove_definition,
+)
+from cam_creation_studio.operations.recommendations import (
+    calculate_advisory_feeds,
+    feed_input_fingerprint,
+    recommend_feeds_speeds,
+    recommendation_for_definition,
+    remove_feed_recommendation,
+    replace_feed_recommendation,
+)
 from cam_creation_studio.operations.resolution import resolve_recommendation_inputs
 from cam_creation_studio.shared.geometry import Point
 from cam_creation_studio.workspace.builder import build_workspace
@@ -184,3 +202,101 @@ def test_machine_without_max_rpm_omits_ceiling_kwarg(monkeypatch):
     calculate_advisory_feeds(resolve_recommendation_inputs(
         plan, "d1", "genericLaser", 12000))
     assert "max_rpm" not in captured
+
+
+def _bound_contour():
+    workspace = _workspace_with(OperationKind.CONTOUR)
+    definition = define_contour(workspace, "op-contour", 6.0, id="d1")
+    return bind_operation(
+        build_operation_plan(workspace, (definition,)),
+        "d1", "endmill_1_4", "hardwood", id="b1")
+
+
+def test_recommend_feeds_speeds_attributes_canonical_result():
+    plan = recommend_feeds_speeds(
+        _bound_contour(), "d1", "genericCncRouter", 12000, id="r1")
+    wrapper = plan.recommendations[0]
+    assert plan.version == OPERATION_PLAN_V3
+    assert wrapper.id == "r1"
+    assert wrapper.definition_id == "d1"
+    assert wrapper.binding_id == "b1"
+    assert wrapper.machine_profile_id == "genericCncRouter"
+    assert wrapper.spindle_rpm == 12000
+    assert wrapper.recommendation == calculate_advisory_feeds(
+        resolve_recommendation_inputs(plan, "d1", "genericCncRouter", 12000))
+    assert recommendation_for_definition(plan, "d1") is wrapper
+
+
+def test_generated_recommendation_id_is_deterministic():
+    plan = _bound_contour()
+    first = recommend_feeds_speeds(plan, "d1", "genericCncRouter", 12000)
+    again = recommend_feeds_speeds(plan, "d1", "genericCncRouter", 12000)
+    inputs = resolve_recommendation_inputs(
+        plan, "d1", "genericCncRouter", 12000)
+    expected = make_recommendation_id(
+        "d1", "b1", "genericCncRouter", feed_input_fingerprint(inputs))
+    assert first.recommendations[0].id == expected
+    assert again.recommendations[0].id == expected
+
+
+def test_second_create_on_the_same_definition_is_an_error():
+    plan = recommend_feeds_speeds(
+        _bound_contour(), "d1", "genericCncRouter", 12000, id="r1")
+    with pytest.raises(RecommendationError, match="already has a feed recommendation"):
+        recommend_feeds_speeds(plan, "d1", "desktop3018", 10000)
+
+
+def test_replace_preserves_ids_and_may_change_machine_and_rpm():
+    plan = recommend_feeds_speeds(
+        _bound_contour(), "d1", "genericCncRouter", 12000, id="r1")
+    updated = replace_feed_recommendation(plan, "r1", "desktop3018", 8000)
+    wrapper = updated.recommendations[0]
+    assert wrapper.id == "r1"
+    assert wrapper.definition_id == "d1"
+    assert wrapper.binding_id == "b1"
+    assert wrapper.machine_profile_id == "desktop3018"
+    assert wrapper.spindle_rpm == 8000
+    assert wrapper.input_fingerprint != plan.recommendations[0].input_fingerprint
+
+
+def test_remove_recommendation_leaves_definition_and_binding():
+    plan = recommend_feeds_speeds(
+        _bound_contour(), "d1", "genericCncRouter", 12000, id="r1")
+    cleared = remove_feed_recommendation(plan, "r1")
+    assert cleared.recommendations == ()
+    assert cleared.definitions[0].id == "d1"
+    assert cleared.bindings[0].id == "b1"
+
+
+def test_remove_binding_rejected_while_recommendation_exists():
+    plan = recommend_feeds_speeds(
+        _bound_contour(), "d1", "genericCncRouter", 12000, id="r1")
+    with pytest.raises(
+        RecommendationError,
+        match=r"cannot remove binding 'b1': referenced by recommendations \['r1'\]",
+    ):
+        remove_binding(plan, "b1")
+
+
+def test_remove_definition_rejected_while_recommendation_exists():
+    plan = recommend_feeds_speeds(
+        _bound_contour(), "d1", "genericCncRouter", 12000, id="r1")
+    with pytest.raises(
+        RecommendationError,
+        match=r"referenced by recommendations \['r1'\] and bindings \['b1'\]",
+    ):
+        remove_definition(plan, "d1")
+
+
+def test_recommend_on_v1_plan_upgrades_to_v3_when_bound():
+    workspace = _workspace_with(OperationKind.CONTOUR)
+    definition = define_contour(workspace, "op-contour", 6.0, id="d1")
+    v1 = OperationPlan(
+        version=OPERATION_PLAN_V1,
+        workspace=workspace,
+        definitions=(definition,),
+    )
+    bound = bind_operation(v1, "d1", "endmill_1_4", "hardwood", id="b1")
+    updated = recommend_feeds_speeds(bound, "d1", "genericCncRouter", 12000, id="r1")
+    assert updated.version == OPERATION_PLAN_V3
+    assert bound.version != OPERATION_PLAN_V3

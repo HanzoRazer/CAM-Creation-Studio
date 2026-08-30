@@ -9,23 +9,27 @@ from __future__ import annotations
 
 import math
 
+from ..feeds_speeds.calculator import FeedRecommendation
 from ..workspace.models import GeometryWorkspace, OperationIntent, OperationKind
 from .enums import ContourRelation, CutDirection, SlotRelation
-from .errors import BindingError, OperationDefinitionError
+from .errors import BindingError, OperationDefinitionError, RecommendationError
 from .models import (
     ContourDefinition,
     DrillDefinition,
     EngraveDefinition,
     OperationBinding,
     OperationDefinition,
+    OperationFeedRecommendation,
     PocketDefinition,
     ReferenceDefinition,
     SlotDefinition,
 )
 from .resolution import (
     require_bindable_definition,
+    resolve_machine_profile,
     resolve_material,
     resolve_tool,
+    validate_spindle_rpm,
 )
 
 _KIND_FOR_TYPE = {
@@ -169,6 +173,71 @@ def validate_operation_bindings(
             raise BindingError("material_id must not be empty")
         resolve_tool(binding)
         resolve_material(binding)
+
+
+def validate_operation_recommendations(
+    definitions: tuple[OperationDefinition, ...],
+    bindings: tuple[OperationBinding, ...],
+    recommendations: tuple[OperationFeedRecommendation, ...],
+) -> None:
+    """Validate recommendation IDs, cardinality, and structural references.
+
+    Does not invoke the feeds/speeds calculator. Stale fingerprints remain
+    structurally valid.
+    """
+    definition_by_id = {item.id: item for item in definitions}
+    binding_by_id = {item.id: item for item in bindings}
+    binding_by_definition = {item.definition_id: item for item in bindings}
+    seen_ids: set[str] = set()
+    seen_definitions: set[str] = set()
+    for item in recommendations:
+        if not isinstance(item, OperationFeedRecommendation):
+            raise RecommendationError(
+                f"unknown recommendation type {type(item)!r}")
+        if not item.id:
+            raise RecommendationError("recommendation ID must not be empty")
+        if item.id in seen_ids:
+            raise RecommendationError(f"duplicate recommendation ID {item.id!r}")
+        seen_ids.add(item.id)
+        if not item.definition_id:
+            raise RecommendationError(
+                "recommendation definition_id must not be empty")
+        if item.definition_id in seen_definitions:
+            raise RecommendationError(
+                f"definition {item.definition_id!r} already has a "
+                f"feed recommendation")
+        seen_definitions.add(item.definition_id)
+        if item.definition_id not in definition_by_id:
+            raise RecommendationError(
+                f"unknown definition ID {item.definition_id!r}")
+        if not item.binding_id:
+            raise RecommendationError(
+                "recommendation binding_id must not be empty")
+        binding = binding_by_id.get(item.binding_id)
+        if binding is None:
+            raise RecommendationError(
+                f"unknown binding ID {item.binding_id!r}")
+        if binding.definition_id != item.definition_id:
+            raise RecommendationError(
+                f"recommendation {item.id!r} binding {item.binding_id!r} "
+                f"belongs to definition {binding.definition_id!r}")
+        current = binding_by_definition.get(item.definition_id)
+        if current is None or current.id != item.binding_id:
+            raise RecommendationError(
+                f"recommendation {item.id!r} binding {item.binding_id!r} "
+                f"does not match the binding for definition "
+                f"{item.definition_id!r}")
+        if not item.machine_profile_id:
+            raise RecommendationError(
+                "recommendation machine_profile_id must not be empty")
+        resolve_machine_profile(item.machine_profile_id)
+        validate_spindle_rpm(item.spindle_rpm)
+        if not item.input_fingerprint:
+            raise RecommendationError(
+                "recommendation input_fingerprint must not be empty")
+        if not isinstance(item.recommendation, FeedRecommendation):
+            raise RecommendationError(
+                "recommendation payload must be a FeedRecommendation")
 
 
 def _validate_dimensions(definition: OperationDefinition) -> None:

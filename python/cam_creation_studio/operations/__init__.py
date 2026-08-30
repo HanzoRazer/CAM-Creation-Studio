@@ -24,7 +24,11 @@ from .enums import (
     SlotRelation,
 )
 from .errors import BindingError, OperationDefinitionError, RecommendationError
-from .ids import make_binding_id, make_operation_definition_id
+from .ids import (
+    make_binding_id,
+    make_operation_definition_id,
+    make_recommendation_id,
+)
 from .models import (
     ContourDefinition,
     DrillDefinition,
@@ -40,6 +44,7 @@ from .models import (
 from .plan import (
     OPERATION_PLAN_V1,
     OPERATION_PLAN_V2,
+    OPERATION_PLAN_V3,
     OPERATION_PLAN_VERSION,
     OperationPlan,
     add_definition,
@@ -47,6 +52,13 @@ from .plan import (
     remove_definition,
     replace_definition,
     validate_operation_plan,
+)
+from .recommendations import (
+    recommend_feeds_speeds,
+    recommendation_for_definition,
+    recommendation_status,
+    remove_feed_recommendation,
+    replace_feed_recommendation,
 )
 from .resolution import (
     binding_for_definition,
@@ -84,6 +96,7 @@ from .validation import (
     validate_operation_bindings,
     validate_operation_definition,
     validate_operation_definitions,
+    validate_operation_recommendations,
     validate_optional_positive_distance,
     validate_positive_distance,
 )
@@ -91,6 +104,7 @@ from .validation import (
 __all__ = [
     "OPERATION_PLAN_V1",
     "OPERATION_PLAN_V2",
+    "OPERATION_PLAN_V3",
     "OPERATION_PLAN_VERSION",
     "BindingError",
     "BindingSummary",
@@ -124,6 +138,7 @@ __all__ = [
     "definition_type_name",
     "make_binding_id",
     "make_operation_definition_id",
+    "make_recommendation_id",
     "operation_binding_from_dict",
     "operation_binding_to_dict",
     "operation_definition_from_dict",
@@ -132,10 +147,15 @@ __all__ = [
     "operation_plan_from_json",
     "operation_plan_to_dict",
     "operation_plan_to_json",
+    "recommend_feeds_speeds",
+    "recommendation_for_definition",
+    "recommendation_status",
     "remove_binding",
     "remove_definition",
+    "remove_feed_recommendation",
     "replace_binding",
     "replace_definition",
+    "replace_feed_recommendation",
     "require_bindable_definition",
     "require_calculator_tool",
     "require_definition",
@@ -154,6 +174,7 @@ __all__ = [
     "validate_operation_definition",
     "validate_operation_definitions",
     "validate_operation_plan",
+    "validate_operation_recommendations",
     "validate_optional_positive_distance",
     "validate_positive_distance",
     "validate_spindle_rpm",

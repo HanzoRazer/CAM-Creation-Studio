@@ -6,7 +6,8 @@ CS-011 :class:`GeometryWorkspace` rather than extending that workspace, so
 the package dependency stays::
 
     operations → workspace
-    operations → feeds_speeds.tools / materials
+    operations → feeds_speeds.tools / materials / machines
+    operations → feeds_speeds.calculator
 """
 
 from __future__ import annotations
@@ -16,27 +17,36 @@ from dataclasses import dataclass, replace
 from ..workspace.errors import WorkspaceError
 from ..workspace.models import GeometryWorkspace
 from ..workspace.validation import validate_workspace
-from .errors import BindingError, OperationDefinitionError
-from .models import OperationBinding, OperationDefinition
+from .errors import BindingError, OperationDefinitionError, RecommendationError
+from .models import (
+    OperationBinding,
+    OperationDefinition,
+    OperationFeedRecommendation,
+)
 from .validation import (
     validate_operation_bindings,
     validate_operation_definitions,
+    validate_operation_recommendations,
 )
 
 OPERATION_PLAN_V1 = "camstudio_operation_plan_v1"
 OPERATION_PLAN_V2 = "camstudio_operation_plan_v2"
+OPERATION_PLAN_V3 = "camstudio_operation_plan_v3"
 OPERATION_PLAN_VERSION = OPERATION_PLAN_V2
-_SUPPORTED_PLAN_VERSIONS = frozenset({OPERATION_PLAN_V1, OPERATION_PLAN_V2})
+_SUPPORTED_PLAN_VERSIONS = frozenset({
+    OPERATION_PLAN_V1, OPERATION_PLAN_V2, OPERATION_PLAN_V3,
+})
 
 
 @dataclass(frozen=True, slots=True)
 class OperationPlan:
-    """A versioned workspace plus definitions and optional bindings."""
+    """A versioned workspace plus definitions, bindings, and recommendations."""
 
     version: str
     workspace: GeometryWorkspace
     definitions: tuple[OperationDefinition, ...] = ()
     bindings: tuple[OperationBinding, ...] = ()
+    recommendations: tuple[OperationFeedRecommendation, ...] = ()
 
 
 def build_operation_plan(
@@ -93,19 +103,30 @@ def remove_definition(
 ) -> OperationPlan:
     """Remove one definition by ID.
 
-    Rejected while any binding still names that definition. Remove the
-    binding first; there is no cascade.
+    Rejected while any recommendation or binding still names that
+    definition. Remove recommendations, then the binding; there is no
+    cascade.
     """
     _resolve_definition(plan, definition_id)
-    dependents = [
+    rec_ids = [
+        item.id
+        for item in plan.recommendations
+        if item.definition_id == definition_id
+    ]
+    bind_ids = [
         binding.id
         for binding in plan.bindings
         if binding.definition_id == definition_id
     ]
-    if dependents:
+    if rec_ids:
+        extra = f" and bindings {bind_ids}" if bind_ids else ""
+        raise RecommendationError(
+            f"cannot remove definition {definition_id!r}: referenced by "
+            f"recommendations {rec_ids}{extra}")
+    if bind_ids:
         raise BindingError(
             f"cannot remove definition {definition_id!r}: referenced by "
-            f"bindings {dependents}")
+            f"bindings {bind_ids}")
     definitions = tuple(
         item for item in plan.definitions if item.id != definition_id)
     updated = replace(plan, definitions=definitions)
@@ -123,6 +144,10 @@ def validate_operation_plan(plan: OperationPlan) -> None:
         raise BindingError(
             "operation-plan v1 cannot carry bindings; bind_operation "
             "upgrades the document to v2")
+    if plan.version in {OPERATION_PLAN_V1, OPERATION_PLAN_V2} and plan.recommendations:
+        raise RecommendationError(
+            f"operation-plan {plan.version} cannot carry recommendations; "
+            "recommend_feeds_speeds upgrades the document to v3")
     try:
         validate_workspace(plan.workspace)
     except WorkspaceError as exc:
@@ -130,6 +155,8 @@ def validate_operation_plan(plan: OperationPlan) -> None:
             f"operation plan workspace is invalid: {exc}") from exc
     validate_operation_definitions(plan.workspace, plan.definitions)
     validate_operation_bindings(plan.definitions, plan.bindings)
+    validate_operation_recommendations(
+        plan.definitions, plan.bindings, plan.recommendations)
 
 
 def _resolve_definition(
