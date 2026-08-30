@@ -51,10 +51,15 @@ from .plan import (
 from .resolution import (
     binding_for_definition,
     require_bindable_definition,
+    require_calculator_tool,
     require_definition,
+    require_recommendable_definition,
     resolve_definition,
+    resolve_machine_profile,
     resolve_material,
+    resolve_recommendation_inputs,
     resolve_tool,
+    validate_spindle_rpm,
 )
 from .serialization import (
     operation_binding_from_dict,
@@ -132,11 +137,15 @@ __all__ = [
     "replace_binding",
     "replace_definition",
     "require_bindable_definition",
+    "require_calculator_tool",
     "require_definition",
     "require_intent_kind",
+    "require_recommendable_definition",
     "resolve_definition",
     "resolve_intent",
+    "resolve_machine_profile",
     "resolve_material",
+    "resolve_recommendation_inputs",
     "resolve_tool",
     "summarize_bindings",
     "summarize_operation_plan",
@@ -147,4 +156,5 @@ __all__ = [
     "validate_operation_plan",
     "validate_optional_positive_distance",
     "validate_positive_distance",
+    "validate_spindle_rpm",
 ]
