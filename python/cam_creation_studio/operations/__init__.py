@@ -1,9 +1,10 @@
-"""Manufacturing operation definitions (CS-012).
+"""Manufacturing operation definitions and advisory recommendations (CS-012–CS-014).
 
 Extends CS-011 :class:`~cam_creation_studio.workspace.models.OperationIntent`
-with geometry-relative planning parameters. This package records *what*
-operation the user intends. It does not assign tools or materials, compute
-feeds/speeds, generate toolpaths, or emit G-code.
+with geometry-relative planning parameters, tool/material bindings, and
+attributable advisory feeds/speeds. This package does not generate
+toolpaths or emit G-code, and a stored recommendation is not machine
+authorization.
 """
 
 from __future__ import annotations

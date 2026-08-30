@@ -17,7 +17,7 @@ cam_creation_studio/
   feeds_speeds/  calculator, materials, tools, machines (advisory)
   geometry/      DXF import -> neutral 2D geometry model (optional: ezdxf)
   workspace/     planning state over imported geometry (select / group / intend)
-  operations/    operation definition + tool/material binding (planning)
+  operations/    operation definition + binding + advisory feeds (planning)
   preview/       toolpath_model (neutral travel/cut/burn segments)
   image/         field, marching_squares, raster_etch, outline_etch
   safety/        rules (standing safety reminders + checklist)
@@ -158,6 +158,32 @@ text = operation_plan_to_json(plan)   # camstudio_operation_plan_v2
 See [../docs/TOOL_MATERIAL_BINDING.md](../docs/TOOL_MATERIAL_BINDING.md).
 A demo lives at
 [`../examples/tool_material_binding_demo.py`](../examples/tool_material_binding_demo.py).
+
+## Advisory feeds / speeds (planning context, not execution)
+
+A bound machining definition plus a canonical `MachineProfile` and an
+explicit requested `spindle_rpm` can produce an attributable
+`FeedRecommendation` from the existing calculator. Final
+`target_depth_mm` is not treated as depth of cut; width of cut is not
+inferred. The result is advisory. No toolpath or G-code.
+
+```python
+from cam_creation_studio.operations import (
+    recommend_feeds_speeds, recommendation_status,
+    summarize_feed_recommendations, operation_plan_to_json,
+)
+
+plan = recommend_feeds_speeds(
+    plan, plan.definitions[0].id, "genericCncRouter", 12000)
+print(plan.recommendations[0].recommendation.feed_rate)
+print(recommendation_status(plan, plan.definitions[0].id))
+print(summarize_feed_recommendations(plan))
+text = operation_plan_to_json(plan)   # camstudio_operation_plan_v3
+```
+
+See [../docs/FEEDS_SPEEDS_INTEGRATION.md](../docs/FEEDS_SPEEDS_INTEGRATION.md).
+A demo lives at
+[`../examples/feeds_speeds_planning_demo.py`](../examples/feeds_speeds_planning_demo.py).
 
 ## Command-line interface
 
