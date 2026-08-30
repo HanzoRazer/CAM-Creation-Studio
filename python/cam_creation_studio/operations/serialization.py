@@ -8,19 +8,22 @@ valid. Unknown versions, discriminators, and enum values fail closed.
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Callable
 
+from ..feeds_speeds.calculator import FeedDiagnostic, FeedRecommendation
 from ..workspace.errors import WorkspaceError
 from ..workspace.models import WORKSPACE_VERSION
 from ..workspace.serialization import workspace_from_dict, workspace_to_dict
 from .enums import ContourRelation, CutDirection, SlotRelation
-from .errors import BindingError, OperationDefinitionError
+from .errors import BindingError, OperationDefinitionError, RecommendationError
 from .models import (
     ContourDefinition,
     DrillDefinition,
     EngraveDefinition,
     OperationBinding,
     OperationDefinition,
+    OperationFeedRecommendation,
     PocketDefinition,
     ReferenceDefinition,
     SlotDefinition,
@@ -29,10 +32,12 @@ from .models import (
 from .plan import (
     OPERATION_PLAN_V1,
     OPERATION_PLAN_V2,
+    OPERATION_PLAN_V3,
     OPERATION_PLAN_VERSION,
     OperationPlan,
     validate_operation_plan,
 )
+from .resolution import validate_spindle_rpm
 from .validation import (
     validate_nonnegative_optional_distance,
     validate_optional_positive_distance,
@@ -115,8 +120,97 @@ def operation_binding_from_dict(data: object) -> OperationBinding:
     )
 
 
+def feed_recommendation_to_dict(recommendation: FeedRecommendation) -> dict:
+    """JSON-ready canonical calculator payload. Does not recalculate."""
+    return recommendation.as_dict()
+
+
+def feed_recommendation_from_dict(data: object) -> FeedRecommendation:
+    """Rebuild a ``FeedRecommendation`` from persisted primitives."""
+    raw = _expect_object(data, "feed recommendation")
+    field = "feed recommendation"
+    diagnostics = []
+    for item in _expect_list(raw.get("diagnostics", []), "diagnostics"):
+        diag = _expect_object(item, "feed diagnostic")
+        diagnostics.append(FeedDiagnostic(
+            code=_field(diag, "code", "feed diagnostic"),
+            severity=_field(diag, "severity", "feed diagnostic"),
+            message=_field(diag, "message", "feed diagnostic"),
+        ))
+    return FeedRecommendation(
+        rpm=_require_number("rpm", _field(raw, "rpm", field)),
+        feed_rate=_require_number("feed_rate", _field(raw, "feed_rate", field)),
+        chipload=_require_number("chipload", _field(raw, "chipload", field)),
+        surface_speed=_require_number(
+            "surface_speed", _field(raw, "surface_speed", field)),
+        chip_thinning_factor=_require_number(
+            "chip_thinning_factor", raw.get("chip_thinning_factor", 1.0)),
+        material_removal_rate=_optional_number(
+            "material_removal_rate", raw.get("material_removal_rate")),
+        spindle_power_kw=_optional_number(
+            "spindle_power_kw", raw.get("spindle_power_kw")),
+        spindle_power_hp=_optional_number(
+            "spindle_power_hp", raw.get("spindle_power_hp")),
+        torque_nm=_optional_number("torque_nm", raw.get("torque_nm")),
+        power_w=_optional_number("power_w", raw.get("power_w")),
+        notes=list(_expect_list(raw.get("notes", []), "notes")),
+        warnings=list(_expect_list(raw.get("warnings", []), "warnings")),
+        diagnostics=diagnostics,
+    )
+
+
+def operation_feed_recommendation_to_dict(
+    item: OperationFeedRecommendation,
+) -> dict:
+    """JSON-ready attributable recommendation wrapper."""
+    return {
+        "id": item.id,
+        "definition_id": item.definition_id,
+        "binding_id": item.binding_id,
+        "machine_profile_id": item.machine_profile_id,
+        "spindle_rpm": item.spindle_rpm,
+        "input_fingerprint": item.input_fingerprint,
+        "recommendation": feed_recommendation_to_dict(item.recommendation),
+    }
+
+
+def operation_feed_recommendation_from_dict(
+    data: object,
+) -> OperationFeedRecommendation:
+    """Rebuild one recommendation wrapper. Does not invoke the calculator."""
+    raw = _expect_object(data, "operation feed recommendation")
+    field = "operation feed recommendation"
+    recommendation_id = _field(raw, "id", field)
+    definition_id = _field(raw, "definition_id", field)
+    binding_id = _field(raw, "binding_id", field)
+    machine_profile_id = _field(raw, "machine_profile_id", field)
+    fingerprint = _field(raw, "input_fingerprint", field)
+    if not recommendation_id:
+        raise RecommendationError("recommendation ID must not be empty")
+    if not definition_id:
+        raise RecommendationError("recommendation definition_id must not be empty")
+    if not binding_id:
+        raise RecommendationError("recommendation binding_id must not be empty")
+    if not machine_profile_id:
+        raise RecommendationError(
+            "recommendation machine_profile_id must not be empty")
+    if not fingerprint:
+        raise RecommendationError(
+            "recommendation input_fingerprint must not be empty")
+    return OperationFeedRecommendation(
+        id=recommendation_id,
+        definition_id=definition_id,
+        binding_id=binding_id,
+        machine_profile_id=machine_profile_id,
+        spindle_rpm=validate_spindle_rpm(_field(raw, "spindle_rpm", field)),
+        input_fingerprint=fingerprint,
+        recommendation=feed_recommendation_from_dict(
+            _field(raw, "recommendation", field)),
+    )
+
+
 def operation_plan_to_dict(plan: OperationPlan) -> dict:
-    """JSON-ready plan. v1 omits bindings; v2 includes them."""
+    """JSON-ready plan. Legacy versions omit keys they do not own."""
     payload = {
         "version": plan.version,
         "workspace": workspace_to_dict(plan.workspace),
@@ -130,6 +224,12 @@ def operation_plan_to_dict(plan: OperationPlan) -> dict:
     payload["bindings"] = [
         operation_binding_to_dict(binding) for binding in plan.bindings
     ]
+    if plan.version == OPERATION_PLAN_V2:
+        return payload
+    payload["recommendations"] = [
+        operation_feed_recommendation_to_dict(item)
+        for item in plan.recommendations
+    ]
     return payload
 
 
@@ -142,14 +242,15 @@ def operation_plan_from_dict(data: object) -> OperationPlan:
             "not an operation plan document: missing version "
             f"{OPERATION_PLAN_VERSION!r}")
     version = data["version"]
-    if version not in (OPERATION_PLAN_V1, OPERATION_PLAN_V2):
+    if version not in (OPERATION_PLAN_V1, OPERATION_PLAN_V2, OPERATION_PLAN_V3):
         if version == WORKSPACE_VERSION:
             raise OperationDefinitionError(
                 "not an operation plan document: "
                 f"got geometry workspace version {version!r}")
         raise OperationDefinitionError(
             f"unknown operation-plan version {version!r}; "
-            f"expected {OPERATION_PLAN_V1!r} or {OPERATION_PLAN_V2!r}")
+            f"expected {OPERATION_PLAN_V1!r}, {OPERATION_PLAN_V2!r}, or "
+            f"{OPERATION_PLAN_V3!r}")
 
     raw_workspace = data.get("workspace")
     try:
@@ -168,17 +269,40 @@ def operation_plan_from_dict(data: object) -> OperationPlan:
             raise BindingError(
                 "operation-plan v1 cannot carry bindings; bind_operation "
                 "upgrades the document to v2")
+        recs = data.get("recommendations")
+        if recs:
+            raise RecommendationError(
+                "operation-plan v1 cannot carry recommendations; "
+                "recommend_feeds_speeds upgrades the document to v3")
         bindings: tuple[OperationBinding, ...] = ()
+        recommendations: tuple[OperationFeedRecommendation, ...] = ()
+    elif version == OPERATION_PLAN_V2:
+        recs = data.get("recommendations")
+        if recs:
+            raise RecommendationError(
+                "operation-plan v2 cannot carry recommendations; "
+                "recommend_feeds_speeds upgrades the document to v3")
+        bindings = tuple(
+            operation_binding_from_dict(item)
+            for item in _expect_list(data.get("bindings", []), "bindings")
+        )
+        recommendations = ()
     else:
         bindings = tuple(
             operation_binding_from_dict(item)
             for item in _expect_list(data.get("bindings", []), "bindings")
+        )
+        recommendations = tuple(
+            operation_feed_recommendation_from_dict(item)
+            for item in _expect_list(
+                data.get("recommendations", []), "recommendations")
         )
     plan = OperationPlan(
         version=version,
         workspace=workspace,
         definitions=definitions,
         bindings=bindings,
+        recommendations=recommendations,
     )
     validate_operation_plan(plan)
     return plan
@@ -203,6 +327,23 @@ def operation_plan_from_json(text: str) -> OperationPlan:
         raise OperationDefinitionError(
             f"malformed operation-plan JSON: {exc}") from exc
     return operation_plan_from_dict(data)
+
+
+def _require_number(name: str, value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise RecommendationError(
+            f"{name} must be a finite number, got {value!r}")
+    number = float(value)
+    if not math.isfinite(number):
+        raise RecommendationError(
+            f"{name} must be a finite number, got {value!r}")
+    return number
+
+
+def _optional_number(name: str, value: object) -> float | None:
+    if value is None:
+        return None
+    return _require_number(name, value)
 
 
 def _expect_object(value: object, field: str) -> dict:

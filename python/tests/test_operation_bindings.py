@@ -24,6 +24,7 @@ from cam_creation_studio.operations.ids import make_binding_id
 from cam_creation_studio.operations.plan import (
     OPERATION_PLAN_V1,
     OPERATION_PLAN_V2,
+    OPERATION_PLAN_VERSION,
     OperationPlan,
     add_definition,
     build_operation_plan,
@@ -68,7 +69,7 @@ def test_bind_operation_records_catalog_ids():
     assert binding.definition_id == "d1"
     assert binding.tool_id == "endmill_1_4"
     assert binding.material_id == "hardwood"
-    assert plan.version == OPERATION_PLAN_V2
+    assert plan.version == OPERATION_PLAN_VERSION
     assert resolve_tool(binding) is get_tool("endmill_1_4")
 
 

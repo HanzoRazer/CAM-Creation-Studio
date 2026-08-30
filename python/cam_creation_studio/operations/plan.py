@@ -32,7 +32,7 @@ from .validation import (
 OPERATION_PLAN_V1 = "camstudio_operation_plan_v1"
 OPERATION_PLAN_V2 = "camstudio_operation_plan_v2"
 OPERATION_PLAN_V3 = "camstudio_operation_plan_v3"
-OPERATION_PLAN_VERSION = OPERATION_PLAN_V2
+OPERATION_PLAN_VERSION = OPERATION_PLAN_V3
 _SUPPORTED_PLAN_VERSIONS = frozenset({
     OPERATION_PLAN_V1, OPERATION_PLAN_V2, OPERATION_PLAN_V3,
 })

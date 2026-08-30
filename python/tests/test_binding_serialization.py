@@ -13,6 +13,7 @@ from cam_creation_studio.operations.errors import BindingError, OperationDefinit
 from cam_creation_studio.operations.plan import (
     OPERATION_PLAN_V1,
     OPERATION_PLAN_V2,
+    OPERATION_PLAN_VERSION,
     OperationPlan,
     build_operation_plan,
 )
@@ -52,10 +53,17 @@ def _bound_plan():
 
 
 def test_v2_round_trip_preserves_binding_order_and_ids():
-    plan = _bound_plan()
+    current = _bound_plan()
+    plan = OperationPlan(
+        version=OPERATION_PLAN_V2,
+        workspace=current.workspace,
+        definitions=current.definitions,
+        bindings=current.bindings,
+    )
     restored = operation_plan_from_dict(operation_plan_to_dict(plan))
     assert restored.version == OPERATION_PLAN_V2
     assert restored.bindings == plan.bindings
+    assert "recommendations" not in operation_plan_to_dict(plan)
     assert restored.bindings[0].id == "b1"
     assert restored.bindings[0].definition_id == "d1"
     assert restored.bindings[0].tool_id == "endmill_1_4"
@@ -63,12 +71,19 @@ def test_v2_round_trip_preserves_binding_order_and_ids():
 
 
 def test_v2_json_is_deterministic():
-    plan = _bound_plan()
+    current = _bound_plan()
+    plan = OperationPlan(
+        version=OPERATION_PLAN_V2,
+        workspace=current.workspace,
+        definitions=current.definitions,
+        bindings=current.bindings,
+    )
     first = operation_plan_to_json(plan)
     second = operation_plan_to_json(plan)
     assert first == second
     payload = json.loads(first)
     assert payload["version"] == OPERATION_PLAN_V2
+    assert "recommendations" not in payload
     assert payload["bindings"][0]["tool_id"] == "endmill_1_4"
     assert "timestamp" not in payload
     assert operation_plan_from_json(first) == plan
@@ -140,13 +155,14 @@ def test_unknown_material_on_deserialize_is_rejected():
         operation_plan_from_dict(document)
 
 
-def test_new_plans_write_v2_even_when_unbound():
+def test_new_plans_write_current_version_even_when_unbound():
     workspace = _workspace()
     definition = define_contour(workspace, "op-contour", 6.0, id="d1")
     plan = build_operation_plan(workspace, (definition,))
     payload = operation_plan_to_dict(plan)
-    assert payload["version"] == OPERATION_PLAN_V2
+    assert payload["version"] == OPERATION_PLAN_VERSION
     assert payload["bindings"] == []
+    assert payload["recommendations"] == []
 
 
 def test_unknown_plan_version_still_fails_closed():
