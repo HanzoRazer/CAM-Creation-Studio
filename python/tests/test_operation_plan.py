@@ -52,6 +52,7 @@ def test_build_operation_plan_defaults_to_empty_definitions():
     assert plan.workspace is workspace
     assert plan.definitions == ()
     assert plan.bindings == ()
+    assert plan.recommendations == ()
     assert plan.__dataclass_params__.frozen is True
 
 

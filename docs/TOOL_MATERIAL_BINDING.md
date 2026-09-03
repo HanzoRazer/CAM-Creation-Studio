@@ -136,9 +136,11 @@ Not recorded or computed:
 * toolpath, G-code, post-processor, machine readiness
 * compatibility matrices, cutter-diameter validation, tool reach
 
-A bound plan is not safe or machine-ready. CS-014 may consume
+A bound plan is not safe or machine-ready. CS-014 consumes
 `OperationDefinition + OperationBinding + Tool + Material + MachineProfile`
-to produce an **advisory** `FeedRecommendation`.
+plus an explicit requested `spindle_rpm` to produce an **advisory**
+`FeedRecommendation`. See
+[FEEDS_SPEEDS_INTEGRATION.md](FEEDS_SPEEDS_INTEGRATION.md).
 
 A demo lives at
 [`../examples/tool_material_binding_demo.py`](../examples/tool_material_binding_demo.py).

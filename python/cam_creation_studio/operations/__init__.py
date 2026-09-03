@@ -1,9 +1,10 @@
-"""Manufacturing operation definitions (CS-012).
+"""Manufacturing operation definitions and advisory recommendations (CS-012–CS-014).
 
 Extends CS-011 :class:`~cam_creation_studio.workspace.models.OperationIntent`
-with geometry-relative planning parameters. This package records *what*
-operation the user intends. It does not assign tools or materials, compute
-feeds/speeds, generate toolpaths, or emit G-code.
+with geometry-relative planning parameters, tool/material bindings, and
+attributable advisory feeds/speeds. This package does not generate
+toolpaths or emit G-code, and a stored recommendation is not machine
+authorization.
 """
 
 from __future__ import annotations
@@ -17,15 +18,25 @@ from .builder import (
     define_reference,
     define_slot,
 )
-from .enums import ContourRelation, CutDirection, SlotRelation
-from .errors import BindingError, OperationDefinitionError
-from .ids import make_binding_id, make_operation_definition_id
+from .enums import (
+    ContourRelation,
+    CutDirection,
+    RecommendationStatus,
+    SlotRelation,
+)
+from .errors import BindingError, OperationDefinitionError, RecommendationError
+from .ids import (
+    make_binding_id,
+    make_operation_definition_id,
+    make_recommendation_id,
+)
 from .models import (
     ContourDefinition,
     DrillDefinition,
     EngraveDefinition,
     OperationBinding,
     OperationDefinition,
+    OperationFeedRecommendation,
     PocketDefinition,
     ReferenceDefinition,
     SlotDefinition,
@@ -34,6 +45,7 @@ from .models import (
 from .plan import (
     OPERATION_PLAN_V1,
     OPERATION_PLAN_V2,
+    OPERATION_PLAN_V3,
     OPERATION_PLAN_VERSION,
     OperationPlan,
     add_definition,
@@ -42,19 +54,35 @@ from .plan import (
     replace_definition,
     validate_operation_plan,
 )
+from .recommendations import (
+    recommend_feeds_speeds,
+    recommendation_for_definition,
+    recommendation_status,
+    remove_feed_recommendation,
+    replace_feed_recommendation,
+)
 from .resolution import (
     binding_for_definition,
     require_bindable_definition,
+    require_calculator_tool,
     require_definition,
+    require_recommendable_definition,
     resolve_definition,
+    resolve_machine_profile,
     resolve_material,
+    resolve_recommendation_inputs,
     resolve_tool,
+    validate_spindle_rpm,
 )
 from .serialization import (
+    feed_recommendation_from_dict,
+    feed_recommendation_to_dict,
     operation_binding_from_dict,
     operation_binding_to_dict,
     operation_definition_from_dict,
     operation_definition_to_dict,
+    operation_feed_recommendation_from_dict,
+    operation_feed_recommendation_to_dict,
     operation_plan_from_dict,
     operation_plan_from_json,
     operation_plan_to_dict,
@@ -62,8 +90,10 @@ from .serialization import (
 )
 from .summary import (
     BindingSummary,
+    FeedRecommendationSummary,
     OperationPlanSummary,
     summarize_bindings,
+    summarize_feed_recommendations,
     summarize_operation_plan,
 )
 from .validation import (
@@ -73,6 +103,7 @@ from .validation import (
     validate_operation_bindings,
     validate_operation_definition,
     validate_operation_definitions,
+    validate_operation_recommendations,
     validate_optional_positive_distance,
     validate_positive_distance,
 )
@@ -80,6 +111,7 @@ from .validation import (
 __all__ = [
     "OPERATION_PLAN_V1",
     "OPERATION_PLAN_V2",
+    "OPERATION_PLAN_V3",
     "OPERATION_PLAN_VERSION",
     "BindingError",
     "BindingSummary",
@@ -88,12 +120,16 @@ __all__ = [
     "CutDirection",
     "DrillDefinition",
     "EngraveDefinition",
+    "FeedRecommendationSummary",
     "OperationBinding",
     "OperationDefinition",
     "OperationDefinitionError",
+    "OperationFeedRecommendation",
     "OperationPlan",
     "OperationPlanSummary",
     "PocketDefinition",
+    "RecommendationError",
+    "RecommendationStatus",
     "ReferenceDefinition",
     "SlotDefinition",
     "SlotRelation",
@@ -108,34 +144,51 @@ __all__ = [
     "define_reference",
     "define_slot",
     "definition_type_name",
+    "feed_recommendation_from_dict",
+    "feed_recommendation_to_dict",
     "make_binding_id",
     "make_operation_definition_id",
+    "make_recommendation_id",
     "operation_binding_from_dict",
     "operation_binding_to_dict",
     "operation_definition_from_dict",
     "operation_definition_to_dict",
+    "operation_feed_recommendation_from_dict",
+    "operation_feed_recommendation_to_dict",
     "operation_plan_from_dict",
     "operation_plan_from_json",
     "operation_plan_to_dict",
     "operation_plan_to_json",
+    "recommend_feeds_speeds",
+    "recommendation_for_definition",
+    "recommendation_status",
     "remove_binding",
     "remove_definition",
+    "remove_feed_recommendation",
     "replace_binding",
     "replace_definition",
+    "replace_feed_recommendation",
     "require_bindable_definition",
+    "require_calculator_tool",
     "require_definition",
     "require_intent_kind",
+    "require_recommendable_definition",
     "resolve_definition",
     "resolve_intent",
+    "resolve_machine_profile",
     "resolve_material",
+    "resolve_recommendation_inputs",
     "resolve_tool",
     "summarize_bindings",
+    "summarize_feed_recommendations",
     "summarize_operation_plan",
     "validate_nonnegative_optional_distance",
     "validate_operation_bindings",
     "validate_operation_definition",
     "validate_operation_definitions",
     "validate_operation_plan",
+    "validate_operation_recommendations",
     "validate_optional_positive_distance",
     "validate_positive_distance",
+    "validate_spindle_rpm",
 ]

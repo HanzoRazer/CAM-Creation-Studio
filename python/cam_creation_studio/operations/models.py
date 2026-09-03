@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..feeds_speeds.calculator import FeedRecommendation
 from .enums import ContourRelation, CutDirection, SlotRelation
 
 
@@ -120,6 +121,27 @@ class OperationBinding:
     definition_id: str
     tool_id: str
     material_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class OperationFeedRecommendation:
+    """Attributable wrapper around a canonical ``FeedRecommendation``.
+
+    Records which definition, binding, machine profile, and requested
+    operating RPM produced the advice. ``spindle_rpm`` is planner input,
+    not a property of the definition or binding. ``recommendation.rpm``
+    is the calculator's rounded output. The wrapper does not copy tool,
+    material, or machine fields; IDs plus ``input_fingerprint`` preserve
+    computational identity.
+    """
+
+    id: str
+    definition_id: str
+    binding_id: str
+    machine_profile_id: str
+    spindle_rpm: float
+    input_fingerprint: str
+    recommendation: FeedRecommendation
 
 
 OperationDefinition = (

@@ -37,3 +37,16 @@ class SlotRelation(str, Enum):
     """
 
     ON_PATH = "on_path"
+
+
+class RecommendationStatus(str, Enum):
+    """Planning-state description of a stored feed recommendation.
+
+    Informational only. ``STALE`` means the stored advice no longer
+    corresponds to current calculation-driving inputs. It is not a claim
+    that the advice is unsafe or machine-dangerous.
+    """
+
+    MISSING = "missing"
+    CURRENT = "current"
+    STALE = "stale"

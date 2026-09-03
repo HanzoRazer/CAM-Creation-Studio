@@ -136,15 +136,16 @@ traceable. Retirement is recorded instead.
 | CS-008R-D1 | Mesh / Polyface Import Fidelity Evidence | `docs/audits/CS-008R_CLOSURE.md` | `cursor/cs-008r-d1-mesh-fidelity-d47b` | Merged (#22) `baa566d` | — | Additive `POLYLINE_MESH_TOPOLOGY_DROPPED`; no mesh model; `has_lossy_import` unchanged |
 | CS-011 | Neutral geometry consumer foundation | `docs/GEOMETRY_IMPORT.md` | `cursor/cs-011-neutral-geometry-consumer-d47b` | Merged (#24) `a74c99e` | — | New `workspace` package; planning state only; no toolpath / feeds / G-code |
 | CS-012 | Operation definition v1 | `docs/GEOMETRY_WORKSPACE.md` | `cursor/cs-012-operation-definition-5005` | Merged (#26) `29988c7` | — | New `operations` package; planning parameters; no tool / feeds / toolpath / G-code |
-| CS-013 | Tool / material binding | `docs/OPERATION_DEFINITION.md` | `cursor/cs-013-tool-material-binding-5005` | Open (#27) | — | `OperationBinding` on `OperationPlan`; canonical Tool/Material IDs; no feeds / machine / toolpath / G-code |
+| CS-013 | Tool / material binding | `docs/OPERATION_DEFINITION.md` | `cursor/cs-013-tool-material-binding-5005` | Merged (#27) `ac52fe3` | — | `OperationBinding` on `OperationPlan`; canonical Tool/Material IDs; no feeds / machine / toolpath / G-code |
+| CS-014 | Feeds / speeds integration | `docs/TOOL_MATERIAL_BINDING.md` | `cursor/cs-014-feeds-speeds-integration-5005` | Open (#28) | — | Attributable advisory `FeedRecommendation`; explicit `spindle_rpm`; no DOC/WOC / toolpath / G-code |
 
-*Status column last refreshed 2026-08-26.* Confirm against GitHub before relying
+*Status column last refreshed 2026-08-30.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
 **No CS-008 order is open.** CS-008R-D1 merged as #22 (`baa566d`). CS-008R-CL
 merged as #21. **CS-011** merged as #24 (`a74c99e`). **CS-012** merged as #26
-(`29988c7`). **CS-013** is open as #27. The importer remains under feature
-freeze — defects only.
+(`29988c7`). **CS-013** merged as #27 (`ac52fe3`). **CS-014** is open as #28.
+The importer remains under feature freeze — defects only.
 
 ---
 
@@ -326,7 +327,7 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 ## Next orders (sequenced)
 
 The remediation chain is complete and merged, and **closure has landed**. Steps 1
-to 5 below are done. **CS-013** is the open product order (#27).
+to 6 below are done. **CS-014** is the open product order (#28).
 
 1. ~~**F8 / F9 / F10 disposition.**~~ **Done** — CS-008R-CL. F8 remediated
    (documentation), F9 accepted, F10 remediated and verified. None was dropped
@@ -347,11 +348,18 @@ to 5 below are done. **CS-013** is the open product order (#27).
    as #26 (`29988c7`). `operations` records geometry-relative planning
    parameters on a separate `OperationPlan`. No tool, material, feeds/speeds,
    toolpath, or G-code in that increment.
-6. **Tool and material binding.** CS-013, open as #27. Connects an operation
-   definition to an existing catalog `Tool` and `Material`. No feeds/speeds,
-   machine profile, toolpath, or G-code.
-7. **Feeds / Speeds Integration** — CS-014, unissued. Consumes a bound
-   definition plus a machine profile to produce an advisory `FeedRecommendation`.
+6. ~~**Tool and material binding.**~~ **Done** — CS-013 merged as #27
+   (`ac52fe3`). `OperationPlan.bindings` names a catalog `Tool` and
+   `Material`. No feeds/speeds, machine profile, toolpath, or G-code in
+   that increment.
+7. **Feeds / Speeds Integration.** CS-014, open as #28. Produces an
+   attributable advisory `FeedRecommendation` for a bound machining
+   definition, a canonical machine profile, and an explicit requested
+   `spindle_rpm`. No DOC/WOC inference, toolpath, or G-code.
+8. **Toolpath Planning Foundation** — CS-015, unissued. Should begin with
+   an architecture study before implementation: this is the first crossing
+   from manufacturing planning into generated motion geometry. Do not jump
+   from CS-014 into G-code.
 
 **Known and unfixed, available as defect orders when someone wants them:** F9's
 `numpy` type should any of its recorded reopening triggers occur. The
@@ -398,7 +406,8 @@ relation, cut-direction preference, allowances, optional peck/retract,
 optional finished slot width). No tool, material, feeds/speeds, toolpath,
 or G-code. Persistence is a separate `OperationPlan` document so `workspace`
 does not import `operations`. CS-013 extends that same aggregate with
-`bindings`; newly built plans write `camstudio_operation_plan_v2`.
+`bindings`. CS-014 later writes newly built plans as
+`camstudio_operation_plan_v3`.
 
 Owner rulings recorded so they are not re-litigated:
 
@@ -416,10 +425,10 @@ See [`docs/OPERATION_DEFINITION.md`](../OPERATION_DEFINITION.md).
 
 ### Tool and material binding — CS-013
 
-**Open (#27).** Binds an existing CS-012 `OperationDefinition` to one
-canonical catalog `Tool` and one canonical catalog `Material`. Planning
-context only: which cutter and workpiece the user intends. No suitability
-judgement, feeds/speeds, machine profile, toolpath, or G-code.
+**Merged (#27) `ac52fe3`.** Binds an existing CS-012 `OperationDefinition`
+to one canonical catalog `Tool` and one canonical catalog `Material`.
+Planning context only: which cutter and workpiece the user intends. No
+suitability judgement, feeds/speeds, machine profile, toolpath, or G-code.
 
 Owner rulings recorded so they are not re-litigated:
 
@@ -436,6 +445,30 @@ Owner rulings recorded so they are not re-litigated:
 | Summary | `BindingSummary` has no ready/score; `OperationPlanSummary` unchanged | A bound plan is not machine-ready. `definitions_without_tool_count` stays a definition count, not a readiness claim. |
 
 See [`docs/TOOL_MATERIAL_BINDING.md`](../TOOL_MATERIAL_BINDING.md).
+
+### Feeds / speeds integration — CS-014
+
+**Open (#28).** Binds a CS-013 machining definition to the existing
+advisory feeds/speeds calculator through a canonical `MachineProfile` and
+an explicit requested `spindle_rpm`. Planning context only: attributable
+advice. No DOC/WOC inference, toolpath, G-code, or machine authorization.
+
+Owner rulings recorded so they are not re-litigated:
+
+| Decision | Ruling | Why the alternative was rejected |
+|---|---|---|
+| Operating RPM | Required `spindle_rpm` on create/replace and on the wrapper | The calculator requires RPM. `MachineProfile.max_rpm` is a ceiling, not a target. Inventing 12,000/18,000 would fabricate an operating point. |
+| Wrapper vs calculator RPM | Store requested `spindle_rpm` separately from `FeedRecommendation.rpm` | The calculator rounds RPM. Fingerprint/status must use the exact request. |
+| Flute-less tools | `RecommendationError`; binding remains valid | `laser_diode` / `drag_knife` have `flutes is None`. Dummy flute counts would invent calculator input. This is engine inapplicability, not a bad binding. |
+| Machine context | Stored on the recommendation; no plan-level selected machine | CS-013 established `binding = tool + material`. Machine belongs to recommendation context. |
+| Status | `missing` / `current` / `stale`; optional contemplated `machine_profile_id` | Mismatch is stale, not mutation. Status never calls the calculator. `STALE` is structural, not unsafe. |
+| Removal | Reject/no-cascade: recommendation → binding → definition | Same referential-integrity doctrine as CS-011–CS-013. `replace_binding` leaves advice in place as stale. |
+| Create vs replace | Second `recommend_feeds_speeds` is `RecommendationError`; replace preserves recommendation ID and `definition_id` | Creation versus replacement stays explicit. Replace re-resolves the current binding. |
+| Engagement | Never pass `doc_mm` / `woc_mm`; never map `target_depth_mm` to DOC | Final depth is not per-pass DOC. Fabricating WOC from tool diameter would invent engagement. |
+| Persistence | Newly built plans are v3; load v1/v2 retains version; serialize untouched legacy without a `recommendations` key; mutation upgrades to v3 | `read ≠ migration` and `read ≠ calculation`. |
+| Error type | `RecommendationError(OperationDefinitionError)`; wrap catalog/calculator `ValueError` | One structural family; advisory `FeedDiagnostic`s stay inside the payload. |
+
+See [`docs/FEEDS_SPEEDS_INTEGRATION.md`](../FEEDS_SPEEDS_INTEGRATION.md).
 
 ### The closure standard
 

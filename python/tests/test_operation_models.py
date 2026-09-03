@@ -10,20 +10,24 @@ import dataclasses
 
 import pytest
 
+from cam_creation_studio.feeds_speeds.calculator import FeedRecommendation
 from cam_creation_studio.operations.enums import (
     ContourRelation,
     CutDirection,
+    RecommendationStatus,
     SlotRelation,
 )
 from cam_creation_studio.operations.errors import (
     BindingError,
     OperationDefinitionError,
+    RecommendationError,
 )
 from cam_creation_studio.operations.models import (
     ContourDefinition,
     DrillDefinition,
     EngraveDefinition,
     OperationBinding,
+    OperationFeedRecommendation,
     PocketDefinition,
     ReferenceDefinition,
     SlotDefinition,
@@ -236,3 +240,88 @@ def test_binding_error_is_an_operation_definition_error():
         raise BindingError("unknown tool 'missing'")
     with pytest.raises(OperationDefinitionError, match="unknown tool"):
         raise BindingError("unknown tool 'missing'")
+
+
+def _sample_feed_recommendation() -> FeedRecommendation:
+    return FeedRecommendation(
+        rpm=12000.0,
+        feed_rate=1200.0,
+        chipload=0.05,
+        surface_speed=239389.0,
+    )
+
+
+def test_recommendation_status_is_a_closed_str_enum():
+    assert {item.value for item in RecommendationStatus} == {
+        "missing", "current", "stale",
+    }
+    assert RecommendationStatus.MISSING == "missing"
+    assert RecommendationStatus.CURRENT == "current"
+    assert RecommendationStatus.STALE == "stale"
+    with pytest.raises(ValueError):
+        RecommendationStatus("ready")
+
+
+def test_operation_feed_recommendation_is_attribution_only():
+    wrapper = OperationFeedRecommendation(
+        id="r1",
+        definition_id="d1",
+        binding_id="b1",
+        machine_profile_id="genericCncRouter",
+        spindle_rpm=12000.12345,
+        input_fingerprint="fp-1",
+        recommendation=_sample_feed_recommendation(),
+    )
+    names = {field.name for field in dataclasses.fields(wrapper)}
+    assert names == {
+        "id",
+        "definition_id",
+        "binding_id",
+        "machine_profile_id",
+        "spindle_rpm",
+        "input_fingerprint",
+        "recommendation",
+    }
+    assert wrapper.__dataclass_params__.frozen is True
+    assert wrapper.__dataclass_params__.slots is True
+    assert wrapper.spindle_rpm == 12000.12345
+    assert isinstance(wrapper.recommendation, FeedRecommendation)
+
+
+def test_operation_feed_recommendation_equality_is_deterministic():
+    payload = _sample_feed_recommendation()
+    first = OperationFeedRecommendation(
+        id="r1", definition_id="d1", binding_id="b1",
+        machine_profile_id="genericCncRouter", spindle_rpm=12000.0,
+        input_fingerprint="fp-1", recommendation=payload)
+    second = OperationFeedRecommendation(
+        id="r1", definition_id="d1", binding_id="b1",
+        machine_profile_id="genericCncRouter", spindle_rpm=12000.0,
+        input_fingerprint="fp-1", recommendation=payload)
+    third = OperationFeedRecommendation(
+        id="r1", definition_id="d1", binding_id="b1",
+        machine_profile_id="desktop3018", spindle_rpm=12000.0,
+        input_fingerprint="fp-2", recommendation=payload)
+    assert first == second
+    assert first != third
+
+
+def test_operation_feed_recommendation_does_not_copy_execution_fields():
+    names = {field.name for field in dataclasses.fields(OperationFeedRecommendation)}
+    for forbidden in (
+        "doc_mm", "woc_mm", "stepdown", "stepover", "pass_count",
+        "toolpath", "lead_in", "lead_out", "tabs", "compensation",
+        "gcode", "postprocessor", "machine_ready", "safe", "approved",
+        "diameter_mm", "flutes", "chipload_mm", "max_rpm",
+        "tool_id", "material_id",
+    ):
+        assert forbidden not in names
+
+
+def test_recommendation_error_is_an_operation_definition_error():
+    assert issubclass(RecommendationError, OperationDefinitionError)
+    assert not issubclass(RecommendationError, BindingError)
+    with pytest.raises(RecommendationError, match="unknown machine"):
+        raise RecommendationError("unknown machine 'missing'")
+    with pytest.raises(OperationDefinitionError, match="unknown machine"):
+        raise RecommendationError("unknown machine 'missing'")
