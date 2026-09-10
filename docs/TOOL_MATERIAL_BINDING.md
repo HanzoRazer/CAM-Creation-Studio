@@ -18,7 +18,9 @@ Operation Definition
       ↓
 Tool + Material Binding     (this document)
       ↓
-Feeds / Speeds              (CS-014, not here)
+Feeds / Speeds              (CS-014)
+      ↓
+Toolpath Planning           (CS-015 architecture; production in CS-016)
 ```
 
 See [OPERATION_DEFINITION.md](OPERATION_DEFINITION.md) for definition
@@ -141,6 +143,11 @@ A bound plan is not safe or machine-ready. CS-014 consumes
 plus an explicit requested `spindle_rpm` to produce an **advisory**
 `FeedRecommendation`. See
 [FEEDS_SPEEDS_INTEGRATION.md](FEEDS_SPEEDS_INTEGRATION.md).
+
+A future `ToolpathPlan` retains `binding_id` as lineage and resolves cutter
+radius from the canonical `Tool` at generation time. Binding semantics do
+not change: this document still does not compute compensation, feeds, or
+paths. See [architecture/TOOLPATH_CONTRACT.md](architecture/TOOLPATH_CONTRACT.md).
 
 A demo lives at
 [`../examples/tool_material_binding_demo.py`](../examples/tool_material_binding_demo.py).

@@ -10,10 +10,16 @@ speaks in preference to passing raw dictionaries around.
 
 ## The hierarchy
 
+The objects below are the **G-code domain**. They are not the canonical
+planned-motion model. Controller-neutral cutter motion is
+[`TOOLPATH_CONTRACT.md`](TOOLPATH_CONTRACT.md) (`ToolpathPlan`). Preview
+`ToolpathSegment` is a projection/view. `Move` / `ArcMove` remain the
+translation types inside a `GCodeProgram`.
+
 ```
 GCodeProgram
 ├── header : ProgramHeader        # units, positioning, home, machine, safe Z, startup
-├── moves  : [Move | ArcMove...]  # the body — one motion instruction each
+├── moves  : [Move | ArcMove...]  # G-code-domain body — one instruction each
 │       │
 │       └── Move / ArcMove  ──(generator)──►  Line  ──►  [Word, Word, ...]  ──►  text
 │
@@ -22,15 +28,16 @@ GCodeProgram
 
 Read top-to-bottom it is: a **Program** contains **Moves**; each Move is rendered
 into a **Line**; a Line is a command plus **Words**; Words format to text. Read
-bottom-up it is exactly how a generated file is assembled.
+bottom-up it is exactly how a generated file is assembled. This is the
+prior/current G-code pipeline, unchanged by CS-015.
 
 ## The objects
 
 | Object | Module | Role |
 |---|---|---|
 | `Point`, `Bounds` | `shared/geometry.py` | geometry primitives (re-exported from `models`) |
-| `Move` | `models.py` | a linear/rapid instruction (G0/G1) |
-| `ArcMove` | `models.py` | a circular-arc instruction (G2/G3) with I/J or R |
+| `Move` | `models.py` | G-code-domain linear/rapid instruction (G0/G1); not canonical planned motion |
+| `ArcMove` | `models.py` | G-code-domain circular instruction (G2/G3) with I/J or R; not canonical planned motion |
 | `Diagnostic` | `models.py` | one advisory validation finding |
 | `ProgramHeader` / `ProgramFooter` | `models.py` | typed description of the opening/closing block |
 | `GCodeProgram` | `models.py` | header + ordered moves + footer |

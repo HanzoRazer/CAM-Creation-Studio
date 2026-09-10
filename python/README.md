@@ -18,7 +18,7 @@ cam_creation_studio/
   geometry/      DXF import -> neutral 2D geometry model (optional: ezdxf)
   workspace/     planning state over imported geometry (select / group / intend)
   operations/    operation definition + binding + advisory feeds (planning)
-  preview/       toolpath_model (neutral travel/cut/burn segments)
+  preview/       toolpath_model (projection/view of motion; not canonical planning)
   image/         field, marching_squares, raster_etch, outline_etch
   safety/        rules (standing safety reminders + checklist)
   handoff/       handoff (feeds/speeds -> Creator advisory contract)
@@ -166,6 +166,22 @@ explicit requested `spindle_rpm` can produce an attributable
 `FeedRecommendation` from the existing calculator. Final
 `target_depth_mm` is not treated as depth of cut; width of cut is not
 inferred. The result is advisory. No toolpath or G-code.
+
+```text
+OperationFeedRecommendation
+        ↓
+Toolpath Planning          architecture defined; production implementation pending
+        ↓
+Preview / Validation
+        ↓
+G-code
+```
+
+Canonical planned motion is the controller-neutral `ToolpathPlan` in
+[../docs/architecture/TOOLPATH_CONTRACT.md](../docs/architecture/TOOLPATH_CONTRACT.md).
+Preview `ToolpathSegment` is a projection. G-code `Move` / `ArcMove` are
+translation types. CS-016 implements the contract; this package does not
+yet contain a production `toolpath` module.
 
 ```python
 from cam_creation_studio.operations import (

@@ -4,6 +4,14 @@ The core turns a typed program into G-code text and back again. The two halves
 are inverses at the level of the program body, which is what makes the output
 trustworthy to reason about.
 
+This is the **G-code pipeline**, not the manufacturing toolpath contract.
+Controller-neutral planned motion is
+[`TOOLPATH_CONTRACT.md`](TOOLPATH_CONTRACT.md). `Move` / `ArcMove` are
+downstream translation types. Future planners emit a `ToolpathPlan`, then a
+semantic adapter (not this module) may produce a `GCodeProgram`. The
+prior/current path — manual dicts or etch polylines straight into this
+generator — is unchanged by CS-015.
+
 ```
 GCodeProgram ──► Generator ──► Formatter ──► text ──► Parser ──► GCodeProgram
    (objects)      header/       Line/Word     (str)    Move/ArcMove   (objects)
@@ -99,6 +107,12 @@ python tests/test_golden_parity.py --write
 ```
 
 ## Cut-vs-burn classification in preview
+
+The **prior/current** preview pipeline builds `ToolpathSegment` lists from
+G-code (`build_toolpath_model`). That view is a projection, not canonical
+planned motion. After CS-016, `ToolpathPlan` projects into the same
+`ToolpathSegment` type; this G-code-derived path remains valid for programs
+that did not come from a planner.
 
 `build_toolpath_model` labels each feed move `cut` or `burn`. The signal it uses
 depends on how much context the input carries:
