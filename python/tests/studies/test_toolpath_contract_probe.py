@@ -18,6 +18,7 @@ if str(_STUDIES) not in sys.path:
     sys.path.insert(0, str(_STUDIES))
 
 import toolpath_contract_probe as probe
+
 from cam_creation_studio.preview.toolpath_model import (
     ARC,
     CUT,
