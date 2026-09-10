@@ -29,7 +29,7 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 _PYTHON = Path(__file__).resolve().parents[2] / "python"
 if str(_PYTHON) not in sys.path:
@@ -128,7 +128,7 @@ class ArcMotion:
     geometry_ids: tuple[str, ...] = ()
 
 
-StudyMotion = Union[LinearMotion, ArcMotion]
+StudyMotion = LinearMotion | ArcMotion
 
 
 @dataclass(frozen=True, slots=True)

@@ -17,15 +17,14 @@ _STUDIES = _REPO / "tools" / "studies"
 if str(_STUDIES) not in sys.path:
     sys.path.insert(0, str(_STUDIES))
 
-from cam_creation_studio.preview.toolpath_model import (  # noqa: E402
+import toolpath_contract_probe as probe
+from cam_creation_studio.preview.toolpath_model import (
     ARC,
     CUT,
     TRAVEL,
     ToolpathSegment,
 )
-from cam_creation_studio.shared.geometry import Point  # noqa: E402
-
-import toolpath_contract_probe as probe  # noqa: E402
+from cam_creation_studio.shared.geometry import Point
 
 
 def _quarter_arc(clockwise: bool) -> probe.ArcMotion:
@@ -299,7 +298,7 @@ def test_cut_direction_owned_by_strategy_not_geometry():
 
 def test_engagement_has_a_single_owner():
     owners = probe.engagement_owner()
-    assert set(owners[k] for k in ("DOC", "WOC", "stepdown", "stepover")) == {
+    assert {owners[k] for k in ("DOC", "WOC", "stepdown", "stepover")} == {
         "toolpath_strategy",
     }
     assert "operation_definition" in owners["not"]
@@ -379,11 +378,11 @@ def test_label_does_not_change_strategy_fingerprint():
 
 def test_upstream_fingerprint_reacts_to_computational_changes():
     strategy = probe.StudyToolpathStrategy(stepdown_mm=3.0)
-    base = dict(
-        geometry_ids=("g1",), geometry_digest="geo-v1",
-        definition_digest="def-v1", binding_id="bind-1",
-        recommendation_digest="rec-v1", strategy=strategy,
-    )
+    base = {
+        "geometry_ids": ("g1",), "geometry_digest": "geo-v1",
+        "definition_digest": "def-v1", "binding_id": "bind-1",
+        "recommendation_digest": "rec-v1", "strategy": strategy,
+    }
     fp = probe.upstream_fingerprint(**base)
     assert fp != probe.upstream_fingerprint(**{**base, "geometry_digest": "geo-v2"})
     assert fp != probe.upstream_fingerprint(**{**base, "definition_digest": "def-v2"})
