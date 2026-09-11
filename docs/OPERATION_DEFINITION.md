@@ -24,6 +24,8 @@ OperationIntent            (category only)
 OperationDefinition v1     (this document)
       ↓
 OperationPlan              (workspace + definitions)
+      ↓
+future Toolpath Planning   (CS-015 architecture; CS-016 contracts)
 ```
 
 See [GEOMETRY_WORKSPACE.md](GEOMETRY_WORKSPACE.md) for intent, selection, and
@@ -117,6 +119,16 @@ target_depth_mm = 6.0
 
 means 6 mm of intended machining depth. It is not `Z = -6`. Machine-coordinate
 sign belongs downstream.
+
+```text
+target_depth_mm is final operation intent.
+Toolpath strategy owns future depth decomposition.
+```
+
+CS-012 semantics are unchanged: this field is not DOC, not stepdown, and not
+first-pass Z. Pass lists (for example 3, 6, 9, 12 mm toward a 12 mm target)
+belong to the toolpath strategy selected in
+[architecture/TOOLPATH_CONTRACT.md](architecture/TOOLPATH_CONTRACT.md).
 
 For machining kinds, `target_depth_mm > 0`. Zero and negative depths are
 invalid. `REFERENCE` has no depth.

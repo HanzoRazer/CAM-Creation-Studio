@@ -21,7 +21,7 @@ Tool + Material Binding
       ↓
 Advisory Feeds / Speeds     (this document)
       ↓
-future Toolpath Planning    (CS-015, not here)
+Toolpath Planning           (CS-015 architecture; production in CS-016)
 ```
 
 See [TOOL_MATERIAL_BINDING.md](TOOL_MATERIAL_BINDING.md) for binding
@@ -172,9 +172,18 @@ Not recorded or computed:
 * suitability matrices
 * `machine_ready`, `safe`, or `approved` flags
 
-A stored recommendation is advisory manufacturing guidance. CS-015 may
-later consume it as planning input for toolpath generation; that work is
-not authorized here.
+A stored recommendation is advisory manufacturing guidance. A future
+toolpath planner may use it as **input** when choosing a planned path feed.
+It remains advisory:
+
+```text
+recommended feed ≠ planned path feed
+recommended feed ≠ validated execution feed
+```
+
+The path contract stores `recommendation_id` plus a separate
+`planned_feed_mm_min`. Neither number is an F-word or an execution
+authority. See [architecture/TOOLPATH_CONTRACT.md](architecture/TOOLPATH_CONTRACT.md).
 
 A demo lives at
 [`../examples/feeds_speeds_planning_demo.py`](../examples/feeds_speeds_planning_demo.py).

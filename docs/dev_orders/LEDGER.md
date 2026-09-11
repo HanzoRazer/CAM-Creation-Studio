@@ -137,14 +137,17 @@ traceable. Retirement is recorded instead.
 | CS-011 | Neutral geometry consumer foundation | `docs/GEOMETRY_IMPORT.md` | `cursor/cs-011-neutral-geometry-consumer-d47b` | Merged (#24) `a74c99e` | — | New `workspace` package; planning state only; no toolpath / feeds / G-code |
 | CS-012 | Operation definition v1 | `docs/GEOMETRY_WORKSPACE.md` | `cursor/cs-012-operation-definition-5005` | Merged (#26) `29988c7` | — | New `operations` package; planning parameters; no tool / feeds / toolpath / G-code |
 | CS-013 | Tool / material binding | `docs/OPERATION_DEFINITION.md` | `cursor/cs-013-tool-material-binding-5005` | Merged (#27) `ac52fe3` | — | `OperationBinding` on `OperationPlan`; canonical Tool/Material IDs; no feeds / machine / toolpath / G-code |
-| CS-014 | Feeds / speeds integration | `docs/TOOL_MATERIAL_BINDING.md` | `cursor/cs-014-feeds-speeds-integration-5005` | Open (#28) | — | Attributable advisory `FeedRecommendation`; explicit `spindle_rpm`; no DOC/WOC / toolpath / G-code |
+| CS-014 | Feeds / speeds integration | `docs/TOOL_MATERIAL_BINDING.md` | `cursor/cs-014-feeds-speeds-integration-5005` | Merged (#28) `3623f5e` | — | Attributable advisory `FeedRecommendation`; explicit `spindle_rpm`; no DOC/WOC / toolpath / G-code |
+| CS-015 | Toolpath planning architecture study | `docs/FEEDS_SPEEDS_INTEGRATION.md` | `cursor/cs-015-toolpath-architecture-study-b250` | Open (#30) — architecture selected; owner ratification pending merge | — | Candidate B canonical `ToolpathPlan`; preview/G-code rejected as canonical; no production path algorithms |
 
-*Status column last refreshed 2026-08-30.* Confirm against GitHub before relying
+*Status column last refreshed 2026-09-10.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
 **No CS-008 order is open.** CS-008R-D1 merged as #22 (`baa566d`). CS-008R-CL
 merged as #21. **CS-011** merged as #24 (`a74c99e`). **CS-012** merged as #26
-(`29988c7`). **CS-013** merged as #27 (`ac52fe3`). **CS-014** is open as #28.
+(`29988c7`). **CS-013** merged as #27 (`ac52fe3`). **CS-014** merged as #28
+(`3623f5e`). **CS-015** is open as #30: architecture is selected by study
+evidence; it is **not CLOSED** until this PR is owner-reviewed and merged.
 The importer remains under feature freeze — defects only.
 
 ---
@@ -327,7 +330,9 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 ## Next orders (sequenced)
 
 The remediation chain is complete and merged, and **closure has landed**. Steps 1
-to 6 below are done. **CS-014** is the open product order (#28).
+to 7 below are done. **CS-015** is the open product order (#30): architecture
+selected, owner ratification pending merge. **CS-016** is the next
+implementation order after CS-015 closes.
 
 1. ~~**F8 / F9 / F10 disposition.**~~ **Done** — CS-008R-CL. F8 remediated
    (documentation), F9 accepted, F10 remediated and verified. None was dropped
@@ -352,14 +357,21 @@ to 6 below are done. **CS-014** is the open product order (#28).
    (`ac52fe3`). `OperationPlan.bindings` names a catalog `Tool` and
    `Material`. No feeds/speeds, machine profile, toolpath, or G-code in
    that increment.
-7. **Feeds / Speeds Integration.** CS-014, open as #28. Produces an
-   attributable advisory `FeedRecommendation` for a bound machining
-   definition, a canonical machine profile, and an explicit requested
-   `spindle_rpm`. No DOC/WOC inference, toolpath, or G-code.
-8. **Toolpath Planning Foundation** — CS-015, unissued. Should begin with
-   an architecture study before implementation: this is the first crossing
-   from manufacturing planning into generated motion geometry. Do not jump
-   from CS-014 into G-code.
+7. ~~**Feeds / Speeds Integration.**~~ **Done** — CS-014 merged as #28
+   (`3623f5e`). Produces an attributable advisory `FeedRecommendation` for
+   a bound machining definition, a canonical machine profile, and an
+   explicit requested `spindle_rpm`. No DOC/WOC inference, toolpath, or
+   G-code in that increment.
+8. **Toolpath Planning Architecture Study.** CS-015, open as #30.
+   Architecture **selected** (Candidate B: controller-neutral `ToolpathPlan`).
+   Preview `ToolpathSegment` is a projection; G-code `Move`/`ArcMove` are
+   translation types. Owner ratification is merge of #30. After merge:
+   architecture ratified, CS-015 CLOSED. No production path algorithms in
+   this order.
+9. **Toolpath Core Contracts** — CS-016, unissued until CS-015 merges.
+   Implement only the selected architecture: canonical dataclasses, IDs,
+   lineage, serialization, fingerprint/staleness, preview projection. No
+   contour/pocket/drill algorithms.
 
 **Known and unfixed, available as defect orders when someone wants them:** F9's
 `numpy` type should any of its recorded reopening triggers occur. The
@@ -448,7 +460,7 @@ See [`docs/TOOL_MATERIAL_BINDING.md`](../TOOL_MATERIAL_BINDING.md).
 
 ### Feeds / speeds integration — CS-014
 
-**Open (#28).** Binds a CS-013 machining definition to the existing
+**Merged (#28) `3623f5e`.** Binds a CS-013 machining definition to the existing
 advisory feeds/speeds calculator through a canonical `MachineProfile` and
 an explicit requested `spindle_rpm`. Planning context only: attributable
 advice. No DOC/WOC inference, toolpath, G-code, or machine authorization.
@@ -469,6 +481,60 @@ Owner rulings recorded so they are not re-litigated:
 | Error type | `RecommendationError(OperationDefinitionError)`; wrap catalog/calculator `ValueError` | One structural family; advisory `FeedDiagnostic`s stay inside the payload. |
 
 See [`docs/FEEDS_SPEEDS_INTEGRATION.md`](../FEEDS_SPEEDS_INTEGRATION.md).
+
+### Toolpath planning architecture — CS-015
+
+**Open (#30).** Architecture **selected by study evidence.** Owner ratification
+is review and merge of #30. Until merge:
+
+```text
+architecture selected by CS-015 evidence
+owner ratification pending
+```
+
+After owner approve and merge:
+
+```text
+architecture ratified
+CS-015 CLOSED
+```
+
+Do not describe CS-015 as closed while #30 is open. Selected motion
+architecture: **Candidate B** — new controller-neutral `ToolpathPlan` /
+`OperationPath` / `LinearMotion` / `ArcMotion`. Preview `ToolpathSegment`
+is a projection. G-code `Move` / `ArcMove` are downstream translation.
+Browser/JS move lists are legacy prototypes, not authoritative.
+
+Study artifacts:
+
+* [`docs/architecture/TOOLPATH_CURRENT_STATE.md`](../architecture/TOOLPATH_CURRENT_STATE.md)
+* [`docs/architecture/TOOLPATH_CONTRACT_CANDIDATES.md`](../architecture/TOOLPATH_CONTRACT_CANDIDATES.md)
+* [`docs/architecture/TOOLPATH_OWNERSHIP_MATRIX.md`](../architecture/TOOLPATH_OWNERSHIP_MATRIX.md)
+* [`docs/architecture/TOOLPATH_CONTRACT.md`](../architecture/TOOLPATH_CONTRACT.md)
+* [`docs/architecture/TOOLPATH_LINEAGE_AND_STALENESS.md`](../architecture/TOOLPATH_LINEAGE_AND_STALENESS.md)
+* `tools/studies/toolpath_contract_probe.py` (not a production API)
+
+Owner rulings recorded so they are not re-litigated in CS-016:
+
+| Decision | Ruling | Why the alternative was rejected |
+|---|---|---|
+| Canonical motion | New controller-neutral model (Candidate B) | Preview carries G-words and incomplete/tessellated arcs. `Move`/`ArcMove` **are** G-code (`MoveType` = G0–G3, modal None, F-word). |
+| Preview `ToolpathSegment` | Projected into; rejected as storage | A view of existing motion. `source_command`, no operation/geometry lineage. |
+| G-code `Move` / `ArcMove` | Translation target; rejected as storage | Collapses planning into posting; violates D5/D6. |
+| Browser/JS motion | Legacy prototype / UI; not Python-core authority | Same G-code dicts and tessellated canvas polylines as the HTML era. |
+| Compensation | Planner owns explicit cutter-center geometry | Symbolic or controller G41 would make cutter location dialect-dependent and preview-false. |
+| Feeds | `recommendation_id` + `planned_feed_mm_min` | ID-only loses overrides; feed-only loses provenance. Recommended ≠ planned ≠ execution. |
+| Binding | `binding_id` on `ToolpathPlan` | Recoverable-only via `OperationPlan` fails once a path is persisted alone. |
+| Drilling | Expand to travel/plunge/peck/retract; no canned cycle | G81/G83 is controller syntax. `DrillDefinition` stays intent. |
+| Depth | Strategy owns decomposition; `target_depth_mm` unchanged | Final depth ≠ DOC/stepdown/first-pass Z. |
+| Persistence | Persisted with strategy + upstream fingerprints | Bare persist is silently stale; always-derived-only ignores generation cost. Labels do not invalidate. |
+| Production code | Unchanged `geometry`/`workspace`/`operations`/`preview`/`gcode` | CS-015 is architecture + study probe. Algorithms are CS-017+. |
+
+**Next authorized order: CS-016 Toolpath Core Contracts** — dataclasses, IDs,
+lineage, serialization, staleness, preview projection. No machining
+algorithms.
+
+See [`docs/architecture/TOOLPATH_CONTRACT.md`](../architecture/TOOLPATH_CONTRACT.md).
 
 ### The closure standard
 

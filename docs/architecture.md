@@ -33,13 +33,27 @@ Python architecture. New feature work targets the Python core.
 - `gcode/` — `formatter`, `dialects`, `generator`, `parser`, `validator`
 - `feeds_speeds/` — `calculator` + `materials` / `tools` / `machines` presets (advisory)
 - `geometry/` — DXF import → neutral 2D geometry model (`import_dxf` → `GeometryCollection`); geometry only, no machining. Uses the optional `ezdxf` dependency behind the `dxf` extra. See [GEOMETRY_IMPORT.md](GEOMETRY_IMPORT.md)
-- `preview/` — `toolpath_model` (neutral travel/cut/burn segments; a model, not a simulation)
+- `preview/` — `toolpath_model` (travel/cut/burn **projection** of motion for
+  rendering/summary; not the canonical manufacturing-motion model)
 - `image/` — `field`, `marching_squares`, `raster_etch`, `outline_etch`
 - `safety/` — `rules` (standing reminders + machine-tailored checklist) and
   `preflight` (the one export gate: `run_export_preflight`; blocks contradictory
   or unrepresentable programs, leaves machine-dependent judgements advisory).
   See [architecture/EXPORT_PREFLIGHT_SEMANTICS.md](architecture/EXPORT_PREFLIGHT_SEMANTICS.md)
 - `handoff/` — `handoff` (feeds/speeds → Creator advisory contract)
+
+Controller-neutral planned motion is defined by the Toolpath architecture in
+[architecture/TOOLPATH_CONTRACT.md](architecture/TOOLPATH_CONTRACT.md).
+
+Preview `ToolpathSegment` objects are rendering/projection contracts, not the
+canonical manufacturing-motion model.
+
+G-code `Move` / `ArcMove` objects are downstream G-code-domain translation
+contracts, not the canonical planning model.
+
+The Python core contract is authoritative. Browser-side move lists and canvas
+polylines under `app/` and `src/` are legacy prototypes or UI views; they do
+not define the motion contract.
 
 No GUI is included in this pass; the core is headless and fully unit-tested with
 the standard library only.
