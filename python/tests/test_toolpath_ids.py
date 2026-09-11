@@ -79,19 +79,19 @@ def test_strategy_fingerprint_changes_with_computational_fields():
 
 
 def _upstream(**overrides):
-    base = dict(
-        geometry_ids=("geom-a",),
-        geometry_digest="geo-v1",
-        definition_digest="def-v1",
-        binding_id="bind-1",
-        tool_diameter_mm=6.35,
-        tool_flutes=2,
-        material_id="hardwood",
-        material_chipload_mm=(0.04, 0.10),
-        recommendation_digest="rec-v1",
-        strategy_fingerprint="strat-x",
-        planned_feed_mm_min=800.0,
-    )
+    base = {
+        "geometry_ids": ("geom-a",),
+        "geometry_digest": "geo-v1",
+        "definition_digest": "def-v1",
+        "binding_id": "bind-1",
+        "tool_diameter_mm": 6.35,
+        "tool_flutes": 2,
+        "material_id": "hardwood",
+        "material_chipload_mm": (0.04, 0.10),
+        "recommendation_digest": "rec-v1",
+        "strategy_fingerprint": "strat-x",
+        "planned_feed_mm_min": 800.0,
+    }
     base.update(overrides)
     return upstream_fingerprint(**base)
 

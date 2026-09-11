@@ -18,28 +18,28 @@ from cam_creation_studio.toolpath.status import toolpath_status
 
 
 def _kwargs(**overrides):
-    base = dict(
-        operation_definition_id="def-1",
-        geometry_ids=("geom-a",),
-        binding_id="bind-1",
-        strategy=ToolpathStrategy(
+    base = {
+        "operation_definition_id": "def-1",
+        "geometry_ids": ("geom-a",),
+        "binding_id": "bind-1",
+        "strategy": ToolpathStrategy(
             travel_height_mm=5.0, stepdown_mm=3.0, label="alpha"),
-        paths=(make_operation_path(
+        "paths": (make_operation_path(
             (make_linear_motion(
                 MotionKind.CUT, Point(0, 0, 0), Point(10, 0, 0),
                 index=0, planned_feed_mm_min=800.0),),
             existing_count=0,
         ),),
-        geometry_digest="geo-v1",
-        definition_digest="def-v1",
-        recommendation_digest="rec-v1",
-        recommendation_id="rec-1",
-        planned_feed_mm_min=800.0,
-        tool_diameter_mm=6.35,
-        tool_flutes=2,
-        material_id="hardwood",
-        material_chipload_mm=(0.04, 0.10),
-    )
+        "geometry_digest": "geo-v1",
+        "definition_digest": "def-v1",
+        "recommendation_digest": "rec-v1",
+        "recommendation_id": "rec-1",
+        "planned_feed_mm_min": 800.0,
+        "tool_diameter_mm": 6.35,
+        "tool_flutes": 2,
+        "material_id": "hardwood",
+        "material_chipload_mm": (0.04, 0.10),
+    }
     base.update(overrides)
     return base
 

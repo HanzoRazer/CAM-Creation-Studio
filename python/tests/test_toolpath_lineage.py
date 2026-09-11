@@ -77,12 +77,12 @@ def test_build_toolpath_plan_reads_lineage_from_operation_plan():
 def _catalog():
     tool = get_tool("endmill_1_4")
     material = get_material("hardwood")
-    return dict(
-        tool_diameter_mm=tool.diameter_mm,
-        tool_flutes=tool.flutes,
-        material_id=material.id,
-        material_chipload_mm=material.chipload_mm,
-    )
+    return {
+        "tool_diameter_mm": tool.diameter_mm,
+        "tool_flutes": tool.flutes,
+        "material_id": material.id,
+        "material_chipload_mm": material.chipload_mm,
+    }
 
 
 def test_geometry_coordinate_change_stales_without_changing_ids():

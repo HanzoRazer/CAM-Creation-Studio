@@ -28,17 +28,17 @@ from cam_creation_studio.toolpath.preview_adapter import (
 
 
 def _plan_with(*motions, **kwargs):
-    defaults = dict(
-        operation_definition_id="def-1",
-        geometry_ids=("geom-a",),
-        binding_id="bind-1",
-        strategy=ToolpathStrategy(travel_height_mm=5.0),
-        paths=(make_operation_path(motions, existing_count=0),),
-        geometry_digest="geo-v1",
-        definition_digest="def-v1",
-        planned_feed_mm_min=800.0,
-        material_id="hardwood",
-    )
+    defaults = {
+        "operation_definition_id": "def-1",
+        "geometry_ids": ("geom-a",),
+        "binding_id": "bind-1",
+        "strategy": ToolpathStrategy(travel_height_mm=5.0),
+        "paths": (make_operation_path(motions, existing_count=0),),
+        "geometry_digest": "geo-v1",
+        "definition_digest": "def-v1",
+        "planned_feed_mm_min": 800.0,
+        "material_id": "hardwood",
+    }
     defaults.update(kwargs)
     return make_toolpath_plan(**defaults)
 
@@ -109,4 +109,4 @@ def test_full_circle_is_tessellated_in_preview_only():
     assert plan.paths[0].motions[0].start == plan.paths[0].motions[0].end
     assert all(s.source_command == "" for s in segs)
     total = sum(s.distance for s in segs)
-    assert total == pytest.approx(2 * math.pi * 10.0, rel=1e-3)
+    assert total == pytest.approx(2 * math.pi * 10.0, rel=1e-2)

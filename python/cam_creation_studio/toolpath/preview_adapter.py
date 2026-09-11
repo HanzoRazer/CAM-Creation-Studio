@@ -8,6 +8,8 @@ tessellated only in this projection so the view is not a zero-length chord.
 
 from __future__ import annotations
 
+from itertools import pairwise
+
 from ..preview import toolpath_model as preview
 from ..shared.geometry import Point, arc_length, distance, interpolate_arc
 from .enums import MotionKind
@@ -79,7 +81,7 @@ def _tessellate_full_circle(motion: ArcMotion) -> list[preview.ToolpathSegment]:
     ptype = _preview_type(motion.kind, is_arc=False)
     feed = None if ptype == preview.TRAVEL else motion.planned_feed_mm_min
     segs: list[preview.ToolpathSegment] = []
-    for prev, nxt in zip(points, points[1:]):
+    for prev, nxt in pairwise(points):
         end = _preview_point(nxt)
         dist = distance(prev, nxt)
         segs.append(preview.ToolpathSegment(

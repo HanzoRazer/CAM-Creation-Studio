@@ -2,7 +2,7 @@
 
 IDs are a creation-context identity, matching CS-011–CS-014: kind, poses,
 parent ids, and how many objects already exist. Equivalent helper sequences
-therefore produce equivalent IDs. ``uuid4`` / ``new_id()`` are not used.
+therefore produce equivalent IDs. Random identifiers are not used.
 """
 
 from __future__ import annotations

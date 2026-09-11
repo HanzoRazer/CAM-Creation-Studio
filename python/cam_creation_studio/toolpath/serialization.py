@@ -96,7 +96,7 @@ def toolpath_to_json(
     """Deterministic JSON: no wall-clock fields; object keys sorted by default."""
     return json.dumps(
         toolpath_to_dict(plan), indent=indent, sort_keys=sort_keys,
-        allow_nan=False, separators=None if indent else (",", ":"))
+        allow_nan=False)
 
 
 def toolpath_from_json(text: str) -> ToolpathPlan:
@@ -127,9 +127,9 @@ def _motion_to_dict(motion: MotionSegment) -> dict:
             "start": _point_payload(motion.start),
             "end": _point_payload(motion.end),
             "center": _point_payload(motion.center),
-            "radius": motion.radius,
+            "radius": float(motion.radius),
             "clockwise": motion.clockwise,
-            "sweep_rad": motion.sweep_rad,
+            "sweep_rad": float(motion.sweep_rad),
             "planned_feed_mm_min": motion.planned_feed_mm_min,
             "geometry_ids": list(motion.geometry_ids),
         }
@@ -181,7 +181,7 @@ def _motion_from_dict(data: object) -> MotionSegment:
 
 
 def _point_payload(point: Point) -> dict[str, float]:
-    return {"x": point.x, "y": point.y, "z": point.z}
+    return {"x": float(point.x), "y": float(point.y), "z": float(point.z)}
 
 
 def _point_from_payload(data: object) -> Point:

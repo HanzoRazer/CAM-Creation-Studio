@@ -145,16 +145,16 @@ def _validate_arc(motion: ArcMotion) -> None:
 
     expected = signed_sweep(
         motion.start, motion.end, motion.center, motion.clockwise)
-    if abs(sweep - expected) > _ARC_TOL:
-        raise ToolpathError(
-            f"arc {motion.id!r} sweep_rad does not match start/end/center")
-
     if motion.start == motion.end:
         if abs(abs(sweep) - _TWO_PI) > _ARC_TOL:
             raise ToolpathError(
                 f"arc {motion.id!r} with coincident endpoints must be a "
                 "full turn (|sweep| = 2π), not a zero-length arc")
-    elif abs(sweep) <= _ARC_TOL:
+        return
+    if abs(sweep - expected) > _ARC_TOL:
+        raise ToolpathError(
+            f"arc {motion.id!r} sweep_rad does not match start/end/center")
+    if abs(sweep) <= _ARC_TOL:
         raise ToolpathError(f"arc {motion.id!r} has zero sweep")
 
 

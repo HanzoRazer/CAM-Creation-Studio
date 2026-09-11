@@ -24,12 +24,12 @@ from cam_creation_studio.toolpath.models import (
 
 
 def _linear(**kwargs) -> LinearMotion:
-    defaults = dict(
-        id="lin-1",
-        kind=MotionKind.CUT,
-        start=Point(0, 0, 0),
-        end=Point(10, 0, 0),
-    )
+    defaults = {
+        "id": "lin-1",
+        "kind": MotionKind.CUT,
+        "start": Point(0, 0, 0),
+        "end": Point(10, 0, 0),
+    }
     defaults.update(kwargs)
     return LinearMotion(**defaults)
 
