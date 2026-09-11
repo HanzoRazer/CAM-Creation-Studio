@@ -4,6 +4,8 @@
 **Status:** Architecture **selected**. Owner ratification is merge of the CS-015
 PR. After merge this document is the governing planned-motion contract.
 **Implements in:** CS-016 (dataclasses, IDs, serialization, preview projection).
+**Production package:** [`docs/TOOLPATH_CORE.md`](../TOOLPATH_CORE.md)
+(`cam_creation_studio.toolpath`).
 **Does not implement:** contour/pocket/drill algorithms, compensation math,
 G-code emission.
 

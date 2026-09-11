@@ -111,8 +111,9 @@ python tests/test_golden_parity.py --write
 The **prior/current** preview pipeline builds `ToolpathSegment` lists from
 G-code (`build_toolpath_model`). That view is a projection, not canonical
 planned motion. After CS-016, `ToolpathPlan` projects into the same
-`ToolpathSegment` type; this G-code-derived path remains valid for programs
-that did not come from a planner.
+`ToolpathSegment` type via `cam_creation_studio.toolpath.toolpath_to_preview`
+(see [TOOLPATH_CORE.md](../TOOLPATH_CORE.md)); this G-code-derived path remains
+valid for programs that did not come from a planner.
 
 `build_toolpath_model` labels each feed move `cut` or `burn`. The signal it uses
 depends on how much context the input carries:

@@ -33,6 +33,9 @@ Python architecture. New feature work targets the Python core.
 - `gcode/` — `formatter`, `dialects`, `generator`, `parser`, `validator`
 - `feeds_speeds/` — `calculator` + `materials` / `tools` / `machines` presets (advisory)
 - `geometry/` — DXF import → neutral 2D geometry model (`import_dxf` → `GeometryCollection`); geometry only, no machining. Uses the optional `ezdxf` dependency behind the `dxf` extra. See [GEOMETRY_IMPORT.md](GEOMETRY_IMPORT.md)
+- `toolpath/` — controller-neutral planned motion (`ToolpathPlan`);
+  contracts, IDs, fingerprints, staleness, preview projection. No machining
+  path algorithms. See [TOOLPATH_CORE.md](TOOLPATH_CORE.md)
 - `preview/` — `toolpath_model` (travel/cut/burn **projection** of motion for
   rendering/summary; not the canonical manufacturing-motion model)
 - `image/` — `field`, `marching_squares`, `raster_etch`, `outline_etch`
