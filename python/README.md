@@ -18,6 +18,7 @@ cam_creation_studio/
   geometry/      DXF import -> neutral 2D geometry model (optional: ezdxf)
   workspace/     planning state over imported geometry (select / group / intend)
   operations/    operation definition + binding + advisory feeds (planning)
+  toolpath/      controller-neutral planned motion (contracts; no path algorithms)
   preview/       toolpath_model (projection/view of motion; not canonical planning)
   image/         field, marching_squares, raster_etch, outline_etch
   safety/        rules (standing safety reminders + checklist)
@@ -170,18 +171,44 @@ inferred. The result is advisory. No toolpath or G-code.
 ```text
 OperationFeedRecommendation
         ↓
-Toolpath Planning          architecture defined; production implementation pending
+Toolpath Planning          controller-neutral core contracts implemented;
+                           machining planners not yet implemented
         ↓
 Preview / Validation
         ↓
 G-code
 ```
 
-Canonical planned motion is the controller-neutral `ToolpathPlan` in
-[../docs/architecture/TOOLPATH_CONTRACT.md](../docs/architecture/TOOLPATH_CONTRACT.md).
+Canonical planned motion is `cam_creation_studio.toolpath.ToolpathPlan`
+([../docs/TOOLPATH_CORE.md](../docs/TOOLPATH_CORE.md),
+[../docs/architecture/TOOLPATH_CONTRACT.md](../docs/architecture/TOOLPATH_CONTRACT.md)).
 Preview `ToolpathSegment` is a projection. G-code `Move` / `ArcMove` are
-translation types. CS-016 implements the contract; this package does not
-yet contain a production `toolpath` module.
+translation types. Contour, pocket, and drill planners are not in this
+package.
+
+```python
+from cam_creation_studio.toolpath import (
+    MotionKind, ToolpathStrategy,
+    make_linear_motion, make_arc_motion, make_operation_path,
+    make_toolpath_plan, toolpath_to_json, toolpath_to_preview,
+)
+
+strategy = ToolpathStrategy(travel_height_mm=5.0, stepdown_mm=3.0)
+path = make_operation_path((
+    make_linear_motion(MotionKind.TRAVEL, start, approach, index=0),
+    make_linear_motion(MotionKind.CUT, approach, end, index=1,
+                       planned_feed_mm_min=800.0),
+), existing_count=0)
+plan = make_toolpath_plan(
+    operation_definition_id="def-1", geometry_ids=("geom-a",),
+    binding_id="bind-1", strategy=strategy, paths=(path,),
+    geometry_digest="...", definition_digest="...", planned_feed_mm_min=800.0)
+text = toolpath_to_json(plan)
+segments = toolpath_to_preview(plan)
+```
+
+A demo lives at
+[`../examples/toolpath_contract_demo.py`](../examples/toolpath_contract_demo.py).
 
 ```python
 from cam_creation_studio.operations import (

@@ -3,6 +3,9 @@
 **Order:** CS-015 (Commit 5)
 **Status:** Selected with the canonical contract.
 **Companion:** [`TOOLPATH_CONTRACT.md`](TOOLPATH_CONTRACT.md)
+**Production:** [`docs/TOOLPATH_CORE.md`](../TOOLPATH_CORE.md) persists
+`strategy_fingerprint` and `upstream_fingerprint` (including
+`planned_feed_mm_min`) on `ToolpathPlan`.
 
 ---
 
