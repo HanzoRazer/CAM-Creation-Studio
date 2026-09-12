@@ -139,18 +139,18 @@ traceable. Retirement is recorded instead.
 | CS-013 | Tool / material binding | `docs/OPERATION_DEFINITION.md` | `cursor/cs-013-tool-material-binding-5005` | Merged (#27) `ac52fe3` | — | `OperationBinding` on `OperationPlan`; canonical Tool/Material IDs; no feeds / machine / toolpath / G-code |
 | CS-014 | Feeds / speeds integration | `docs/TOOL_MATERIAL_BINDING.md` | `cursor/cs-014-feeds-speeds-integration-5005` | Merged (#28) `3623f5e` | — | Attributable advisory `FeedRecommendation`; explicit `spindle_rpm`; no DOC/WOC / toolpath / G-code |
 | CS-015 | Toolpath planning architecture study | `docs/FEEDS_SPEEDS_INTEGRATION.md` | `cursor/cs-015-toolpath-architecture-study-b250` | Merged (#30) `022d4a2` | — | Candidate B canonical `ToolpathPlan`; preview/G-code rejected as canonical; architecture ratified |
-| CS-016 | Toolpath core contracts | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-016-toolpath-core-contracts-b250` | Open (#31) | — | Production `cam_creation_studio.toolpath`; IDs, fingerprints, JSON, staleness, preview projection; no path algorithms |
+| CS-016 | Toolpath core contracts | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-016-toolpath-core-contracts-b250` | Merged (#31) `30c9718` | — | Production `cam_creation_studio.toolpath`; IDs, fingerprints, JSON, staleness, preview projection; no path algorithms |
 
-*Status column last refreshed 2026-09-11.* Confirm against GitHub before relying
+*Status column last refreshed 2026-09-12.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
 **No CS-008 order is open.** CS-008R-D1 merged as #22 (`baa566d`). CS-008R-CL
 merged as #21. **CS-011** merged as #24 (`a74c99e`). **CS-012** merged as #26
 (`29988c7`). **CS-013** merged as #27 (`ac52fe3`). **CS-014** merged as #28
 (`3623f5e`). **CS-015** merged as #30 (`022d4a2`): architecture ratified,
-CS-015 CLOSED. **CS-016** is open as #31: production motion contracts; no
-contour/pocket/drill algorithms. The importer remains under feature freeze —
-defects only.
+CS-015 CLOSED. **CS-016** merged as #31 (`30c9718`): production motion
+contracts; CS-016 CLOSED. No contour/pocket/drill algorithms in that order.
+The importer remains under feature freeze — defects only.
 
 ---
 
@@ -332,9 +332,8 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 ## Next orders (sequenced)
 
 The remediation chain is complete and merged, and **closure has landed**. Steps 1
-to 8 below are done. **CS-016** is the open product order (#31): production
-controller-neutral motion contracts. **CS-017** is the next implementation
-order after CS-016 closes (contour planner first).
+to 9 below are done. **CS-017** is the next authorized product order: toolpath
+planners (contour first) against the CS-016 contract. It is unissued.
 
 1. ~~**F8 / F9 / F10 disposition.**~~ **Done** — CS-008R-CL. F8 remediated
    (documentation), F9 accepted, F10 remediated and verified. None was dropped
@@ -369,11 +368,11 @@ order after CS-016 closes (contour planner first).
    `ToolpathPlan`). Preview `ToolpathSegment` is a projection; G-code
    `Move`/`ArcMove` are translation types. CS-015 CLOSED. No production path
    algorithms in that order.
-9. **Toolpath Core Contracts.** CS-016, open as #31.
-   Production `cam_creation_studio.toolpath`: dataclasses, IDs, lineage,
-   serialization, fingerprint/staleness, preview projection. No
-   contour/pocket/drill algorithms.
-10. **Toolpath planners** — CS-017, unissued until CS-016 merges.
+9. ~~**Toolpath Core Contracts.**~~ **Done** — CS-016 merged as #31
+   (`30c9718`). Production `cam_creation_studio.toolpath`: dataclasses, IDs,
+   lineage, serialization, fingerprint/staleness, preview projection.
+   CS-016 CLOSED. No contour/pocket/drill algorithms in that order.
+10. **Toolpath planners** — CS-017, unissued.
     Contour (then pocket/drill) generators against the CS-016 contract.
     Offset algorithms start here; they are not in CS-016.
 
@@ -529,14 +528,15 @@ See [`docs/architecture/TOOLPATH_CONTRACT.md`](../architecture/TOOLPATH_CONTRACT
 
 ### Toolpath core contracts — CS-016
 
-**Open (#31).** Production implementation of the ratified CS-015 contract.
-Does not generate machining paths.
+**Merged (#31) `30c9718`.** Production implementation of the ratified CS-015
+contract. CS-016 CLOSED. Does not generate machining paths.
 
 ```text
 cam_creation_studio.toolpath
 version camstudio_toolpath_v1
 preview projection implemented
 machining planners not implemented
+CS-016 CLOSED
 ```
 
 | Surface | Role |
@@ -553,7 +553,7 @@ cycles, G-code adapters, CS-017 offset algorithms.
 See [`docs/TOOLPATH_CORE.md`](../TOOLPATH_CORE.md).
 
 **Next authorized order: CS-017 Toolpath planners** — contour first, against
-this contract. Unissued until CS-016 merges.
+this contract. Unissued.
 
 ### The closure standard
 
