@@ -21,11 +21,18 @@ collision, structural safety, cutting force, or machine readiness.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
+from ..shared.geometry import Point
+from ..shared.numbers import round_for_gcode
 from ..toolpath.enums import MotionKind
 from ..toolpath.models import ArcMotion, LinearMotion, MotionSegment
 from . import codes
-from .compatibility import SUPPORTED_PROFILES, ProfileLimit
+from .compatibility import (
+    DEPTH_LEVEL_ABS_TOLERANCE_MM,
+    SUPPORTED_PROFILES,
+    ProfileLimit,
+)
 from .models import PlanningRequest, Refusal
 
 _ENGAGING = frozenset({MotionKind.CUT, MotionKind.PLUNGE})
@@ -152,13 +159,30 @@ def check_motions(
         return radius
     if not motions:
         return Refusal(codes.UNSUPPORTED_CAPABILITY, "candidate motion is empty")
-    levels = set(request.depth_levels_mm)
+    levels = request.depth_levels_mm
+    previous_end = None
     for motion in motions:
         if isinstance(motion, ArcMotion) or not isinstance(motion, LinearMotion):
             return Refusal(
                 codes.UNSUPPORTED_CAPABILITY,
                 "arcs, helices, and non-linear motion are outside this witness",
             )
+        values = (
+            motion.start.x, motion.start.y, motion.start.z,
+            motion.end.x, motion.end.y, motion.end.z,
+        )
+        if any(isinstance(value, bool) or not isinstance(value, (int, float))
+               or not math.isfinite(value) for value in values):
+            return Refusal(codes.UNSUPPORTED_CAPABILITY, "motion coordinates must be finite")
+        if previous_end is None:
+            if motion.start.z < request.clearance_mm:
+                return Refusal(codes.CLEARANCE_VIOLATION, "initial pose is below clearance")
+        elif motion.start != previous_end:
+            return Refusal(
+                codes.UNSUPPORTED_CAPABILITY,
+                "motion is discontinuous; posting must not invent an unchecked segment",
+            )
+        previous_end = motion.end
         if motion.kind is MotionKind.TRAVEL:
             if motion.start.z < request.clearance_mm or motion.end.z < request.clearance_mm:
                 return Refusal(
@@ -172,6 +196,9 @@ def check_motions(
                     codes.CLEARANCE_VIOLATION,
                     "a retract does not finish at or above the declared clearance",
                 )
+            if motion.start.x != motion.end.x or motion.start.y != motion.end.y:
+                return Refusal(
+                    codes.UNSUPPORTED_CAPABILITY, "only vertical retracts are supported")
             continue
         if motion.kind not in _ENGAGING:
             return Refusal(
@@ -181,6 +208,8 @@ def check_motions(
         refusal = _check_engaging(request, motion, radius, levels)
         if refusal is not None:
             return refusal
+    if previous_end.z < request.clearance_mm:
+        return Refusal(codes.CLEARANCE_VIOLATION, "final pose is below clearance")
     return None
 
 
@@ -188,12 +217,18 @@ def _check_engaging(
     request: PlanningRequest,
     motion: LinearMotion,
     radius: float,
-    levels: set[float],
+    levels: tuple[float, ...],
 ) -> Refusal | None:
-    if motion.start.z < 0 and motion.end.z < 0 and motion.start.z != motion.end.z:
+    if (
+        motion.kind is MotionKind.CUT and motion.start.z != motion.end.z
+    ) or (
+        motion.kind is MotionKind.PLUNGE
+        and (motion.start.x != motion.end.x or motion.start.y != motion.end.y
+             or motion.end.z > motion.start.z)
+    ):
         return Refusal(
             codes.UNSUPPORTED_CAPABILITY,
-            "ramped or helical entries are outside this witness",
+            "only level cuts and vertical downward plunges are supported",
         )
     for x, y, z in _engaging_points(motion):
         if z > 0:
@@ -214,13 +249,38 @@ def _check_engaging(
         if z == 0:
             continue
         depth = -z
-        if depth > request.removal_max_depth_mm or depth not in levels:
+        matches_level = any(math.isclose(
+            depth, level, rel_tol=0.0, abs_tol=DEPTH_LEVEL_ABS_TOLERANCE_MM,
+        ) for level in levels)
+        # Epsilon accommodates floating-point identity only. It never extends
+        # the hard maximum removal depth.
+        if depth > request.removal_max_depth_mm or not matches_level:
             return Refusal(
                 codes.DEPTH_LIMIT_EXCEEDED,
                 f"engaging Z {z} mm is outside the declared depth levels "
                 f"and removal limit",
             )
     return None
+
+
+def check_posting_precision(
+    request: PlanningRequest, motions: tuple[MotionSegment, ...] | list[MotionSegment],
+) -> Refusal | None:
+    """Recheck the coordinates the existing three-decimal formatter emits.
+
+    Original motion must pass check_motions first. Rounding must not move a
+    cutter outside a hard bound or lower the header/footer below clearance.
+    """
+    if round_for_gcode(request.clearance_mm) < request.clearance_mm:
+        return Refusal(codes.CLEARANCE_VIOLATION, "posted clearance rounds below its limit")
+    rounded = []
+    for motion in motions:
+        if not isinstance(motion, LinearMotion):
+            return Refusal(codes.UNSUPPORTED_CAPABILITY, "only linear posting is supported")
+        points = [Point(*(round_for_gcode(v) for v in (p.x, p.y, p.z)))
+                  for p in (motion.start, motion.end)]
+        rounded.append(replace(motion, start=points[0], end=points[1]))
+    return check_motions(request, rounded)
 
 
 def _engaging_points(motion: LinearMotion) -> tuple[tuple[float, float, float], ...]:

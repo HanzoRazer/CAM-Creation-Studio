@@ -122,3 +122,75 @@ The smallest next dependency is a real contour planner (the unissued CS-017
 contract) or a ratified upstream admission schema plus a trusted publisher.
 Until one of those exists, governed export of a planned program stays blocked.
 This order does not start that planner.
+
+## PR 33 review corrections on October 26
+
+Reviewed and patched from PR head
+`9b731c086f7fcbd6867f69ddc5c4ff53e4544674` on the existing PR branch.
+The original results above are historical; this verification uses Python
+3.12 and the repository dev dependencies plus JSON Schema validation.
+
+The cited origin concern was a contract scope ambiguity: schema validity and
+policy admissibility can legitimately differ, but this particular request
+contract always requires an imported artifact chain. Its published origin is
+now explicitly `imported`; the parser keeps its defensive relabel refusal.
+
+The other cited concerns are addressed by a policy-bound `1e-9` mm absolute
+depth identity tolerance (hard removal limits are not relaxed), namespace and
+artifact-shaped classification, raw-byte digest regression cases, and
+explicit `TraceabilityDefect` checks instead of production assertions.
+
+Additional defects corrected:
+
+* Published nested request and manifest objects were closed without declaring
+  their required properties, rejecting valid payloads. Complete definitions
+  now run through actual Draft 2020-12 schema validators in tests.
+* Discontinuous motion could pass segment checks while posting connected
+  different endpoints. Continuity, finite poses, safe initial/final poses,
+  vertical plunge/retract, and level-cut checks now cover that gap.
+* Three-decimal G-code rounding could invalidate checked bounds. Posted
+  coordinates are checked too; rounded-zero or non-finite feeds are refused.
+* Duplicate generate-document keys could erase provenance before
+  classification. The generate entry now uses strict bounded JSON parsing.
+* Strategy identity and frame name were absent from request fingerprints.
+  Both now invalidate dependent plan reviews.
+* Large numeric/nested JSON could raise instead of refusing; those input
+  limits now produce structured refusals. Artifact reads stop at the size
+  limit instead of loading an unbounded file first.
+* Offline writes now preserve exact UTF-8 program bytes, check the banner and
+  digest, and record refusal results. Fixture Git attributes preserve their
+  hashed bytes on Windows checkout.
+
+Verification after the code changes:
+
+```text
+cd python
+python -m pytest -q tests/test_traceable_planning.py tests/test_traceable_review_regressions.py --tb=short
+71 passed
+python -m pytest -q --tb=line
+1105 passed, 14 skipped
+```
+
+The 14 skips are the pre-existing scaffolder integration tests. The new
+regression file contributes 31 tests. The original branch passed
+`1074 passed, 14 skipped` in this environment before these fixes. An explicit
+`python -O` check confirmed the defect guard remains active under optimization.
+`git diff --check` is clean. No machining, deployment, or merge was performed.
+
+| Refusal | Trigger | Offline artifacts |
+| --- | --- | --- |
+| `SCHEMA_INVALID` | Malformed request or unsupported numeric/nesting limits | Witness `result.json`; no program |
+| `DIGEST_MISMATCH` | Changed bytes, including newline/encoding/whitespace | Witness `result.json`; no program |
+| `PROVENANCE_IMMUTABLE` | Relabeled imported chain | CLI refusal report or witness result; no new program |
+| `UNSUPPORTED_CAPABILITY` | Missing planner, discontinuous motion, or unsupported entry | Result record; no program |
+| `REMOVAL_BOUND_EXCEEDED` | Original or posted cutter envelope escapes the region | Offline result; no program |
+| `DEPTH_LIMIT_EXCEEDED` | Hard depth maximum or discrete level check fails | Offline result; no program |
+| `EXPERIMENTAL_ONLY` | Fixture requested as operational export | Offline result or CLI refusal; no new program |
+
+Offline-writer results require invoking `write_offline_export`; the pure
+evaluation API does not write files. The ordinary generate CLI preserves its
+existing behavior of leaving a pre-existing output untouched on refusal.
+These are input/workflow controls, not a sandbox against arbitrary Python
+code or an ability to recover provenance that a third party entirely deletes.
+Operational governed export, trusted human review, and contour planning remain
+unavailable.

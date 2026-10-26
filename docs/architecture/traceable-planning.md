@@ -70,6 +70,20 @@ Unknown contract ids, versions, and extra fields are refused. `pin_status`,
 `approved`, `advisory_allowed`, and `advisory_authority_granted` do not assign
 maturity or approval. Maturity is assigned locally and is experimental.
 
+The planning-request schema is for `workflow_origin: imported` only. It is
+not the ordinary manual-job schema. The parser retains the explicit
+`PROVENANCE_IMMUTABLE` refusal when a caller tries to relabel this chain.
+JSON Schema checks structure; relational identity and manufacturing policy
+remain additional checks. Schema-valid is not admission or export approval.
+
+The reserved namespaces `traceability`, `traceable_planning`, and
+`traceable_plan`, and the field `upstream_artifacts`, classify a generate
+document as governed at the root or inside `config`/`job`, even if malformed.
+Artifact-shaped `admission` objects and traceable-request contract IDs also
+classify as governed. A generic operator note named `admission` does not.
+Duplicate keys are rejected before classification so a second origin value
+cannot erase the first.
+
 ## Digest rules
 
 Structured fingerprints use canonical JSON: object keys sorted, no
@@ -79,11 +93,21 @@ timestamps.
 
 External artifacts are hashed as the exact stored bytes. A parsed document is
 not written back out and then hashed in place of those bytes.
+LF versus CRLF, UTF-8 versus UTF-16, a BOM, or whitespace changes therefore
+invalidate the recorded artifact digest. Publishers must preserve artifact
+bytes or publish a newly bound artifact chain; consumers never normalize
+them into agreement. Offline program files are written as exact UTF-8 bytes
+so platform newline conversion cannot invalidate the export manifest.
 
 `strategy_fingerprint` on `ToolpathStrategy` includes ordered
 `depth_levels_mm`. The traceable strategy fingerprint adds clearance and stock
 allowance. A stored feed recommendation is attached to a toolpath only when
 its id is selected explicitly.
+Depth order is meaningful and is never sorted for a fingerprint. Requests
+require strictly increasing positive depths. Earlier fingerprints that
+omitted depths are intentionally not preserved: persisted plans must be
+recomputed and reviewed. Request fingerprints also bind frame name and
+strategy identity.
 
 The plan digest covers the request digest, artifact digests, strategy
 fingerprint, tool diameter, allowance, stock id, frame, units, profile,
@@ -129,6 +153,16 @@ Implemented checks:
   there and must not dive back into the stock
 * profile, units, tool kind, and orientation
 
+Motion must be continuous, finite, start and finish at clearance, and use
+vertical downward plunges and vertical retracts. Cuts remain at constant Z.
+The checker verifies both original and three-decimal posted coordinates;
+rounding cannot extend removal bounds or lower clearance. Discrete-depth
+identity uses an absolute tolerance of `1e-9` mm and zero relative tolerance.
+This is numerical matching, not an allowance to exceed maximum removal;
+the maximum depth comparison remains exact. This matching tolerance is part
+of the local policy digest. Feeds that become zero at posting precision are
+refused.
+
 Not implemented: clamp collision beyond that rectangle, full machine
 collision, structural safety, cutting force, and machine readiness. Unknown
 positional tolerance is refused rather than treated as zero.
@@ -139,6 +173,25 @@ linear motion used by tests is labeled `explicit_linear_motion`. It is not
 planner output. Any program the offline gate renders is passed through
 `cam_creation_studio.gcode.generator` and marked
 `EXPERIMENTAL — NOT FOR MACHINING`.
+
+The offline writer verifies the program/manifest digests and experimental
+labels before writing. Refusals remove stale program/manifest outputs and
+write a labeled `result.json`. It cannot prevent a person from modifying a
+text file after export; a changed program no longer matches its manifest.
+
+## Operator limits
+
+There is still no real contour planner, operational publisher trust anchor,
+human-review authority, or operational governed export. No label, admission
+flag, fixture review, or CLI option enables these missing capabilities.
+Ordinary manual generation remains available under its existing preflight
+policy; it is not a governed physical-engineering approval path.
+
+Classification detects declared provenance and attempts to relabel it. It
+does not reconstruct metadata that an external actor entirely deletes, and
+these library helpers are not an isolation boundary against arbitrary Python
+code running in the same process. Imported artifacts must retain their
+provenance when passed by clients.
 
 ## Reason codes
 

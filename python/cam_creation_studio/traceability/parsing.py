@@ -99,6 +99,8 @@ def load_bounded_json(raw: bytes) -> dict:
         _fail(codes.SCHEMA_INVALID, f"non-finite number {exc.token}")
     except json.JSONDecodeError as exc:
         _fail(codes.SCHEMA_INVALID, f"malformed JSON: {exc.msg}")
+    except (ValueError, RecursionError):
+        _fail(codes.SCHEMA_INVALID, "JSON exceeds supported numeric or nesting limits")
     if not isinstance(value, dict):
         _fail(codes.SCHEMA_INVALID, "document must be a JSON object")
     return value
@@ -147,7 +149,10 @@ def _version_string(value: Any, what: str) -> str:
 def _finite(value: Any, what: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         _fail(codes.SCHEMA_INVALID, f"{what} must be a finite number")
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError:
+        _fail(codes.SCHEMA_INVALID, f"{what} must be a finite number")
     if not math.isfinite(number):
         _fail(codes.SCHEMA_INVALID, f"{what} must be a finite number")
     return number

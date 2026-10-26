@@ -1,0 +1,3 @@
+# These fixtures carry digests of exact stored bytes. Preserve their encoding
+# and line endings on checkout, including Windows core.autocrlf configurations.
+python/tests/fixtures/traceable_planning/** -text

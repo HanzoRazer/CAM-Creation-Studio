@@ -65,6 +65,10 @@ ROLE_PROFILES: dict[str, tuple[str, str]] = {
 MAX_DOCUMENT_BYTES = 256 * 1024
 MAX_ARTIFACT_BYTES = 1024 * 1024
 
+# Numerical identity only, not additional permitted removal. Hard removal
+# bounds remain exact. Relative tolerance is deliberately disabled.
+DEPTH_LEVEL_ABS_TOLERANCE_MM = 1e-9
+
 REQUEST_FIELDS: tuple[str, ...] = (
     "contract_version",
     "request_id",
@@ -150,6 +154,7 @@ def policy_document() -> dict:
         "supported_frame": SUPPORTED_FRAME,
         "supported_profile": SUPPORTED_PROFILE,
         "supported_units": SUPPORTED_UNITS,
+        "depth_level_abs_tolerance_mm": DEPTH_LEVEL_ABS_TOLERANCE_MM,
         "profiles": {
             role: {"contract_id": pair[0], "contract_version": pair[1],
                    "maturity": "experimental"}

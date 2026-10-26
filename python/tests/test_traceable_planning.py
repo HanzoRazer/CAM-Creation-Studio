@@ -64,7 +64,7 @@ def _contour(x0, y0, x1, y1, depths, clearance=5.0):
     index = 0
     for depth in depths:
         z = -float(depth)
-        approach = Point(x0, y0, clearance + 1.0)
+        approach = Point(x0, y0, clearance + 1.0 if not motions else clearance)
         start = Point(x0, y0, clearance)
         landed = Point(x0, y0, z)
         motions.append(make_linear_motion(

@@ -97,7 +97,8 @@ def resolve_package_ref(
 
 def read_exact(path: Path) -> tuple[bytes | None, Refusal | None]:
     try:
-        data = path.read_bytes()
+        with path.open("rb") as stream:
+            data = stream.read(MAX_ARTIFACT_BYTES + 1)
     except (OSError, PermissionError) as exc:
         return None, Refusal(
             codes.REFERENCE_UNRESOLVED, f"unreadable artifact: {exc.strerror or exc}")

@@ -6,9 +6,12 @@ shared export gate. Arcs are refused.
 
 from __future__ import annotations
 
+import math
+
 from ..enums import MoveType, Units
 from ..gcode.generator import program_to_text
 from ..models import GCodeProgram, Move, ProgramFooter, ProgramHeader
+from ..shared.numbers import round_for_gcode
 from ..safety.preflight import run_export_preflight
 from ..toolpath.enums import MotionKind
 from ..toolpath.models import ArcMotion, LinearMotion, MotionSegment
@@ -78,7 +81,10 @@ def render_experimental_program(
                 z=motion.end.z,
             ))
             continue
-        if motion.planned_feed_mm_min is None or motion.planned_feed_mm_min <= 0:
+        if (motion.planned_feed_mm_min is None
+                or isinstance(motion.planned_feed_mm_min, bool)
+                or not math.isfinite(motion.planned_feed_mm_min)
+                or round_for_gcode(motion.planned_feed_mm_min) <= 0):
             return None, Refusal(
                 codes.UNSUPPORTED_CAPABILITY,
                 "engaging motion is missing a positive planned feed",

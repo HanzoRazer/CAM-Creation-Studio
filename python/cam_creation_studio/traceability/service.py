@@ -13,7 +13,7 @@ from pathlib import Path
 from ..toolpath.models import MotionSegment
 from . import codes
 from .artifacts import load_package, resolve_package_ref, reverify_snapshot, read_exact
-from .bounds import check_declared_request, check_motions
+from .bounds import check_declared_request, check_motions, check_posting_precision
 from .compatibility import (
     AUTHORITY_LIMITATIONS,
     EXPERIMENTAL_BANNER,
@@ -27,6 +27,7 @@ from .compatibility import (
     postprocessor_version,
 )
 from .encoding import sha256_bytes
+from .errors import TraceabilityDefect
 from .identity import check_identity
 from .models import (
     ExportEvaluation,
@@ -50,9 +51,9 @@ from .trust import assess_producer
 
 _MARKERS = (
     "upstream_artifacts",
-    "admission",
     "traceable_planning",
     "traceable_plan",
+    "traceability",
 )
 _MOTION_SOURCE_EXPLICIT = "explicit_linear_motion"
 
@@ -196,6 +197,9 @@ def evaluate_verified_motion_export(
     refusal = check_motions(verification.request, motions)
     if refusal is not None:
         return _refused(refusal, verification)
+    refusal = check_posting_precision(verification.request, motions)
+    if refusal is not None:
+        return _refused(refusal, verification)
     plan_fp = _plan_digest(verification, motions)
     review, refusal = _load_review(review_bytes)
     if refusal is not None:
@@ -245,9 +249,36 @@ def write_offline_export(destination: Path, evaluation: ExportEvaluation) -> Non
         for path in (program, destination / "program.nc", manifest):
             if path.exists():
                 path.unlink()
+        _write_export_result(destination, evaluation, program_written=False)
         return
-    program.write_text(evaluation.program_text, encoding="utf-8")
+    raw = evaluation.program_text.encode("utf-8")
+    if (
+        not evaluation.program_text.startswith(f"({EXPERIMENTAL_BANNER})\n")
+        or evaluation.manifest.get("experimental_banner") != EXPERIMENTAL_BANNER
+        or sha256_bytes(raw) != evaluation.program_sha256
+        or evaluation.manifest.get("program_sha256") != evaluation.program_sha256
+    ):
+        raise TraceabilityDefect("offline export lost its experimental label or digest binding")
+    # Exact bytes on Windows too: text-mode newline conversion would invalidate
+    # the program digest recorded in the manifest.
+    program.write_bytes(raw)
     manifest.write_text(_stable_json(evaluation.manifest), encoding="utf-8")
+    _write_export_result(destination, evaluation, program_written=True)
+
+
+def _write_export_result(
+    destination: Path, evaluation: ExportEvaluation, *, program_written: bool,
+) -> None:
+    refusal = evaluation.refusal
+    payload = {
+        "experimental_banner": EXPERIMENTAL_BANNER,
+        "physical_machining_authorized": False,
+        "program_written": program_written,
+        "reason_codes": [] if refusal is None else [refusal.code],
+        "detail": None if refusal is None else refusal.detail,
+        "plan_digest": evaluation.plan_digest,
+    }
+    (destination / "result.json").write_text(_stable_json(payload), encoding="utf-8")
 
 
 def run_witness(package_root: Path, destination: Path, *, case: str) -> dict:
@@ -326,7 +357,8 @@ def plan_digest_for(verification: VerificationResult, motions) -> str:
 def _plan_digest(verification: VerificationResult, motions) -> str:
     request = verification.request
     bundle = verification.bundle
-    assert request is not None and bundle is not None
+    if not verification.accepted or request is None or bundle is None:
+        raise TraceabilityDefect("plan digest requires a verified request and bundle")
     digests = {item.role: item.sha256 for item in bundle.snapshot.artifacts}
     return compute_plan_digest(
         request_digest_value=request_digest(request),
@@ -407,7 +439,8 @@ def _manifest(
     program_sha: str,
     review: ReviewRecord | None,
 ) -> dict:
-    assert verification.request is not None and review is not None
+    if verification.request is None or review is None:
+        raise TraceabilityDefect("export manifest requires a request and bound review")
     return {
         "contract_version": MANIFEST_VERSION,
         "program_sha256": program_sha,
@@ -465,13 +498,38 @@ def _origins(document: dict) -> list:
 
 
 def _has_marker(document: dict) -> bool:
+    # These namespaces and artifact references are reserved, even malformed.
     if any(key in document for key in _MARKERS):
+        return True
+    if _admission_marker(document) or _request_marker(document):
         return True
     for key in ("config", "job"):
         child = document.get(key)
-        if isinstance(child, dict) and any(name in child for name in _MARKERS):
+        if isinstance(child, dict) and (
+            any(name in child for name in _MARKERS)
+            or _admission_marker(child)
+            or _request_marker(child)
+        ):
             return True
     return False
+
+
+def _admission_marker(document: dict) -> bool:
+    admission = document.get("admission")
+    if not isinstance(admission, dict):
+        return False
+    # A generic note called "admission" is not provenance. An artifact-shaped
+    # object remains governed even when incomplete or unknown-versioned.
+    return any(key in admission for key in (
+        "contract_id", "contract_version", "proposal_id", "proposal_digest",
+        "disposition", "producer_id", "advisory_authority_granted", "approved",
+    ))
+
+
+def _request_marker(document: dict) -> bool:
+    version = document.get("contract_version")
+    return isinstance(version, str) and version.startswith(
+        "creation-studio.traceable-planning-request/")
 
 
 def _stable_json(payload: dict) -> str:

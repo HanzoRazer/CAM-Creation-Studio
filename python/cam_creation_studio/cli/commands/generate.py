@@ -25,7 +25,8 @@ from ...traceability.service import (
     classify_generate_document,
     evaluate_governed_generate,
 )
-from ..common import add_json_flag, read_json, write_text
+from ...traceability.parsing import _ParseFailure, load_bounded_json
+from ..common import add_json_flag, read_text, write_text
 from ..errors import EXIT_OK, EXIT_VALIDATION, UsageError
 from ..output import dump_json
 
@@ -88,7 +89,10 @@ def add_parser(subparsers) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    doc = read_json(args.input)
+    try:
+        doc = load_bounded_json(read_text(args.input).encode("utf-8"))
+    except _ParseFailure as exc:
+        raise UsageError(f"invalid JSON generate document: {exc.detail}") from exc
     kind = classify_generate_document(doc)
     if isinstance(doc, dict) and kind != "ordinary":
         decision = evaluate_governed_generate(doc)
