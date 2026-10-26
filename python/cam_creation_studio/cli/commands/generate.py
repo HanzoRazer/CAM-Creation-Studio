@@ -21,7 +21,13 @@ import sys
 
 from ...gcode.generator import build_program
 from ...safety.preflight import run_export_preflight
-from ..common import add_json_flag, read_json, write_text
+from ...traceability.service import (
+    classify_generate_document,
+    evaluate_governed_generate,
+    load_generate_document,
+)
+from ...traceability.parsing import _ParseFailure
+from ..common import add_json_flag, read_text, write_text
 from ..errors import EXIT_OK, EXIT_VALIDATION, UsageError
 from ..output import dump_json
 
@@ -84,7 +90,30 @@ def add_parser(subparsers) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    doc = read_json(args.input)
+    try:
+        doc = load_generate_document(read_text(args.input).encode("utf-8"))
+    except _ParseFailure as exc:
+        raise UsageError(f"invalid JSON generate document: {exc.detail}") from exc
+    kind = classify_generate_document(doc)
+    if isinstance(doc, dict) and kind != "ordinary":
+        decision = evaluate_governed_generate(doc)
+        refusal = decision.refusal
+        report = {
+            "governed_export": "refused",
+            "reason_code": None if refusal is None else refusal.code,
+            "detail": None if refusal is None else refusal.detail,
+            "program_written": False,
+        }
+        print(
+            f"Governed export refused: {report['reason_code']}",
+            file=sys.stderr,
+        )
+        if refusal is not None:
+            print(refusal.detail, file=sys.stderr)
+        if args.json:
+            print(dump_json(report))
+        return EXIT_VALIDATION
+
     if not isinstance(doc, dict) or "job" not in doc:
         raise UsageError(
             "generate expects a JSON object with a 'job' key "

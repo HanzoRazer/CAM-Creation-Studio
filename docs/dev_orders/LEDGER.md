@@ -92,10 +92,12 @@ repository this session is not rooted in.
 |-----------|-------|-------|
 | `CS-xxx` | CAM-Creation-Studio | Implementation orders |
 | `CS-REC-xx` | CAM-Creation-Studio | Governance / recovery |
+| `CS-PEP-xxx` | CAM-Creation-Studio | Traceable planning and governed export. First order: `CS-PEP-001`. Registered by owner ruling, 2026-10-26 |
 | `CAM-Axx` | **CAM-Assist-Blueprint** | **Never valid here** |
 | `CAM-CS-xx` | *retired* | Ambiguous; see below |
 
-Namespaces never overlap. **A retired identifier is never reissued.**
+Namespaces never overlap. `CS-xxx` takes digits only, so `CS-PEP-xxx` and
+`CS-REC-xx` are not members of it. **A retired identifier is never reissued.**
 
 ### Retired identifiers
 
@@ -140,8 +142,9 @@ traceable. Retirement is recorded instead.
 | CS-014 | Feeds / speeds integration | `docs/TOOL_MATERIAL_BINDING.md` | `cursor/cs-014-feeds-speeds-integration-5005` | Merged (#28) `3623f5e` | — | Attributable advisory `FeedRecommendation`; explicit `spindle_rpm`; no DOC/WOC / toolpath / G-code |
 | CS-015 | Toolpath planning architecture study | `docs/FEEDS_SPEEDS_INTEGRATION.md` | `cursor/cs-015-toolpath-architecture-study-b250` | Merged (#30) `022d4a2` | — | Candidate B canonical `ToolpathPlan`; preview/G-code rejected as canonical; architecture ratified |
 | CS-016 | Toolpath core contracts | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-016-toolpath-core-contracts-b250` | Merged (#31) `30c9718` | — | Production `cam_creation_studio.toolpath`; IDs, fingerprints, JSON, staleness, preview projection; no path algorithms |
+| CS-PEP-001 | Traceable planning boundary | `docs/TOOLPATH_CORE.md` | `cursor/cs-pep-001-traceable-planning-eaf7` | Open (#33), not merged | — | Experimental package verification and governed-export refusal. Contour planner remains blocked. Does not issue CS-017 |
 
-*Status column last refreshed 2026-09-12.* Confirm against GitHub before relying
+*Status column last refreshed 2026-10-25.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
 **No CS-008 order is open.** CS-008R-D1 merged as #22 (`baa566d`). CS-008R-CL
@@ -552,8 +555,13 @@ cycles, G-code adapters, CS-017 offset algorithms.
 
 See [`docs/TOOLPATH_CORE.md`](../TOOLPATH_CORE.md).
 
-**Next authorized order: CS-017 Toolpath planners** — contour first, against
-this contract. Unissued.
+**Next planner order remains CS-017**, unissued. CS-PEP-001 does not issue it.
+
+A later check of `main` at `a2f445e` found two CS-016 follow-ups still absent:
+ordered `depth_levels_mm` did not participate in `strategy_fingerprint`, and
+`build_toolpath_plan` attached a stored feed recommendation without an
+explicit `recommendation_id`. Those corrections landed with CS-PEP-001. They
+do not reopen CS-016 and they do not add a planner.
 
 ### The closure standard
 

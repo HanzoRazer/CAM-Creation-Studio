@@ -65,6 +65,7 @@ def test_build_toolpath_plan_reads_lineage_from_operation_plan():
     strategy = ToolpathStrategy(travel_height_mm=5.0, stepdown_mm=3.0)
     toolpath = build_toolpath_plan(
         operation_plan, "d1", strategy, _paths(operation_plan),
+        recommendation_id="r1",
         planned_feed_mm_min=800.0)
     assert toolpath.operation_definition_id == "d1"
     assert toolpath.binding_id == "b1"
@@ -141,6 +142,32 @@ def test_binding_replacement_stales_via_catalog_fields():
     assert rebuilt.binding_id == "b1"
     assert toolpath_status(
         toolpath, rebuilt.upstream_fingerprint) is ToolpathStatus.STALE
+
+
+def test_recommendation_is_not_attached_without_explicit_selection():
+    operation_plan = recommend_feeds_speeds(
+        _contour_plan(), "d1", "genericCncRouter", 12000, id="r1")
+    strategy = ToolpathStrategy(travel_height_mm=5.0, stepdown_mm=3.0)
+    toolpath = build_toolpath_plan(
+        operation_plan, "d1", strategy, _paths(operation_plan),
+        planned_feed_mm_min=800.0)
+    assert toolpath.recommendation_id is None
+    selected = build_toolpath_plan(
+        operation_plan, "d1", strategy, _paths(operation_plan),
+        recommendation_id="r1",
+        planned_feed_mm_min=800.0)
+    assert selected.recommendation_id == "r1"
+    assert selected.upstream_fingerprint != toolpath.upstream_fingerprint
+
+
+def test_unknown_recommendation_selection_is_rejected():
+    operation_plan = recommend_feeds_speeds(
+        _contour_plan(), "d1", "genericCncRouter", 12000, id="r1")
+    strategy = ToolpathStrategy(travel_height_mm=5.0)
+    with pytest.raises(ToolpathError, match="explicit selection"):
+        build_toolpath_plan(
+            operation_plan, "d1", strategy, _paths(operation_plan),
+            recommendation_id="rec-other")
 
 
 def test_recommendation_notes_do_not_enter_digest():

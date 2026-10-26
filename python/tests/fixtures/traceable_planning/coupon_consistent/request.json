@@ -1,0 +1,104 @@
+{
+  "contract_version": "creation-studio.traceable-planning-request/1",
+  "coordinate_frame": {
+    "id": "stock-fixed-coupon-xy",
+    "name": "stock-fixed rectangular coupon"
+  },
+  "geometry": {
+    "id": "geom-coupon-rect-1",
+    "revision": "rev-1"
+  },
+  "machine_profile": {
+    "id": "synthetic-router-mm"
+  },
+  "operation": {
+    "centerline": {
+      "x_max_mm": 60.0,
+      "x_min_mm": 20.0,
+      "y_max_mm": 35.0,
+      "y_min_mm": 15.0
+    },
+    "type": "closed_rectangular_contour"
+  },
+  "package_id": "pkg-synthetic-coupon-1",
+  "positional_tolerance_mm": 0.05,
+  "removal_region": {
+    "max_depth_mm": 3.0,
+    "x_max_mm": 70.0,
+    "x_min_mm": 10.0,
+    "y_max_mm": 45.0,
+    "y_min_mm": 5.0
+  },
+  "request_id": "req-coupon-1",
+  "stock": {
+    "id": "stock-coupon-rect-80x50x10",
+    "material_id": "synthetic-fixture-material",
+    "x_mm": 80.0,
+    "y_mm": 50.0,
+    "z_mm": 10.0
+  },
+  "strategy": {
+    "clearance_mm": 5.0,
+    "depth_levels_mm": [
+      1.0,
+      2.0
+    ],
+    "id": "strat-witness-1",
+    "stepdown_mm": 1.0,
+    "stock_allowance_mm": 0.0,
+    "travel_height_mm": 5.0
+  },
+  "subject": {
+    "id": "specimen-synthetic-coupon-1"
+  },
+  "tooling": {
+    "diameter_mm": 6.0,
+    "id": "tool-flat-endmill-6",
+    "kind": "flat_end_mill",
+    "orientation": "fixed"
+  },
+  "units": "mm",
+  "upstream_artifacts": [
+    {
+      "artifact_id": "prop-coupon-1",
+      "contract_id": "experimental.cam-assist.proposal",
+      "contract_version": "fixture-1",
+      "package_ref": "proposal.json",
+      "role": "proposal",
+      "sha256": "a79593b8154719c3e21f1e7f58c5a149afe7f34ca34b2bc081dd9fa3bd8fbc47"
+    },
+    {
+      "artifact_id": "val-coupon-1",
+      "contract_id": "experimental.cam-assist.validation",
+      "contract_version": "fixture-1",
+      "package_ref": "validation.json",
+      "role": "validation",
+      "sha256": "0bb9941cfca2cc6ddcaa7dc79e9a5e845fefd80dc5e94d68233f2a451bc0f6a5"
+    },
+    {
+      "artifact_id": "adm-coupon-1",
+      "contract_id": "experimental.cam-assist.admission",
+      "contract_version": "fixture-1",
+      "package_ref": "admission.json",
+      "role": "admission",
+      "sha256": "11933bdd6138896612d9a9a2d95a6f7ff654a75de449fe801ddd516303f46d27"
+    },
+    {
+      "artifact_id": "geom-coupon-rect-1",
+      "contract_id": "experimental.creation-studio.geometry",
+      "contract_version": "fixture-1",
+      "package_ref": "geometry.json",
+      "role": "geometry",
+      "sha256": "511c0d9212b539cd750cc028c4164044489b81a3ebbe8a9e7235d6a167c97af2"
+    },
+    {
+      "artifact_id": "subject-coupon-1",
+      "contract_id": "experimental.creation-studio.subject",
+      "contract_version": "fixture-1",
+      "package_ref": "subject.json",
+      "role": "subject",
+      "sha256": "4c656004870ac8c66cd50621e44e7e36b5a772dee7f0fe8bbd1358392a65c1d3"
+    }
+  ],
+  "workflow_origin": "imported"
+}

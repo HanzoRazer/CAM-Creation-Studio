@@ -190,6 +190,7 @@ def build_toolpath_plan(
     strategy: ToolpathStrategy,
     paths: tuple[OperationPath, ...],
     *,
+    recommendation_id: str | None = None,
     planned_feed_mm_min: float | None = None,
     id: str | None = None,
     existing_count: int = 0,
@@ -198,6 +199,10 @@ def build_toolpath_plan(
 
     Does not generate contour, pocket, or drill geometry. ``REFERENCE``
     definitions cannot produce a machining plan.
+
+    A stored feed recommendation is attached only when ``recommendation_id``
+    names that recommendation explicitly. Presence of advice on the operation
+    plan is not selection.
     """
     try:
         definition = require_definition(operation_plan, definition_id)
@@ -232,7 +237,8 @@ def build_toolpath_plan(
         material = resolve_material(binding)
     except BindingError as exc:
         raise ToolpathError(str(exc)) from exc
-    stored = recommendation_for_definition(operation_plan, definition_id)
+    stored = _selected_recommendation(
+        operation_plan, definition_id, recommendation_id)
     return make_toolpath_plan(
         operation_definition_id=definition.id,
         geometry_ids=geometry_ids,
@@ -252,6 +258,28 @@ def build_toolpath_plan(
         id=id,
         existing_count=existing_count,
     )
+
+
+def _selected_recommendation(
+    operation_plan: OperationPlan,
+    definition_id: str,
+    recommendation_id: str | None,
+):
+    """Return the explicitly selected recommendation, or ``None``.
+
+    Omitting ``recommendation_id`` leaves the plan unattached even when the
+    operation plan already stores advice for this definition.
+    """
+    if recommendation_id is None:
+        return None
+    if not isinstance(recommendation_id, str) or not recommendation_id.strip():
+        raise ToolpathError("recommendation selection must be a non-blank id")
+    stored = recommendation_for_definition(operation_plan, definition_id)
+    if stored is None or stored.id != recommendation_id:
+        raise ToolpathError(
+            f"recommendation {recommendation_id!r} is not an explicit "
+            f"selection for definition {definition_id!r}")
+    return stored
 
 
 def _kind(value: MotionKind | str) -> MotionKind:

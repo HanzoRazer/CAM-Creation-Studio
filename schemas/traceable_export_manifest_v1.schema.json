@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creation-studio.traceable-export-manifest/1",
+  "title": "TraceableExportManifestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "program_sha256",
+    "plan_digest",
+    "plan_contract_version",
+    "input_references",
+    "profile_id",
+    "postprocessor_id",
+    "postprocessor_version",
+    "planner_id",
+    "planner_version",
+    "motion_source",
+    "review",
+    "authority_limitations",
+    "experimental_banner"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "creation-studio.traceable-export-manifest/1"
+    },
+    "program_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "plan_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "plan_contract_version": {
+      "const": "creation-studio.traceable-plan/1"
+    },
+    "input_references": {
+      "type": "object"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+    },
+    "postprocessor_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+    },
+    "postprocessor_version": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+    },
+    "planner_id": {
+      "const": "unavailable"
+    },
+    "planner_version": {
+      "const": "unavailable"
+    },
+    "motion_source": {
+      "const": "explicit_linear_motion"
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_id",
+        "plan_digest",
+        "policy_digest",
+        "decision",
+        "experimental",
+        "authority"
+      ],
+      "properties": {
+        "review_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "policy_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "decision": {
+          "const": "accepted"
+        },
+        "experimental": {
+          "const": true
+        },
+        "authority": {
+          "const": "fixture_binding_only"
+        }
+      }
+    },
+    "authority_limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "EXPERIMENTAL — NOT FOR MACHINING"
+      }
+    },
+    "experimental_banner": {
+      "const": "EXPERIMENTAL — NOT FOR MACHINING"
+    }
+  }
+}

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from cam_creation_studio.shared.geometry import Point
 from cam_creation_studio.shared.ids import stable_id
 from cam_creation_studio.toolpath.enums import MotionKind
@@ -76,6 +78,35 @@ def test_strategy_fingerprint_changes_with_computational_fields():
         replace(base, peck_depth_mm=2.0))
     assert strategy_fingerprint(base) != strategy_fingerprint(
         replace(base, retract_height_mm=1.0))
+
+
+def test_depth_levels_participate_in_strategy_fingerprint():
+    base = ToolpathStrategy(travel_height_mm=5.0, stepdown_mm=1.0)
+    one = ToolpathStrategy(
+        travel_height_mm=5.0, stepdown_mm=1.0, depth_levels_mm=(1.0,))
+    two = ToolpathStrategy(
+        travel_height_mm=5.0, stepdown_mm=1.0, depth_levels_mm=(1.0, 2.0))
+    reversed_levels = ToolpathStrategy(
+        travel_height_mm=5.0, stepdown_mm=1.0, depth_levels_mm=(2.0, 1.0))
+    assert strategy_fingerprint(base) != strategy_fingerprint(one)
+    assert strategy_fingerprint(one) != strategy_fingerprint(two)
+    assert strategy_fingerprint(two) != strategy_fingerprint(reversed_levels)
+    assert strategy_fingerprint(two) == strategy_fingerprint(
+        ToolpathStrategy(
+            travel_height_mm=5.0, stepdown_mm=1.0,
+            depth_levels_mm=(1.0, 2.0), label="ignored"))
+
+
+def test_strategy_fingerprint_rejects_non_finite_numbers():
+    import math
+
+    from cam_creation_studio.toolpath.errors import ToolpathError
+
+    base = ToolpathStrategy(travel_height_mm=5.0, stepdown_mm=1.0)
+    with pytest.raises(ToolpathError, match="finite"):
+        strategy_fingerprint(replace(base, stepdown_mm=math.nan))
+    with pytest.raises(ToolpathError, match="finite"):
+        ToolpathStrategy(travel_height_mm=5.0, depth_levels_mm=(math.inf,))
 
 
 def _upstream(**overrides):

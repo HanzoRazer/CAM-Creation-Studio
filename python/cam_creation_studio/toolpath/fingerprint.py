@@ -7,6 +7,7 @@ notes, and display names are omitted. No timestamps.
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Sequence
 
 from ..geometry.models import Arc2D, Circle2D, Line2D, Polyline2D, Spline2D
@@ -33,15 +34,45 @@ def _blob(payload: object) -> str:
                       allow_nan=False)
 
 
+def _finite_number(name: str, value: float | None) -> float | None:
+    """Return ``value`` unchanged, or ``None``. Reject non-finite inputs.
+
+    The value is not coerced. Converting ``1`` to ``1.0`` would change the
+    hash of every stored strategy.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ToolpathError(f"{name} must be a finite number")
+    if not math.isfinite(float(value)):
+        raise ToolpathError(f"{name} must be a finite number")
+    return value
+
+
 def strategy_fingerprint(strategy: ToolpathStrategy) -> str:
-    """Computational identity of a strategy. ``label`` is omitted."""
+    """Computational identity of a strategy. ``label`` is omitted.
+
+    Discrete ``depth_levels_mm`` participate in order. They are not derived
+    from ``stepdown_mm`` and they are not sorted. An empty tuple is omitted,
+    so strategies without depth levels keep their CS-016 fingerprint.
+    Non-finite numbers are rejected rather than hashed.
+    """
+    levels = [
+        _finite_number(f"depth_levels_mm[{index}]", value)
+        for index, value in enumerate(strategy.depth_levels_mm)
+    ]
     payload = {
-        "peck_depth_mm": strategy.peck_depth_mm,
-        "retract_height_mm": strategy.retract_height_mm,
-        "stepdown_mm": strategy.stepdown_mm,
-        "stepover_mm": strategy.stepover_mm,
-        "travel_height_mm": strategy.travel_height_mm,
+        "peck_depth_mm": _finite_number(
+            "peck_depth_mm", strategy.peck_depth_mm),
+        "retract_height_mm": _finite_number(
+            "retract_height_mm", strategy.retract_height_mm),
+        "stepdown_mm": _finite_number("stepdown_mm", strategy.stepdown_mm),
+        "stepover_mm": _finite_number("stepover_mm", strategy.stepover_mm),
+        "travel_height_mm": _finite_number(
+            "travel_height_mm", strategy.travel_height_mm),
     }
+    if levels:
+        payload["depth_levels_mm"] = levels
     return stable_id(_blob(payload), prefix="strat-")
 
 

@@ -1,0 +1,13 @@
+{
+  "artifact_id": "val-coupon-1",
+  "contract_id": "experimental.cam-assist.validation",
+  "contract_version": "fixture-1",
+  "geometry_id": "geom-coupon-rect-1",
+  "geometry_revision": "rev-1",
+  "package_id": "pkg-synthetic-coupon-1",
+  "proposal_digest": "a79593b8154719c3e21f1e7f58c5a149afe7f34ca34b2bc081dd9fa3bd8fbc47",
+  "proposal_id": "prop-coupon-1",
+  "result": "recorded_for_fixture",
+  "subject_id": "specimen-synthetic-coupon-1",
+  "validation_id": "val-coupon-1"
+}

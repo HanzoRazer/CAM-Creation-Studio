@@ -1,0 +1,16 @@
+{
+  "artifact_id": "adm-coupon-1",
+  "contract_id": "experimental.cam-assist.admission",
+  "contract_version": "fixture-1",
+  "current_state": "not_established",
+  "disposition": "admitted_for_human_review",
+  "geometry_id": "geom-coupon-rect-1",
+  "geometry_revision": "rev-1",
+  "package_id": "pkg-synthetic-coupon-1",
+  "producer_id": "synthetic-fixture-producer",
+  "proposal_digest": "f20a4682a7a97b2182ae87c7a5e536fe522fedf43e5681472373f16d088af58f",
+  "proposal_id": "prop-other",
+  "subject_id": "specimen-synthetic-coupon-1",
+  "validation_digest": "0bb9941cfca2cc6ddcaa7dc79e9a5e845fefd80dc5e94d68233f2a451bc0f6a5",
+  "validation_id": "val-coupon-1"
+}

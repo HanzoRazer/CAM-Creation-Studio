@@ -1,0 +1,14 @@
+{
+  "artifact_id": "geom-coupon-rect-1",
+  "contract_id": "experimental.creation-studio.geometry",
+  "contract_version": "fixture-1",
+  "coordinate_frame_id": "stock-fixed-coupon-xy",
+  "geometry_id": "geom-coupon-rect-1",
+  "kind": "rectangle",
+  "revision": "rev-1",
+  "units": "mm",
+  "x_max_mm": 60.0,
+  "x_min_mm": 20.0,
+  "y_max_mm": 35.0,
+  "y_min_mm": 15.0
+}

@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creation-studio.traceable-plan/1",
+  "title": "TraceablePlanV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "request_digest",
+    "artifact_digests",
+    "strategy_fingerprint",
+    "tool_diameter_mm",
+    "stock_allowance_mm",
+    "stock_id",
+    "frame_id",
+    "units",
+    "profile_id",
+    "planner_id",
+    "planner_version",
+    "postprocessor_id",
+    "postprocessor_version",
+    "policy_digest",
+    "toolpath_digest",
+    "motion_source"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "creation-studio.traceable-plan/1"
+    },
+    "request_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifact_digests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal",
+        "validation",
+        "admission",
+        "geometry",
+        "subject"
+      ],
+      "properties": {
+        "proposal": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "validation": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "admission": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "geometry": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "subject": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "strategy_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tool_diameter_mm": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "stock_allowance_mm": {
+      "type": "number",
+      "minimum": 0
+    },
+    "stock_id": {
+      "type": "string"
+    },
+    "frame_id": {
+      "type": "string"
+    },
+    "units": {
+      "type": "string"
+    },
+    "profile_id": {
+      "type": "string"
+    },
+    "planner_id": {
+      "const": "unavailable"
+    },
+    "planner_version": {
+      "const": "unavailable"
+    },
+    "postprocessor_id": {
+      "type": "string"
+    },
+    "postprocessor_version": {
+      "type": "string"
+    },
+    "policy_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "toolpath_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "motion_source": {
+      "type": "string"
+    },
+    "manufacturing_result": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "review": {
+      "$ref": "#/$defs/review"
+    }
+  },
+  "$defs": {
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "review_id",
+        "plan_digest",
+        "decision",
+        "policy_digest",
+        "reviewer_ref",
+        "experimental",
+        "authority"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "creation-studio.plan-review/1"
+        },
+        "review_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "decision": {
+          "enum": [
+            "accepted",
+            "rejected"
+          ]
+        },
+        "policy_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reviewer_ref": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+        },
+        "experimental": {
+          "type": "boolean"
+        },
+        "authority": {
+          "const": "fixture_binding_only"
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
