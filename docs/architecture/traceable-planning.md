@@ -125,8 +125,11 @@ Implemented checks:
 * cutter disk, grown by the declared positional tolerance, inside the
   axis-aligned removal rectangle for plunge and cut
 * plunge and cut depth within the declared maximum and the explicit levels
-* travel stays at or above the declared clearance; a retract must finish
-  there and must not dive back into the stock
+* an engaging move changes XY or Z, not both. A ramp that starts above
+  the stock is refused, as is a ramp that stays below it
+* travel stays at or above the declared clearance; a retract may climb
+  vertically and must finish at or above clearance, and it must not move in
+  XY while it is still below that clearance
 * profile, units, tool kind, and orientation
 
 Not implemented: clamp collision beyond that rectangle, full machine

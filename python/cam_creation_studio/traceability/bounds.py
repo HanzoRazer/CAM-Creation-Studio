@@ -11,7 +11,11 @@ Implemented stock and fixture checks:
 * axis-aligned removal rectangle versus the cutter disk on plunge and cut
 * depth of plunge and cut against the declared maximum and the explicit
   depth levels
-* travel and retract at or above the declared clearance
+* travel at or above the declared clearance
+* a retract may climb vertically from a cut; it may not move in XY while
+  below that clearance, and it may not descend
+* an engaging move may change XY or Z, not both (no ramp or helix, including
+  an entry that starts above the stock)
 * profile, units, tool kind, and fixed orientation
 
 Not implemented: clamp collision beyond that rectangle, full machine-body
@@ -167,11 +171,9 @@ def check_motions(
                 )
             continue
         if motion.kind is MotionKind.RETRACT:
-            if motion.end.z < request.clearance_mm or motion.end.z < motion.start.z:
-                return Refusal(
-                    codes.CLEARANCE_VIOLATION,
-                    "a retract does not finish at or above the declared clearance",
-                )
+            refusal = _check_retract(request, motion)
+            if refusal is not None:
+                return refusal
             continue
         if motion.kind not in _ENGAGING:
             return Refusal(
@@ -184,13 +186,33 @@ def check_motions(
     return None
 
 
+def _xy_changes(motion: LinearMotion) -> bool:
+    return motion.start.x != motion.end.x or motion.start.y != motion.end.y
+
+
+def _check_retract(request: PlanningRequest, motion: LinearMotion) -> Refusal | None:
+    """A retract may leave the stock vertically. It may not dogleg below clearance."""
+    if motion.end.z < motion.start.z or motion.end.z < request.clearance_mm:
+        return Refusal(
+            codes.CLEARANCE_VIOLATION,
+            "a retract does not finish at or above the declared clearance",
+        )
+    below = motion.start.z < request.clearance_mm or motion.end.z < request.clearance_mm
+    if below and _xy_changes(motion):
+        return Refusal(
+            codes.CLEARANCE_VIOLATION,
+            "a non-cutting move changes XY below the declared clearance",
+        )
+    return None
+
+
 def _check_engaging(
     request: PlanningRequest,
     motion: LinearMotion,
     radius: float,
     levels: set[float],
 ) -> Refusal | None:
-    if motion.start.z < 0 and motion.end.z < 0 and motion.start.z != motion.end.z:
+    if _xy_changes(motion) and motion.start.z != motion.end.z:
         return Refusal(
             codes.UNSUPPORTED_CAPABILITY,
             "ramped or helical entries are outside this witness",

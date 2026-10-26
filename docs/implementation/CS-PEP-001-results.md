@@ -102,7 +102,11 @@ For the synthetic coupon only:
 * cutter disk of radius plus declared positional tolerance inside the
   removal rectangle on plunge and cut
 * engaging depth within the declared maximum and the explicit depth levels
-* travel at or above clearance; retract must finish there and must not dive
+* travel at or above clearance
+* a retract may climb vertically and must finish at or above clearance; it
+  must not descend, and it must not move in XY while still below clearance
+* an engaging move may change XY or Z, not both, including an entry that
+  starts above the stock
 * flat end mill, fixed orientation, millimetres, frame
   `stock-fixed-coupon-xy`, profile `synthetic-router-mm`
 
@@ -122,3 +126,39 @@ The smallest next dependency is a real contour planner (the unissued CS-017
 contract) or a ratified upstream admission schema plus a trusted publisher.
 Until one of those exists, governed export of a planned program stays blocked.
 This order does not start that planner.
+
+## Follow-up, 2026-10-26 (America/Chicago)
+
+Branch `cursor/cs-pep-001-traceable-planning-39ad` continues the draft above.
+A plunge that changes XY while descending was accepted when it started above
+the stock, because the ramp check required both endpoints to be below Z=0.
+A retract could also move in XY while its start was still below clearance.
+Both are refused now. The contour planner is still absent, so the witness
+still does not write a program.
+
+Re-ran from `python/` on this tree:
+
+```text
+python3 -m pytest -q --tb=line
+1074 passed, 14 skipped in 4.50s
+```
+
+The 14 skips are the pre-existing scaffold-tool cases. Optional DXF tests
+ran in this environment, which is why this count is higher than the
+2026-10-25 record of 853 passed and 24 skipped.
+
+Witness CLI, separate directories, exit 1, only `result.json`:
+
+| Package | Reason | Program |
+|---|---|---|
+| `coupon_consistent` | `UNSUPPORTED_CAPABILITY` — contour planner is not implemented; CS-017 is unissued | no |
+| `coupon_depth` | `DEPTH_LIMIT_EXCEEDED` — depth level 4.0 mm exceeds declared removal limit 3.0 mm | no |
+| `coupon_geometry` | `GEOMETRY_REVISION_MISMATCH` | no |
+| `coupon_admission` | `PROPOSAL_BINDING_MISMATCH` — admission names a different proposal | no |
+
+Disabling the checks, then restoring them:
+
+* With the SHA-256 comparison forced off, `test_changed_bytes_and_reserialization_do_not_match` failed (`PROPOSAL_BINDING_MISMATCH` instead of `DIGEST_MISMATCH`).
+* With the cutter-disk test forced true, `test_centerline_inside_envelope_outside_is_refused` failed (`REVIEW_REQUIRED` instead of `REMOVAL_BOUND_EXCEEDED`).
+
+Those edits were not kept.

@@ -434,6 +434,28 @@ def test_excessive_depth_clearance_arc_and_profile(tmp_path):
     evaluation = evaluate_explicit_motion_export(package, arc, None, mode="offline")
     assert evaluation.refusal.code == "UNSUPPORTED_CAPABILITY"
 
+    # Starts above the stock, so both endpoints are not below Z=0, and still
+    # moves in XY while descending. That is a helical entry.
+    helix = (
+        make_linear_motion(
+            MotionKind.PLUNGE, Point(20, 15, 5), Point(40, 15, -1),
+            index=0, planned_feed_mm_min=300.0),
+    )
+    evaluation = evaluate_explicit_motion_export(package, helix, None, mode="offline")
+    assert evaluation.allowed is False
+    assert evaluation.program_text is None
+    assert evaluation.refusal.code == "UNSUPPORTED_CAPABILITY"
+
+    lateral = (
+        make_linear_motion(
+            MotionKind.RETRACT, Point(20, 15, -1), Point(40, 15, 5), index=0),
+    )
+    evaluation = evaluate_explicit_motion_export(
+        package, lateral, None, mode="offline")
+    assert evaluation.allowed is False
+    assert evaluation.program_text is None
+    assert evaluation.refusal.code == "CLEARANCE_VIOLATION"
+
     _mutate_request(package, lambda body: body["machine_profile"].__setitem__(
         "id", "genericLaser"))
     result = verify_package(package)
