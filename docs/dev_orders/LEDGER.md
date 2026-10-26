@@ -142,9 +142,9 @@ traceable. Retirement is recorded instead.
 | CS-014 | Feeds / speeds integration | `docs/TOOL_MATERIAL_BINDING.md` | `cursor/cs-014-feeds-speeds-integration-5005` | Merged (#28) `3623f5e` | — | Attributable advisory `FeedRecommendation`; explicit `spindle_rpm`; no DOC/WOC / toolpath / G-code |
 | CS-015 | Toolpath planning architecture study | `docs/FEEDS_SPEEDS_INTEGRATION.md` | `cursor/cs-015-toolpath-architecture-study-b250` | Merged (#30) `022d4a2` | — | Candidate B canonical `ToolpathPlan`; preview/G-code rejected as canonical; architecture ratified |
 | CS-016 | Toolpath core contracts | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-016-toolpath-core-contracts-b250` | Merged (#31) `30c9718` | — | Production `cam_creation_studio.toolpath`; IDs, fingerprints, JSON, staleness, preview projection; no path algorithms |
-| CS-PEP-001 | Traceable planning boundary | `docs/TOOLPATH_CORE.md` | `cursor/cs-pep-001-traceable-planning-eaf7` | Open (#33), not merged | — | Experimental package verification and governed-export refusal. Contour planner remains blocked. Does not issue CS-017 |
+| CS-PEP-001 | Traceable planning boundary | `docs/TOOLPATH_CORE.md` | `cursor/cs-pep-001-traceable-planning-eaf7` | Merged (#33) `941efe5` | — | Experimental package verification and governed-export refusal. Contour planner remains blocked. Does not issue CS-017 |
 
-*Status column last refreshed 2026-10-25.* Confirm against GitHub before relying
+*Status column last refreshed 2026-10-26.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
 **No CS-008 order is open.** CS-008R-D1 merged as #22 (`baa566d`). CS-008R-CL
@@ -153,7 +153,10 @@ merged as #21. **CS-011** merged as #24 (`a74c99e`). **CS-012** merged as #26
 (`3623f5e`). **CS-015** merged as #30 (`022d4a2`): architecture ratified,
 CS-015 CLOSED. **CS-016** merged as #31 (`30c9718`): production motion
 contracts; CS-016 CLOSED. No contour/pocket/drill algorithms in that order.
-The importer remains under feature freeze — defects only.
+**CS-PEP-001** merged as #33 (`941efe5`): experimental traceable-planning
+boundary; operational governed export stays disabled and CS-017 stays
+unissued. CS-PEP-001 CLOSED. The importer remains under feature freeze —
+defects only.
 
 ---
 
