@@ -11,7 +11,8 @@ or deployed.
 | Base branch | `main` |
 | Base SHA | `a2f445eebb169ca2ef00c8ba5469914a12a5352a` |
 | Working branch | `cursor/cs-pep-001-traceable-planning-eaf7` |
-| Head SHA | filled in after the recording commit |
+| Verified implementation | `e69569e7ed4502e23e5454e2a1e41c8a3f0c1e9c` |
+| Branch head | the commit that records this line, directly above that implementation commit |
 
 Stage 0 commands and the path mapping are in
 [`../dev_orders/CS-PEP-001.md`](../dev_orders/CS-PEP-001.md).
