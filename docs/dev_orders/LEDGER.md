@@ -92,10 +92,12 @@ repository this session is not rooted in.
 |-----------|-------|-------|
 | `CS-xxx` | CAM-Creation-Studio | Implementation orders |
 | `CS-REC-xx` | CAM-Creation-Studio | Governance / recovery |
+| `CS-PEP-xxx` | CAM-Creation-Studio | Traceable planning and governed export. First order: `CS-PEP-001`. Registered by owner ruling, 2026-10-26 |
 | `CAM-Axx` | **CAM-Assist-Blueprint** | **Never valid here** |
 | `CAM-CS-xx` | *retired* | Ambiguous; see below |
 
-Namespaces never overlap. **A retired identifier is never reissued.**
+Namespaces never overlap. `CS-xxx` takes digits only, so `CS-PEP-xxx` and
+`CS-REC-xx` are not members of it. **A retired identifier is never reissued.**
 
 ### Retired identifiers
 

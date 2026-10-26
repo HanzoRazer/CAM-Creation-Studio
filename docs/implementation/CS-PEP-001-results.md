@@ -235,8 +235,8 @@ Witness exits are unchanged: consistent `UNSUPPORTED_CAPABILITY`, depth
 `DEPTH_LIMIT_EXCEEDED`, geometry `GEOMETRY_REVISION_MISMATCH`, admission
 `PROPOSAL_BINDING_MISMATCH`. None writes a program.
 
-Open and not addressed here:
+The `CS-PEP-xxx` namespace was registered in the ledger by owner ruling on
+2026-10-26.
 
-* `CS-PEP-` is not registered in the ledger's identifier namespaces. That needs
-  an owner ruling.
-* Origin classification matches only the exact string `imported`.
+Open and not addressed here: origin classification matches only the exact
+string `imported`.
