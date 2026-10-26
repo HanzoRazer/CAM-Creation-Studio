@@ -82,7 +82,12 @@ document as governed at the root or inside `config`/`job`, even if malformed.
 Artifact-shaped `admission` objects and traceable-request contract IDs also
 classify as governed. A generic operator note named `admission` does not.
 Duplicate keys are rejected before classification so a second origin value
-cannot erase the first.
+cannot erase the first. An ordinary manual job that fails only the bounded
+parser's limits (size, duplicate keys, non-finite numbers) is parsed as it was
+before this order. That fallback is refused when the leniently parsed document
+looks governed or when any classifying key (`workflow_origin`, `config`, `job`,
+`admission`, a reserved namespace, or an admission artifact field) is
+duplicated.
 
 ## Digest rules
 
@@ -147,7 +152,10 @@ surfaces, and indexed setups are refused.
 Implemented checks:
 
 * cutter disk, grown by the declared positional tolerance, inside the
-  axis-aligned removal rectangle for plunge and cut
+  axis-aligned removal rectangle over the whole of every plunge and cut,
+  including the part above the stock top and below clearance
+* removal rectangle inside the stock footprint; frame
+  `stock-fixed-coupon-xy` puts the origin at the stock corner
 * plunge and cut depth within the declared maximum and the explicit levels
 * travel stays at or above the declared clearance; a retract must finish
   there and must not dive back into the stock

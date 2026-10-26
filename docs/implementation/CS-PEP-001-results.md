@@ -100,7 +100,8 @@ There is no flag that marks a fixture operational.
 For the synthetic coupon only:
 
 * cutter disk of radius plus declared positional tolerance inside the
-  removal rectangle on plunge and cut
+  removal rectangle over the whole of every plunge and cut
+* removal rectangle inside the stock footprint
 * engaging depth within the declared maximum and the explicit depth levels
 * travel at or above clearance; retract must finish there and must not dive
 * flat end mill, fixed orientation, millimetres, frame
@@ -152,6 +153,7 @@ Additional defects corrected:
   coordinates are checked too; rounded-zero or non-finite feeds are refused.
 * Duplicate generate-document keys could erase provenance before
   classification. The generate entry now uses strict bounded JSON parsing.
+  (Narrowed in the merge-readiness corrections below.)
 * Strategy identity and frame name were absent from request fingerprints.
   Both now invalidate dependent plan reviews.
 * Large numeric/nested JSON could raise instead of refusing; those input
@@ -194,3 +196,47 @@ These are input/workflow controls, not a sandbox against arbitrary Python
 code or an ability to recover provenance that a third party entirely deletes.
 Operational governed export, trusted human review, and contour planning remain
 unavailable.
+
+## Merge-readiness corrections on October 26
+
+Reviewed at PR head `dfd8b992a71a4d46757c90bee473c97b5586b9c2`. Each defect was
+reproduced with a probe before it was fixed, and each new test fails on that head.
+
+* **Cuts below clearance were unchecked in XY.** The swept-volume check only
+  considered the part of a segment at or below the stock top, so a level cut
+  at Z0.5 could reach X500 Y500 on an 80 x 50 coupon with 5 mm clearance and
+  still be posted. Containment now covers both endpoints of every plunge and
+  cut. Each segment is straight and the rectangle is convex, so the endpoints
+  bound the whole segment.
+* **The removal region was never checked against the stock.** `stock.x_mm`
+  and `stock.y_mm` were parsed but unused. The removal rectangle must now lie
+  within the stock footprint.
+* **Every existing strategy fingerprint changed.** The payload always carried
+  `depth_levels_mm: []` and turned integers into floats, so every stored CS-016
+  plan would read as stale. Empty depth levels are now omitted and values are
+  not coerced. Tests pin three fingerprints recorded on `main` at `a2f445e`.
+* **Manual `camstudio generate` regressed.** Every job went through the
+  governed-package limits, so jobs over 256 KiB, jobs with duplicate keys, and
+  jobs with NaN were refused. An ordinary job now falls back to the
+  pre-CS-PEP-001 parser. Governed documents keep strict parsing, and a
+  duplicated classifying key still refuses, so the provenance-erasure defence
+  is kept.
+* The schema regression tests skip individually when the optional
+  `jsonschema` dev dependency is absent. Before, the whole file failed to
+  collect.
+
+```text
+cd python
+python -m pytest -q --tb=line
+1117 passed, 14 skipped
+```
+
+Witness exits are unchanged: consistent `UNSUPPORTED_CAPABILITY`, depth
+`DEPTH_LIMIT_EXCEEDED`, geometry `GEOMETRY_REVISION_MISMATCH`, admission
+`PROPOSAL_BINDING_MISMATCH`. None writes a program.
+
+Open and not addressed here:
+
+* `CS-PEP-` is not registered in the ledger's identifier namespaces. That needs
+  an owner ruling.
+* Origin classification matches only the exact string `imported`.

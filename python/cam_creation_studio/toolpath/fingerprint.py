@@ -35,30 +35,33 @@ def _blob(payload: object) -> str:
 
 
 def _finite_number(name: str, value: float | None) -> float | None:
-    """Return a finite float, or ``None``. Reject non-finite inputs."""
+    """Return ``value`` unchanged, or ``None``. Reject non-finite inputs.
+
+    The value is not coerced. Converting ``1`` to ``1.0`` would change the
+    hash of every stored strategy.
+    """
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ToolpathError(f"{name} must be a finite number")
-    number = float(value)
-    if not math.isfinite(number):
+    if not math.isfinite(float(value)):
         raise ToolpathError(f"{name} must be a finite number")
-    return number
+    return value
 
 
 def strategy_fingerprint(strategy: ToolpathStrategy) -> str:
     """Computational identity of a strategy. ``label`` is omitted.
 
     Discrete ``depth_levels_mm`` participate in order. They are not derived
-    from ``stepdown_mm`` and they are not sorted. Non-finite numbers are
-    rejected rather than hashed.
+    from ``stepdown_mm`` and they are not sorted. An empty tuple is omitted,
+    so strategies without depth levels keep their CS-016 fingerprint.
+    Non-finite numbers are rejected rather than hashed.
     """
     levels = [
         _finite_number(f"depth_levels_mm[{index}]", value)
         for index, value in enumerate(strategy.depth_levels_mm)
     ]
     payload = {
-        "depth_levels_mm": levels,
         "peck_depth_mm": _finite_number(
             "peck_depth_mm", strategy.peck_depth_mm),
         "retract_height_mm": _finite_number(
@@ -68,6 +71,8 @@ def strategy_fingerprint(strategy: ToolpathStrategy) -> str:
         "travel_height_mm": _finite_number(
             "travel_height_mm", strategy.travel_height_mm),
     }
+    if levels:
+        payload["depth_levels_mm"] = levels
     return stable_id(_blob(payload), prefix="strat-")
 
 

@@ -5,12 +5,14 @@ import json
 import math
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
 import pytest
 
 from cam_creation_studio.cli.main import main
 from cam_creation_studio.shared.geometry import Point
-from cam_creation_studio.traceability.bounds import check_motions
+from cam_creation_studio.toolpath.enums import MotionKind
+from cam_creation_studio.toolpath.fingerprint import strategy_fingerprint
+from cam_creation_studio.toolpath.models import ToolpathStrategy
+from cam_creation_studio.traceability.bounds import check_declared_request, check_motions
 from cam_creation_studio.traceability.compatibility import EXPERIMENTAL_BANNER
 from cam_creation_studio.traceability.encoding import sha256_bytes
 from cam_creation_studio.traceability.errors import TraceabilityDefect
@@ -29,6 +31,8 @@ _REPO = Path(__file__).resolve().parents[2]
 
 
 def _validator(name):
+    # Optional dev dependency: only the schema tests skip without it.
+    Draft202012Validator = pytest.importorskip("jsonschema").Draft202012Validator
     schema = json.loads((_REPO / "schemas" / name).read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
@@ -240,3 +244,109 @@ def test_writer_detects_formatter_label_loss(tmp_path):
     with pytest.raises(TraceabilityDefect, match="label or digest"):
         write_offline_export(tmp_path / "out", altered)
     assert not (tmp_path / "out" / "program.gcode").exists()
+
+
+# --- Merge-readiness review at dfd8b99 ------------------------------------
+
+
+def _with_excursion(far):
+    """Good contour with a level cut above the stock top, below clearance."""
+    good = list(_good_motions())
+    first = good[0]
+    above = first.end
+    low = Point(above.x, above.y, 0.5)
+    leg = Point(far[0], far[1], 0.5)
+
+    def move(kind, start, end):
+        return replace(first, kind=kind, start=start, end=end, planned_feed_mm_min=500.0)
+
+    excursion = [move(MotionKind.PLUNGE, above, low), move(MotionKind.CUT, low, leg),
+                 move(MotionKind.CUT, leg, low), move(MotionKind.RETRACT, low, above)]
+    return [first] + excursion + good[1:]
+
+
+def test_cut_below_clearance_cannot_leave_the_removal_region(tmp_path):
+    # Reviewed, so the refusal comes from the motion check and not the review gate.
+    package = _package(tmp_path)
+    motions = _with_excursion((500.0, 500.0))
+    review = _review(plan_digest_for(verify_package(package), motions))
+    result = evaluate_explicit_motion_export(package, motions, review, mode="offline")
+    assert not result.allowed
+    assert result.program_text is None
+    assert result.refusal.code == "REMOVAL_BOUND_EXCEEDED"
+
+
+def test_cut_above_stock_inside_the_removal_region_is_still_checked_not_refused(tmp_path):
+    verification = verify_package(_package(tmp_path))
+    start = _good_motions()[0].end
+    assert check_motions(verification.request, _with_excursion((start.x + 5.0, start.y))) is None
+
+
+def test_declared_removal_region_must_lie_on_the_stock(tmp_path):
+    request = verify_package(_package(tmp_path)).request
+    assert check_declared_request(request) is None
+    off_stock = replace(
+        request, removal_x_min_mm=500.0, removal_x_max_mm=600.0,
+        removal_y_min_mm=500.0, removal_y_max_mm=600.0,
+        center_x_min_mm=520.0, center_x_max_mm=580.0,
+        center_y_min_mm=520.0, center_y_max_mm=580.0)
+    assert check_declared_request(off_stock).code == "REMOVAL_BOUND_EXCEEDED"
+    negative = replace(request, removal_x_min_mm=-1.0)
+    assert check_declared_request(negative).code == "REMOVAL_BOUND_EXCEEDED"
+
+
+@pytest.mark.parametrize(("strategy", "cs016_fingerprint"), [
+    (ToolpathStrategy(travel_height_mm=5.0), "strat-515fe3fce9055a2986400477114b9fe3"),
+    (ToolpathStrategy(stepdown_mm=1.5, stepover_mm=2.0, travel_height_mm=5.0),
+     "strat-3c2afabf15385cba86068f3504793dd1"),
+    (ToolpathStrategy(stepdown_mm=1, travel_height_mm=5),
+     "strat-a41285012cab55cc93e78ec7e8c84d3b"),
+])
+def test_strategies_without_depth_levels_keep_their_cs016_fingerprint(strategy, cs016_fingerprint):
+    # Values recorded from main at a2f445e. A change here invalidates every
+    # stored toolpath plan.
+    assert strategy_fingerprint(strategy) == cs016_fingerprint
+
+
+def _manual_job():
+    return json.loads((_REPO / "examples" / "cnc-pocket-demo.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("variant", ["oversize", "duplicate_key", "nan"])
+def test_ordinary_generate_keeps_its_pre_traceability_parsing(tmp_path, variant):
+    body = json.dumps(_manual_job())
+    if variant == "oversize":
+        job = _manual_job()
+        job["config"]["_note"] = "x" * 300_000
+        body = json.dumps(job)
+    elif variant == "duplicate_key":
+        body = '{"_note": 1, "_note": 2, ' + body[1:]
+    else:
+        body = '{"_note": NaN, ' + body[1:]
+    path = tmp_path / "job.json"
+    path.write_text(body, encoding="utf-8")
+    output = tmp_path / "out.gcode"
+    assert main(["generate", str(path), "-o", str(output)]) == 0
+    assert output.exists()
+
+
+@pytest.mark.parametrize("variant", ["oversize", "nan", "duplicate_job"])
+def test_governed_generate_keeps_strict_parsing(tmp_path, capsys, variant):
+    job = _manual_job()
+    if variant == "duplicate_job":
+        # The later "job" would hide the marker in the first one.
+        body = ('{"job": {"traceability": {}}, '
+                + json.dumps(job)[1:])
+    else:
+        job["job"]["traceability"] = {"workflow_origin": "imported"}
+        if variant == "oversize":
+            job["config"]["_note"] = "x" * 300_000
+            body = json.dumps(job)
+        else:
+            body = '{"_note": NaN, ' + json.dumps(job)[1:]
+    path = tmp_path / "job.json"
+    path.write_text(body, encoding="utf-8")
+    output = tmp_path / "out.gcode"
+    assert main(["generate", str(path), "-o", str(output)]) != 0
+    assert not output.exists()
+    assert "invalid JSON generate document" in capsys.readouterr().err

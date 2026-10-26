@@ -140,7 +140,7 @@ traceable. Retirement is recorded instead.
 | CS-014 | Feeds / speeds integration | `docs/TOOL_MATERIAL_BINDING.md` | `cursor/cs-014-feeds-speeds-integration-5005` | Merged (#28) `3623f5e` | — | Attributable advisory `FeedRecommendation`; explicit `spindle_rpm`; no DOC/WOC / toolpath / G-code |
 | CS-015 | Toolpath planning architecture study | `docs/FEEDS_SPEEDS_INTEGRATION.md` | `cursor/cs-015-toolpath-architecture-study-b250` | Merged (#30) `022d4a2` | — | Candidate B canonical `ToolpathPlan`; preview/G-code rejected as canonical; architecture ratified |
 | CS-016 | Toolpath core contracts | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-016-toolpath-core-contracts-b250` | Merged (#31) `30c9718` | — | Production `cam_creation_studio.toolpath`; IDs, fingerprints, JSON, staleness, preview projection; no path algorithms |
-| CS-PEP-001 | Traceable planning boundary | `docs/TOOLPATH_CORE.md` | `cursor/cs-pep-001-traceable-planning-eaf7` | Draft, not merged | — | Experimental package verification and governed-export refusal. Contour planner remains blocked. Does not issue CS-017 |
+| CS-PEP-001 | Traceable planning boundary | `docs/TOOLPATH_CORE.md` | `cursor/cs-pep-001-traceable-planning-eaf7` | Open (#33), not merged | — | Experimental package verification and governed-export refusal. Contour planner remains blocked. Does not issue CS-017 |
 
 *Status column last refreshed 2026-10-25.* Confirm against GitHub before relying
 on it — see § Source of truth.

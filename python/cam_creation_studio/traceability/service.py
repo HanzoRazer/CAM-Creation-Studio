@@ -8,6 +8,7 @@ the rules.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from ..toolpath.models import MotionSegment
@@ -38,7 +39,12 @@ from .models import (
     VerificationResult,
     VerifiedImportContext,
 )
-from .parsing import parse_request_bytes, parse_review_bytes
+from .parsing import (
+    _ParseFailure,
+    load_bounded_json,
+    parse_request_bytes,
+    parse_review_bytes,
+)
 from .planning import (
     compute_plan_digest,
     plan_candidate,
@@ -56,6 +62,45 @@ _MARKERS = (
     "traceability",
 )
 _MOTION_SOURCE_EXPLICIT = "explicit_linear_motion"
+_ADMISSION_KEYS = (
+    "contract_id", "contract_version", "proposal_id", "proposal_digest",
+    "disposition", "producer_id", "advisory_authority_granted", "approved",
+)
+# A duplicate of any of these could hide a governed marker behind a later value.
+_CLASSIFYING_KEYS = frozenset(
+    ("workflow_origin", "config", "job", "admission") + _MARKERS + _ADMISSION_KEYS)
+
+
+def load_generate_document(raw: bytes) -> object:
+    """Parse a ``camstudio generate`` document.
+
+    Governed documents must pass ``load_bounded_json``. An ordinary job that
+    fails only those limits (size, duplicate keys, non-finite numbers) is
+    parsed as it was before CS-PEP-001. That fallback is refused when the
+    lenient parse looks governed or a classifying key is duplicated, so a
+    second value cannot erase a provenance marker.
+    """
+    try:
+        return load_bounded_json(raw)
+    except _ParseFailure as exc:
+        strict = exc
+    duplicated: set[str] = set()
+
+    def pairs(items: list[tuple[str, object]]) -> dict:
+        seen: dict[str, object] = {}
+        for key, value in items:
+            if key in seen:
+                duplicated.add(key)
+            seen[key] = value
+        return seen
+
+    try:
+        document = json.loads(bytes(raw).decode("utf-8"), object_pairs_hook=pairs)
+    except (ValueError, RecursionError):
+        raise strict from None
+    if duplicated & _CLASSIFYING_KEYS or classify_generate_document(document) != "ordinary":
+        raise strict
+    return document
 
 
 def classify_generate_document(document: object) -> str:
@@ -520,10 +565,7 @@ def _admission_marker(document: dict) -> bool:
         return False
     # A generic note called "admission" is not provenance. An artifact-shaped
     # object remains governed even when incomplete or unknown-versioned.
-    return any(key in admission for key in (
-        "contract_id", "contract_version", "proposal_id", "proposal_digest",
-        "disposition", "producer_id", "advisory_authority_granted", "approved",
-    ))
+    return any(key in admission for key in _ADMISSION_KEYS)
 
 
 def _request_marker(document: dict) -> bool:
@@ -533,7 +575,6 @@ def _request_marker(document: dict) -> bool:
 
 
 def _stable_json(payload: dict) -> str:
-    import json
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 

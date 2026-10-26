@@ -8,7 +8,10 @@ rather than treated as zero.
 
 Implemented stock and fixture checks:
 
-* axis-aligned removal rectangle versus the cutter disk on plunge and cut
+* axis-aligned removal rectangle versus the cutter disk over the whole of
+  every plunge and cut, including any part above the stock top
+* removal rectangle inside the stock footprint, whose origin is the stock
+  corner in frame ``stock-fixed-coupon-xy``
 * depth of plunge and cut against the declared maximum and the explicit
   depth levels
 * travel and retract at or above the declared clearance
@@ -95,6 +98,16 @@ def check_declared_request(request: PlanningRequest) -> Refusal | None:
                 f"depth level {level} mm exceeds declared removal limit "
                 f"{request.removal_max_depth_mm} mm",
             )
+    if (
+        request.removal_x_min_mm < 0
+        or request.removal_y_min_mm < 0
+        or request.removal_x_max_mm > request.stock_x_mm
+        or request.removal_y_max_mm > request.stock_y_mm
+    ):
+        return Refusal(
+            codes.REMOVAL_BOUND_EXCEEDED,
+            "declared removal region extends beyond the stock footprint",
+        )
     if request.travel_height_mm < request.clearance_mm:
         return Refusal(
             codes.CLEARANCE_VIOLATION,
@@ -230,12 +243,13 @@ def _check_engaging(
             codes.UNSUPPORTED_CAPABILITY,
             "only level cuts and vertical downward plunges are supported",
         )
-    for x, y, z in _engaging_points(motion):
-        if z > 0:
-            continue
+    # Containment applies over the whole segment, not only the part below the
+    # stock top: otherwise a cut below clearance could travel anywhere. The
+    # segment is straight and the rectangle convex, so endpoints suffice.
+    for point in (motion.start, motion.end):
         if not _disk_inside(
-            x,
-            y,
+            point.x,
+            point.y,
             radius,
             request.removal_x_min_mm,
             request.removal_y_min_mm,
@@ -246,7 +260,8 @@ def _check_engaging(
                 codes.REMOVAL_BOUND_EXCEEDED,
                 "cutter envelope leaves the removal region",
             )
-        if z == 0:
+    for _x, _y, z in _engaging_points(motion):
+        if z >= 0:
             continue
         depth = -z
         matches_level = any(math.isclose(
