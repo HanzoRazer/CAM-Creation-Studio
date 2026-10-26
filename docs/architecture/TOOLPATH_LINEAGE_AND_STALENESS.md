@@ -98,6 +98,7 @@ Computational strategy fields only:
 * `travel_height_mm`
 * `stepdown_mm`, `stepover_mm`
 * `peck_depth_mm`, `retract_height_mm`
+* `depth_levels_mm` — explicit ordered pass depths when supplied; not sorted and not inferred from stepdown
 * later: entry, lead-in/out, tab parameters, compensation policy enum
 
 **Excluded:** `label`, notes, UI names.

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creation-studio.traceable-export-manifest/1",
+  "title": "TraceableExportManifestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "program_sha256",
+    "plan_digest",
+    "plan_contract_version",
+    "input_references",
+    "profile_id",
+    "postprocessor_id",
+    "postprocessor_version",
+    "planner_id",
+    "planner_version",
+    "motion_source",
+    "review",
+    "authority_limitations",
+    "experimental_banner"
+  ],
+  "properties": {
+    "contract_version": {"const": "creation-studio.traceable-export-manifest/1"},
+    "program_sha256": {"type": "string"},
+    "plan_digest": {"type": "string"},
+    "plan_contract_version": {"const": "creation-studio.traceable-plan/1"},
+    "input_references": {"type": "object"},
+    "profile_id": {"type": "string"},
+    "postprocessor_id": {"type": "string"},
+    "postprocessor_version": {"type": "string"},
+    "planner_id": {"const": "unavailable"},
+    "planner_version": {"const": "unavailable"},
+    "motion_source": {"const": "explicit_linear_motion"},
+    "review": {"type": "object", "additionalProperties": false},
+    "authority_limitations": {"type": "array", "items": {"type": "string"}},
+    "experimental_banner": {"const": "EXPERIMENTAL — NOT FOR MACHINING"}
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "artifact_id": "subject-coupon-1",
+  "contract_id": "experimental.creation-studio.subject",
+  "contract_version": "fixture-1",
+  "kind": "synthetic_rectangular_coupon",
+  "subject_id": "specimen-synthetic-coupon-1"
+}

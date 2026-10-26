@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creation-studio.traceable-planning-request/1",
+  "title": "TraceablePlanningRequestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "request_id",
+    "workflow_origin",
+    "package_id",
+    "subject",
+    "geometry",
+    "units",
+    "coordinate_frame",
+    "stock",
+    "operation",
+    "tooling",
+    "strategy",
+    "machine_profile",
+    "removal_region",
+    "positional_tolerance_mm",
+    "upstream_artifacts"
+  ],
+  "properties": {
+    "contract_version": {"const": "creation-studio.traceable-planning-request/1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "workflow_origin": {"enum": ["imported", "human_authored"]},
+    "package_id": {"type": "string", "minLength": 1},
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {"id": {"type": "string", "minLength": 1}}
+    },
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "revision"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1}
+      }
+    },
+    "units": {"type": "string", "minLength": 1},
+    "coordinate_frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "stock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "material_id", "x_mm", "y_mm", "z_mm"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "material_id": {"type": "string", "minLength": 1},
+        "x_mm": {"type": "number"},
+        "y_mm": {"type": "number"},
+        "z_mm": {"type": "number"}
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "centerline"],
+      "properties": {
+        "type": {"type": "string"},
+        "centerline": {"type": "object", "additionalProperties": false}
+      }
+    },
+    "tooling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "orientation", "diameter_mm"]
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "depth_levels_mm",
+        "travel_height_mm",
+        "clearance_mm",
+        "stepdown_mm",
+        "stock_allowance_mm"
+      ]
+    },
+    "machine_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {"id": {"type": "string", "minLength": 1}}
+    },
+    "removal_region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x_min_mm", "y_min_mm", "x_max_mm", "y_max_mm", "max_depth_mm"]
+    },
+    "positional_tolerance_mm": {"type": "number", "minimum": 0},
+    "upstream_artifacts": {"type": "array", "minItems": 5}
+  }
+}

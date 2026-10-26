@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creation-studio.traceable-plan/1",
+  "title": "TraceablePlanV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "request_digest",
+    "artifact_digests",
+    "strategy_fingerprint",
+    "tool_diameter_mm",
+    "stock_allowance_mm",
+    "stock_id",
+    "frame_id",
+    "units",
+    "profile_id",
+    "planner_id",
+    "planner_version",
+    "postprocessor_id",
+    "postprocessor_version",
+    "policy_digest",
+    "toolpath_digest",
+    "motion_source"
+  ],
+  "properties": {
+    "contract_version": {"const": "creation-studio.traceable-plan/1"},
+    "request_digest": {"type": "string"},
+    "artifact_digests": {"type": "object"},
+    "strategy_fingerprint": {"type": "string"},
+    "tool_diameter_mm": {"type": "number"},
+    "stock_allowance_mm": {"type": "number"},
+    "stock_id": {"type": "string"},
+    "frame_id": {"type": "string"},
+    "units": {"type": "string"},
+    "profile_id": {"type": "string"},
+    "planner_id": {"const": "unavailable"},
+    "planner_version": {"const": "unavailable"},
+    "postprocessor_id": {"type": "string"},
+    "postprocessor_version": {"type": "string"},
+    "policy_digest": {"type": "string"},
+    "toolpath_digest": {"type": "string"},
+    "motion_source": {"type": "string"},
+    "manufacturing_result": {"type": "object", "additionalProperties": false},
+    "review": {"$ref": "#/$defs/review"}
+  },
+  "$defs": {
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "review_id",
+        "plan_digest",
+        "decision",
+        "policy_digest",
+        "reviewer_ref",
+        "experimental",
+        "authority"
+      ],
+      "properties": {
+        "contract_version": {"const": "creation-studio.plan-review/1"},
+        "review_id": {"type": "string"},
+        "plan_digest": {"type": "string"},
+        "decision": {"enum": ["accepted", "rejected"]},
+        "policy_digest": {"type": "string"},
+        "reviewer_ref": {"type": "string"},
+        "experimental": {"type": "boolean"},
+        "authority": {"const": "fixture_binding_only"},
+        "recorded_at": {"type": "string"}
+      }
+    }
+  }
+}

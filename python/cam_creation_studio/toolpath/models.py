@@ -10,10 +10,12 @@ modality. See ``docs/architecture/TOOLPATH_CONTRACT.md``.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from ..shared.geometry import Point
 from .enums import MotionKind
+from .errors import ToolpathError
 
 TOOLPATH_PLAN_V1 = "camstudio_toolpath_v1"
 TOOLPATH_PLAN_VERSION = TOOLPATH_PLAN_V1
@@ -34,7 +36,21 @@ class ToolpathStrategy:
     stepover_mm: float | None = None
     peck_depth_mm: float | None = None
     retract_height_mm: float | None = None
+    depth_levels_mm: tuple[float, ...] = ()
     label: str = ""
+
+    def __post_init__(self) -> None:
+        levels: list[float] = []
+        for index, value in enumerate(self.depth_levels_mm):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ToolpathError(
+                    f"depth_levels_mm[{index}] must be a finite number")
+            number = float(value)
+            if not math.isfinite(number):
+                raise ToolpathError(
+                    f"depth_levels_mm[{index}] must be a finite number")
+            levels.append(number)
+        object.__setattr__(self, "depth_levels_mm", tuple(levels))
 
 
 @dataclass(frozen=True, slots=True)

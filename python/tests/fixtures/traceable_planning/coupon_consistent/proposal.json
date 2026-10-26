@@ -1,0 +1,13 @@
+{
+  "artifact_id": "prop-coupon-1",
+  "contract_id": "experimental.cam-assist.proposal",
+  "contract_version": "fixture-1",
+  "coordinate_frame_id": "stock-fixed-coupon-xy",
+  "geometry_id": "geom-coupon-rect-1",
+  "geometry_revision": "rev-1",
+  "operation_type": "closed_rectangular_contour",
+  "package_id": "pkg-synthetic-coupon-1",
+  "proposal_id": "prop-coupon-1",
+  "subject_id": "specimen-synthetic-coupon-1",
+  "units": "mm"
+}

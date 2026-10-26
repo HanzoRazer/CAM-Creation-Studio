@@ -72,9 +72,11 @@ segments = toolpath_to_preview(plan)
 ```
 
 `build_toolpath_plan(operation_plan, definition_id, strategy, paths)` wires
-lineage (geometry ids, binding, recommendation, digests) from an
-`OperationPlan` onto **already-constructed** paths. It does not generate
-those paths.
+lineage (geometry ids, binding, digests) from an `OperationPlan` onto
+**already-constructed** paths. It does not generate those paths. A stored
+feed recommendation is copied only when `recommendation_id` is passed and
+matches that definition. Advice that merely exists on the operation plan
+is not selected.
 
 Import the package as `cam_creation_studio.toolpath`. It is not re-exported
 from `cam_creation_studio`.
@@ -86,7 +88,7 @@ A demo lives at
 
 | Type | Role |
 |------|------|
-| `ToolpathStrategy` | Descriptive planning inputs. `label` is presentation-only. |
+| `ToolpathStrategy` | Descriptive planning inputs. `label` is presentation-only. `depth_levels_mm` is an explicit ordered tuple and participates in `strategy_fingerprint`. |
 | `LinearMotion` | Explicit millimetre pose-to-pose segment. |
 | `ArcMotion` | Analytic XY arc (center, radius, clockwise, signed sweep). |
 | `OperationPath` | Ordered motions for one pass or approach. `depth_mm` is a pass magnitude, not `target_depth_mm`. |
