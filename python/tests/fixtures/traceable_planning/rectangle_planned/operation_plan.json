@@ -1,0 +1,164 @@
+{
+  "bindings": [
+    {
+      "definition_id": "contour-dd114036d57851719ae8efa930ad24f8",
+      "id": "bind-eb35e281813e55c89e023ca800ab106e",
+      "material_id": "hardwood",
+      "tool_id": "endmill_1_4"
+    }
+  ],
+  "definitions": [
+    {
+      "definition_type": "contour",
+      "direction": "unspecified",
+      "id": "contour-dd114036d57851719ae8efa930ad24f8",
+      "intent_id": "operation-f9e3e367a90c5d9a836b86184c511ee4",
+      "relation": "on",
+      "stock_allowance_mm": 0.0,
+      "target_depth_mm": 2.0
+    }
+  ],
+  "recommendations": [
+    {
+      "binding_id": "bind-eb35e281813e55c89e023ca800ab106e",
+      "definition_id": "contour-dd114036d57851719ae8efa930ad24f8",
+      "id": "rec-3ae3e8f1d89a5e6db63034ace1e0a7f5",
+      "input_fingerprint": "{\"binding_id\":\"bind-eb35e281813e55c89e023ca800ab106e\",\"definition_id\":\"contour-dd114036d57851719ae8efa930ad24f8\",\"machine_max_rpm\":18000.0,\"machine_profile_id\":\"genericCncRouter\",\"material_chipload_mm\":[0.04,0.1],\"material_id\":\"hardwood\",\"spindle_rpm\":12000.0,\"tool_diameter_mm\":6.35,\"tool_flutes\":2,\"tool_id\":\"endmill_1_4\"}",
+      "machine_profile_id": "genericCncRouter",
+      "recommendation": {
+        "chip_thinning_factor": 1,
+        "chipload": 0.07,
+        "diagnostics": [
+          {
+            "code": "ADVISORY_ONLY",
+            "message": "Suggested starting point - requires operator verification.",
+            "severity": "info"
+          }
+        ],
+        "feed_rate": 1680,
+        "material_removal_rate": null,
+        "notes": [
+          "Suggested starting point - requires operator verification.",
+          "Chipload 0.07 mm/tooth from Hardwood conservative range 0.04-0.1."
+        ],
+        "power_w": null,
+        "rpm": 12000,
+        "spindle_power_hp": null,
+        "spindle_power_kw": null,
+        "surface_speed": 239389.36,
+        "torque_nm": null,
+        "warnings": []
+      },
+      "spindle_rpm": 12000.0
+    }
+  ],
+  "version": "camstudio_operation_plan_v3",
+  "workspace": {
+    "geometry": {
+      "diagnostics": [],
+      "entities": [
+        {
+          "end": {
+            "x": 20.0,
+            "y": 35.0,
+            "z": 0
+          },
+          "kind": "line",
+          "layer": "0",
+          "source": null,
+          "start": {
+            "x": 60.0,
+            "y": 35.0,
+            "z": 0
+          }
+        },
+        {
+          "end": {
+            "x": 60.0,
+            "y": 15.0,
+            "z": 0
+          },
+          "kind": "line",
+          "layer": "0",
+          "source": null,
+          "start": {
+            "x": 20.0,
+            "y": 15.0,
+            "z": 0
+          }
+        },
+        {
+          "end": {
+            "x": 20.0,
+            "y": 15.0,
+            "z": 0
+          },
+          "kind": "line",
+          "layer": "0",
+          "source": null,
+          "start": {
+            "x": 20.0,
+            "y": 35.0,
+            "z": 0
+          }
+        },
+        {
+          "end": {
+            "x": 60.0,
+            "y": 35.0,
+            "z": 0
+          },
+          "kind": "line",
+          "layer": "0",
+          "source": null,
+          "start": {
+            "x": 60.0,
+            "y": 15.0,
+            "z": 0
+          }
+        }
+      ],
+      "metadata": null
+    },
+    "geometry_refs": [
+      {
+        "entity_index": 0,
+        "id": "geom-05aa70cd13ad5067869b1e58e2884502"
+      },
+      {
+        "entity_index": 1,
+        "id": "geom-3bd822f0e66d54aa8d9e5106dba23b4d"
+      },
+      {
+        "entity_index": 2,
+        "id": "geom-6356b4dcb8fe5115a237e185f65234c0"
+      },
+      {
+        "entity_index": 3,
+        "id": "geom-be0650e698765e3886244bd2e63af137"
+      }
+    ],
+    "groups": [],
+    "operations": [
+      {
+        "id": "operation-f9e3e367a90c5d9a836b86184c511ee4",
+        "kind": "contour",
+        "name": "contour",
+        "selection_id": "selection-06ffc896164355e08ba1eb3d06aaa613"
+      }
+    ],
+    "selections": [
+      {
+        "entity_ids": [
+          "geom-05aa70cd13ad5067869b1e58e2884502",
+          "geom-3bd822f0e66d54aa8d9e5106dba23b4d",
+          "geom-6356b4dcb8fe5115a237e185f65234c0",
+          "geom-be0650e698765e3886244bd2e63af137"
+        ],
+        "id": "selection-06ffc896164355e08ba1eb3d06aaa613",
+        "name": "rectangle"
+      }
+    ],
+    "version": "camstudio_geometry_workspace_v1"
+  }
+}

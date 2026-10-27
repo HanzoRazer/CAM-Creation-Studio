@@ -18,7 +18,7 @@ physical machining.
 |---|---|
 | `TraceablePlanningRequestV1`, `TraceablePlanV1`, review binding, export manifest | Creation Studio |
 | Proposal, validation, and admission meaning | Not ratified here. Only experimental fixture profiles are parsed |
-| Contour, pocket, and drill planning | Not this order. CS-017 remains unissued |
+| Rectangular centerline planning | `cam_creation_studio.planning` for one explicit rectangle (CS-017). Pocket, drill, and offset planning remain unissued |
 | Ordinary manual G-code | Existing `camstudio generate` path |
 | Human approval | Not configured. A fixture review tests binding only |
 
@@ -51,8 +51,11 @@ Studio contracts:
 | Document | Version |
 |---|---|
 | Planning request | `creation-studio.traceable-planning-request/1` |
-| Plan digest payload | `creation-studio.traceable-plan/1` |
-| Export manifest | `creation-studio.traceable-export-manifest/1` |
+| Plan digest payload | `creation-studio.traceable-plan/1` for explicit motion |
+| Generated plan wrapper | `creation-studio.traceable-plan/2` |
+| Export manifest | `creation-studio.traceable-export-manifest/1` for explicit motion |
+| Generated export manifest | `creation-studio.traceable-export-manifest/2` |
+| Rectangular planner input | `creation-studio.rectangular-planner-input/1` |
 | Review record | `creation-studio.plan-review/1` |
 
 Upstream profiles pinned for offline fixtures only, not as canonical published
@@ -114,12 +117,19 @@ omitted depths are intentionally not preserved: persisted plans must be
 recomputed and reviewed. Request fingerprints also bind frame name and
 strategy identity.
 
-The plan digest covers the request digest, artifact digests, strategy
-fingerprint, tool diameter, allowance, stock id, frame, units, profile,
-planner id and version, postprocessor id and version, local policy digest,
-toolpath digest, and motion source. A review binds `plan_digest` and
-`policy_digest`. Changing any of those inputs makes the previous review
-inapplicable.
+The explicit-motion plan digest covers the request digest, artifact digests,
+strategy fingerprint, tool diameter, allowance, stock id, frame, units,
+profile, planner id and version (`unavailable`), postprocessor id and version,
+local policy digest, toolpath digest, and motion source
+`explicit_linear_motion`. A review binds `plan_digest` and `policy_digest`.
+Changing any of those inputs makes the previous review inapplicable.
+
+The generated rectangular digest is `creation-studio.traceable-plan/2`. It
+adds the planner-input and operation-plan byte digests, both selected feeds,
+the definition, binding, geometry ids, recommendation id or null, the resolved
+tool and material, the canonical toolpath digest, and the local pass limits.
+`creation-studio.traceable-plan/1` is unchanged and still requires planner
+identity `unavailable`.
 
 ## Trust boundary
 
@@ -175,10 +185,21 @@ Not implemented: clamp collision beyond that rectangle, full machine
 collision, structural safety, cutting force, and machine readiness. Unknown
 positional tolerance is refused rather than treated as zero.
 
-The contour planner is not implemented. The witness records
+Verification-only witness mode does not read planner inputs. It still records
 `UNSUPPORTED_CAPABILITY` and does not emit a candidate program. Explicit
-linear motion used by tests is labeled `explicit_linear_motion`. It is not
-planner output. Any program the offline gate renders is passed through
+linear motion used by tests is labeled `explicit_linear_motion` with planner
+identity `unavailable`. Installing the rectangular planner does not relabel
+that path.
+
+`cam_creation_studio.planning` expands one explicit axis-aligned rectangle
+into a CS-016 `ToolpathPlan`. The witness prepare/export modes call package
+verification directly. They do not infer trust from generate-origin
+classification. Prepare writes a labeled candidate and preview and stops at
+`REVIEW_REQUIRED`. A fixture-binding review of that exact digest can then
+write an offline experimental program. That review is not human approval.
+See [RECTANGULAR_CONTOUR_PLANNER.md](RECTANGULAR_CONTOUR_PLANNER.md).
+
+Any program the offline gate renders is passed through
 `cam_creation_studio.gcode.generator` and marked
 `EXPERIMENTAL — NOT FOR MACHINING`.
 
@@ -189,9 +210,10 @@ text file after export; a changed program no longer matches its manifest.
 
 ## Operator limits
 
-There is still no real contour planner, operational publisher trust anchor,
-human-review authority, or operational governed export. No label, admission
-flag, fixture review, or CLI option enables these missing capabilities.
+The rectangular centerline planner covers one synthetic rectangle. There is
+still no offset planner, operational publisher trust anchor, human-review
+authority, or operational governed export. No label, admission flag, fixture
+review, or CLI option enables those missing capabilities.
 Ordinary manual generation remains available under its existing preflight
 policy; it is not a governed physical-engineering approval path.
 

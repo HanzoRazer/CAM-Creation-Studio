@@ -1,0 +1,16 @@
+{
+  "artifact_id": "adm-rectangle-planned-1",
+  "contract_id": "experimental.cam-assist.admission",
+  "contract_version": "fixture-1",
+  "current_state": "not_established",
+  "disposition": "admitted_for_human_review",
+  "geometry_id": "geom-rectangle-planned-1",
+  "geometry_revision": "rev-1",
+  "package_id": "pkg-synthetic-rectangle-planned-1",
+  "producer_id": "synthetic-fixture-producer",
+  "proposal_digest": "9f6b62f266fa2f5508709cc3bbd9b318c7ca7e17222e4146f728eb7795b4fb06",
+  "proposal_id": "prop-rectangle-planned-1",
+  "subject_id": "specimen-synthetic-rectangle-1",
+  "validation_digest": "14e55e0407c7190d2945ac3eb6671e284898e3edc18746910f912bfc331ac116",
+  "validation_id": "val-rectangle-planned-1"
+}

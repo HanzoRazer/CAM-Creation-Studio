@@ -11,7 +11,12 @@ its upstream inputs
 
 It does not answer how a contour, pocket, or hole should be generated.
 There is no offset algorithm, no pocket clear, no canned cycle, no
-G-code emission, and no machine-readiness claim here.
+G-code emission, and no machine-readiness claim here. Rectangular
+centerline expansion lives in `cam_creation_studio.planning` and is
+described in
+[architecture/RECTANGULAR_CONTOUR_PLANNER.md](architecture/RECTANGULAR_CONTOUR_PLANNER.md).
+That package consumes this contract. It does not move algorithm ownership
+into `toolpath`.
 
 ```text
 GeometryCollection
