@@ -12,8 +12,8 @@ merged or deployed. The program text below is experimental fixture output.
 | Base SHA | `374fa5832e571cebb470c5dc2e57f43b71e71226` |
 | Requested branch name | `cs-017-rectangular-contour-witness` |
 | Working branch | `cursor/cs-017-rectangular-contour-witness-39ad` |
-| Verified implementation | the commit that contains this file |
-| Branch head | the same commit, until a later revision lands |
+| Verified implementation | `f96a9dd29bccb8d5b49cc86b98cd1760d8b3e330` |
+| Draft pull request | #36, not merged |
 
 Stage 0 on this machine, before the planner edits: `python3 -m pytest -q --tb=line`
 from `python/` reported `1110 passed, 21 skipped`. That is the count for this
