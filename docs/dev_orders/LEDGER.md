@@ -143,9 +143,9 @@ traceable. Retirement is recorded instead.
 | CS-015 | Toolpath planning architecture study | `docs/FEEDS_SPEEDS_INTEGRATION.md` | `cursor/cs-015-toolpath-architecture-study-b250` | Merged (#30) `022d4a2` | — | Candidate B canonical `ToolpathPlan`; preview/G-code rejected as canonical; architecture ratified |
 | CS-016 | Toolpath core contracts | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-016-toolpath-core-contracts-b250` | Merged (#31) `30c9718` | — | Production `cam_creation_studio.toolpath`; IDs, fingerprints, JSON, staleness, preview projection; no path algorithms |
 | CS-PEP-001 | Traceable planning boundary | `docs/TOOLPATH_CORE.md` | `cursor/cs-pep-001-traceable-planning-eaf7` | Merged (#33) `941efe5` | — | Experimental package verification and governed-export refusal. Contour planner remains blocked. Does not issue CS-017 |
-| CS-017 | Bounded rectangular centerline planner | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-017-rectangular-contour-witness-39ad` | Open (#36), not merged | — | One explicit rectangle expanded through the CS-016 builders and an experimental offline witness. Offset, pocket, and drill planners remain unissued. Operational export stays disabled |
+| CS-017 | Bounded rectangular centerline planner | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-017-rectangular-contour-witness-39ad` | Merged (#36) `eeb0ed0` | — | One explicit rectangle expanded through the CS-016 builders and an experimental offline witness. Offset, pocket, and drill planners remain unissued. Operational export stays disabled |
 
-*Status column last refreshed 2026-10-26.* Confirm against GitHub before relying
+*Status column last refreshed 2026-10-27.* Confirm against GitHub before relying
 on it — see § Source of truth.
 
 **No CS-008 order is open.** CS-008R-D1 merged as #22 (`baa566d`). CS-008R-CL
@@ -156,11 +156,11 @@ CS-015 CLOSED. **CS-016** merged as #31 (`30c9718`): production motion
 contracts; CS-016 CLOSED. No contour/pocket/drill algorithms in that order.
 **CS-PEP-001** merged as #33 (`941efe5`): experimental traceable-planning
 boundary; operational governed export stays disabled. CS-PEP-001 CLOSED and
-does not itself issue CS-017. **CS-017** is issued on
-`cursor/cs-017-rectangular-contour-witness-39ad` as a bounded rectangular
-centerline increment. It is not merged and it does not authorize offset,
-pocket, or drill planners. The importer remains under feature freeze —
-defects only.
+does not itself issue CS-017. **CS-017** merged as #36 (`eeb0ed0`): one
+explicit rectangular centerline expanded through the CS-016 builders, with an
+experimental offline witness. CS-017 CLOSED. It does not authorize offset,
+pocket, or drill planners, and operational export stays disabled. The
+importer remains under feature freeze — defects only.
 
 ---
 
@@ -342,7 +342,7 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 ## Next orders (sequenced)
 
 The remediation chain is complete and merged, and **closure has landed**. Steps 1
-to 9 below are done. **CS-017** is issued for one explicit rectangular
+to 10 below are done. **CS-017** merged as #36 for one explicit rectangular
 centerline. Offset, pocket, and drill planners remain unissued.
 
 1. ~~**F8 / F9 / F10 disposition.**~~ **Done** — CS-008R-CL. F8 remediated
@@ -382,7 +382,8 @@ centerline. Offset, pocket, and drill planners remain unissued.
    (`30c9718`). Production `cam_creation_studio.toolpath`: dataclasses, IDs,
    lineage, serialization, fingerprint/staleness, preview projection.
    CS-016 CLOSED. No contour/pocket/drill algorithms in that order.
-10. **Toolpath planners** — CS-017, issued and not merged.
+10. ~~**Toolpath planners (rectangular centerline).**~~ **Done** — CS-017
+    merged as #36 (`eeb0ed0`).
     The bounded increment expands one explicit rectangular cutter centerline
     through the CS-016 builders. It does not offset geometry. Pocket, drill,
     and offset algorithms remain unissued.
@@ -563,8 +564,8 @@ cycles, G-code adapters, CS-017 offset algorithms.
 
 See [`docs/TOOLPATH_CORE.md`](../TOOLPATH_CORE.md).
 
-**CS-017** is issued for rectangular centerline expansion and is not merged.
-CS-PEP-001 does not issue it. Offset algorithms remain outside that increment.
+**CS-017** merged as #36 (`eeb0ed0`) for rectangular centerline expansion.
+CS-PEP-001 did not issue it. Offset algorithms remain outside that increment.
 
 A later check of `main` at `a2f445e` found two CS-016 follow-ups still absent:
 ordered `depth_levels_mm` did not participate in `strategy_fingerprint`, and
