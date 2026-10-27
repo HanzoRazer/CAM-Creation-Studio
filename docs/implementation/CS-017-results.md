@@ -14,6 +14,7 @@ merged or deployed. The program text below is experimental fixture output.
 | Working branch | `cursor/cs-017-rectangular-contour-witness-39ad` |
 | Verified implementation | `f96a9dd29bccb8d5b49cc86b98cd1760d8b3e330` |
 | Draft record | `d4f2af60ce45e7bdb02fbfeed482bf03fbc76634` |
+| Failure-path implementation | `08879bda05ccda9137aed5ba89e86249d14f1c65` |
 | Pull request | #36, not merged |
 
 Stage 0 on this machine, before the planner edits: `python3 -m pytest -q --tb=line`
