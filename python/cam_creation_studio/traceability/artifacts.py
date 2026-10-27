@@ -95,6 +95,26 @@ def resolve_package_ref(
     return current, None
 
 
+def read_bounded(
+    path: Path, limit: int,
+) -> tuple[bytes | None, Refusal | None]:
+    """Read a planner input, refusing anything past ``limit`` bytes."""
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 0:
+        raise TraceabilityDefect("planner input limit must be a non-negative int")
+    try:
+        with path.open("rb") as stream:
+            data = stream.read(limit + 1)
+    except (OSError, PermissionError) as exc:
+        return None, Refusal(
+            codes.REFERENCE_UNRESOLVED, f"unreadable artifact: {exc.strerror or exc}")
+    if len(data) > limit:
+        return None, Refusal(
+            codes.UNSUPPORTED_CAPABILITY,
+            "planner input exceeds the local size limit",
+        )
+    return data, None
+
+
 def read_exact(path: Path) -> tuple[bytes | None, Refusal | None]:
     try:
         with path.open("rb") as stream:
@@ -188,5 +208,33 @@ def reverify_snapshot(
             return Refusal(
                 codes.SNAPSHOT_CHANGED,
                 f"{item.role} bytes changed after verification",
+            )
+    return None
+
+
+def reverify_additional(snapshot: object, package_root: Path) -> Refusal | None:
+    """Re-read planner inputs captured beside the upstream snapshot."""
+    from ..planning.limits import MAX_PLANNER_INPUT_BYTES
+    from .models import AdditionalInputSnapshot
+
+    if not isinstance(snapshot, AdditionalInputSnapshot):
+        raise TraceabilityDefect("additional snapshot is missing")
+    pairs = (
+        (snapshot.planner_input_ref, snapshot.planner_input_raw,
+         snapshot.planner_input_sha256, "planner input"),
+        (snapshot.operation_plan_ref, snapshot.operation_plan_raw,
+         snapshot.operation_plan_sha256, "operation plan"),
+    )
+    for package_ref, raw, digest, label in pairs:
+        path, refusal = resolve_package_ref(package_root, package_ref)
+        if refusal is not None or path is None:
+            return refusal
+        current, refusal = read_bounded(path, MAX_PLANNER_INPUT_BYTES)
+        if refusal is not None or current is None:
+            return refusal
+        if current != raw or sha256_bytes(current) != digest:
+            return Refusal(
+                codes.SNAPSHOT_CHANGED,
+                f"{label} bytes changed after verification",
             )
     return None

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creation-studio.traceable-export-manifest/2",
+  "title": "TraceableExportManifestV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "program_sha256",
+    "plan_digest",
+    "plan_contract_version",
+    "input_references",
+    "profile_id",
+    "postprocessor_id",
+    "postprocessor_version",
+    "planner_id",
+    "planner_version",
+    "motion_source",
+    "review",
+    "authority_limitations",
+    "experimental_banner",
+    "human_approval",
+    "operational_export"
+  ],
+  "properties": {
+    "contract_version": {"const": "creation-studio.traceable-export-manifest/2"},
+    "program_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "plan_contract_version": {"const": "creation-studio.traceable-plan/2"},
+    "input_references": {"$ref": "#/$defs/inputs"},
+    "profile_id": {"const": "synthetic-router-mm"},
+    "postprocessor_id": {"type": "string", "minLength": 1},
+    "postprocessor_version": {"type": "string", "minLength": 1},
+    "planner_id": {"const": "creation-studio.rectangle-centerline"},
+    "planner_version": {"const": "1"},
+    "motion_source": {"const": "rectangular_centerline_planner"},
+    "review": {"$ref": "#/$defs/review"},
+    "authority_limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "experimental_banner": {"const": "EXPERIMENTAL — NOT FOR MACHINING"},
+    "human_approval": {"const": false},
+    "operational_export": {"const": false}
+  },
+  "$defs": {
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_id", "plan_digest", "policy_digest", "decision",
+        "experimental", "authority"
+      ],
+      "properties": {
+        "review_id": {"type": "string", "minLength": 1},
+        "plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "decision": {"const": "accepted"},
+        "experimental": {"const": true},
+        "authority": {"const": "fixture_binding_only"}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "package_ref", "sha256"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1},
+        "package_ref": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package_id",
+        "request_sha256",
+        "request_digest",
+        "artifacts",
+        "maturity",
+        "admission_disposition",
+        "compatibility_policy_digest",
+        "experimental_banner",
+        "planner_input_sha256",
+        "operation_plan_sha256",
+        "planner_input_ref",
+        "operation_plan_ref"
+      ],
+      "properties": {
+        "package_id": {"type": "string", "minLength": 1},
+        "request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "request_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+        "maturity": {"const": "experimental"},
+        "admission_disposition": {"type": "string", "minLength": 1},
+        "compatibility_policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "experimental_banner": {"const": "EXPERIMENTAL — NOT FOR MACHINING"},
+        "planner_input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "operation_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "planner_input_ref": {"const": "planner-inputs.json"},
+        "operation_plan_ref": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

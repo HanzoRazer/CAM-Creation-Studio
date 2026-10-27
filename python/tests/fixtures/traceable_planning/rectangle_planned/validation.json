@@ -1,0 +1,13 @@
+{
+  "artifact_id": "val-rectangle-planned-1",
+  "contract_id": "experimental.cam-assist.validation",
+  "contract_version": "fixture-1",
+  "geometry_id": "geom-rectangle-planned-1",
+  "geometry_revision": "rev-1",
+  "package_id": "pkg-synthetic-rectangle-planned-1",
+  "proposal_digest": "9f6b62f266fa2f5508709cc3bbd9b318c7ca7e17222e4146f728eb7795b4fb06",
+  "proposal_id": "prop-rectangle-planned-1",
+  "result": "recorded_for_fixture",
+  "subject_id": "specimen-synthetic-rectangle-1",
+  "validation_id": "val-rectangle-planned-1"
+}

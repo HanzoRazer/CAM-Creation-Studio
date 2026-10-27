@@ -235,6 +235,34 @@ def test_offline_writer_preserves_labels_byte_digest_and_refusal_audit(tmp_path)
     assert not audit["program_written"]
 
 
+def test_manifest_publish_failure_rolls_back_the_explicit_program(tmp_path, monkeypatch):
+    from cam_creation_studio.traceability import service as gate
+
+    package = _package(tmp_path / "pkg")
+    motions = _good_motions()
+    digest = plan_digest_for(verify_package(package), motions)
+    result = evaluate_explicit_motion_export(
+        package, motions, _review(digest), mode="offline")
+    out = tmp_path / "out"
+    write_offline_export(out, result)
+    assert (out / "program.gcode").is_file()
+    assert json.loads((out / "result.json").read_bytes())["program_written"] is True
+    real_replace = gate._replace_file
+
+    def fail_manifest(source, final) -> None:
+        if final.name == "manifest.json":
+            raise OSError("injected manifest failure")
+        real_replace(source, final)
+
+    monkeypatch.setattr(gate, "_replace_file", fail_manifest)
+    write_offline_export(out, result)
+    assert not (out / "program.gcode").exists()
+    assert not (out / "manifest.json").exists()
+    audit = json.loads((out / "result.json").read_bytes())
+    assert audit["program_written"] is False
+    assert audit["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+
+
 def test_writer_detects_formatter_label_loss(tmp_path):
     package = _package(tmp_path / "pkg")
     motions = _good_motions()

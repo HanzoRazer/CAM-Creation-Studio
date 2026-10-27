@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creation-studio.traceable-plan/2",
+  "title": "TraceablePlanV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "experimental_banner",
+    "physical_machining_authorized",
+    "human_approval",
+    "program_exported",
+    "planner_id",
+    "planner_version",
+    "motion_source",
+    "plan_digest",
+    "request_sha256",
+    "request_digest",
+    "artifact_digests",
+    "planner_input_sha256",
+    "planner_input_ref",
+    "operation_plan_sha256",
+    "operation_plan_ref",
+    "definition_id",
+    "binding_id",
+    "geometry_ids",
+    "recommendation_id",
+    "planned_cut_feed_mm_min",
+    "planned_plunge_feed_mm_min",
+    "tool_id",
+    "tool_diameter_mm",
+    "tool_flutes",
+    "material_id",
+    "strategy_fingerprint",
+    "frame_id",
+    "units",
+    "profile_id",
+    "stock_allowance_mm",
+    "policy_digest",
+    "postprocessor_id",
+    "postprocessor_version",
+    "toolpath_digest",
+    "toolpath_sha256",
+    "local_limits",
+    "toolpath"
+  ],
+  "properties": {
+    "contract_version": {"const": "creation-studio.traceable-plan/2"},
+    "experimental_banner": {"const": "EXPERIMENTAL — NOT FOR MACHINING"},
+    "physical_machining_authorized": {"const": false},
+    "human_approval": {"const": false},
+    "program_exported": {"const": false},
+    "planner_id": {"const": "creation-studio.rectangle-centerline"},
+    "planner_version": {"const": "1"},
+    "motion_source": {"const": "rectangular_centerline_planner"},
+    "plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "request_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact_digests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposal", "validation", "admission", "geometry", "subject"],
+      "properties": {
+        "proposal": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "validation": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "admission": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "geometry": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "subject": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "planner_input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "planner_input_ref": {"const": "planner-inputs.json"},
+    "operation_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "operation_plan_ref": {"type": "string", "minLength": 1},
+    "definition_id": {"type": "string", "minLength": 1},
+    "binding_id": {"type": "string", "minLength": 1},
+    "geometry_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "recommendation_id": {"type": ["string", "null"]},
+    "planned_cut_feed_mm_min": {"type": "number", "exclusiveMinimum": 0},
+    "planned_plunge_feed_mm_min": {"type": "number", "exclusiveMinimum": 0},
+    "tool_id": {"type": "string", "minLength": 1},
+    "tool_diameter_mm": {"type": "number", "exclusiveMinimum": 0},
+    "tool_flutes": {"type": "integer", "minimum": 1},
+    "material_id": {"type": "string", "minLength": 1},
+    "strategy_fingerprint": {"type": "string", "minLength": 1},
+    "frame_id": {"const": "stock-fixed-coupon-xy"},
+    "units": {"const": "mm"},
+    "profile_id": {"const": "synthetic-router-mm"},
+    "stock_allowance_mm": {"const": 0},
+    "policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "postprocessor_id": {"type": "string", "minLength": 1},
+    "postprocessor_version": {"type": "string", "minLength": 1},
+    "toolpath_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "toolpath_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "local_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_depth_levels", "max_motions", "max_planner_input_bytes"],
+      "properties": {
+        "max_depth_levels": {"const": 8},
+        "max_motions": {"const": 18},
+        "max_planner_input_bytes": {"const": 262144}
+      }
+    },
+    "toolpath": {"$ref": "#/$defs/toolpath"}
+  },
+  "$defs": {
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number"}
+      }
+    },
+    "linear": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["form", "id", "kind", "start", "end", "planned_feed_mm_min", "geometry_ids"],
+      "properties": {
+        "form": {"const": "linear"},
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["plunge", "cut", "retract"]},
+        "start": {"$ref": "#/$defs/point"},
+        "end": {"$ref": "#/$defs/point"},
+        "planned_feed_mm_min": {"type": ["number", "null"]},
+        "geometry_ids": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "depth_mm", "motions"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "depth_mm": {"type": "number", "exclusiveMinimum": 0},
+        "motions": {"type": "array", "items": {"$ref": "#/$defs/linear"}}
+      }
+    },
+    "toolpath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version", "id", "operation_definition_id", "geometry_ids", "binding_id",
+        "recommendation_id", "planned_feed_mm_min", "strategy_fingerprint",
+        "upstream_fingerprint", "paths"
+      ],
+      "properties": {
+        "version": {"const": "camstudio_toolpath_v1"},
+        "id": {"type": "string", "minLength": 1},
+        "operation_definition_id": {"type": "string", "minLength": 1},
+        "geometry_ids": {"type": "array", "items": {"type": "string"}},
+        "binding_id": {"type": "string", "minLength": 1},
+        "recommendation_id": {"type": ["string", "null"]},
+        "planned_feed_mm_min": {"type": "number", "exclusiveMinimum": 0},
+        "strategy_fingerprint": {"type": "string", "minLength": 1},
+        "upstream_fingerprint": {"type": "string", "minLength": 1},
+        "paths": {"type": "array", "items": {"$ref": "#/$defs/path"}}
+      }
+    }
+  }
+}

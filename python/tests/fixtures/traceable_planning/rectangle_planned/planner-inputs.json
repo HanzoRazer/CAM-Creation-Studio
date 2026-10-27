@@ -1,0 +1,12 @@
+{
+  "contract_version": "creation-studio.rectangular-planner-input/1",
+  "definition_id": "contour-dd114036d57851719ae8efa930ad24f8",
+  "operation_plan": {
+    "package_ref": "operation_plan.json",
+    "sha256": "11d7101b604872f4442320616f2a337e6ecca0c83dfd8a6ecb7018ffda70127c"
+  },
+  "planned_cut_feed_mm_min": 800,
+  "planned_plunge_feed_mm_min": 300,
+  "recommendation_id": null,
+  "request_sha256": "9dfbfbfcc52e508a2c337cefd7b3c59e981b35565189b1dad5cf3824d44c4d47"
+}

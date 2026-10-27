@@ -241,3 +241,40 @@ class ExportEvaluation:
     manifest: dict | None
     plan_digest: str | None
     input_manifest: dict | None
+
+
+@dataclass(frozen=True, slots=True)
+class AdditionalInputSnapshot:
+    """Exact planner-input and operation-plan bytes captured with a candidate."""
+
+    planner_input_ref: str
+    planner_input_raw: bytes
+    planner_input_sha256: str
+    operation_plan_ref: str
+    operation_plan_raw: bytes
+    operation_plan_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratedCandidate:
+    """A rectangular plan produced by the construction path.
+
+    ``source_seal`` is assigned only by that path. A caller-supplied
+    ``motion_source`` string is not a field on this record.
+    """
+
+    source_seal: object
+    verification: VerificationResult
+    additional: AdditionalInputSnapshot
+    definition_id: str
+    planned_cut_feed_mm_min: float
+    planned_plunge_feed_mm_min: float
+    recommendation_id: str | None
+    binding_id: str
+    geometry_ids: tuple[str, ...]
+    tool_id: str
+    tool_diameter_mm: float
+    tool_flutes: int | None
+    material_id: str
+    plan: object
+    plan_digest: str

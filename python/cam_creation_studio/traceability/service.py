@@ -9,11 +9,23 @@ the rules.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
-from ..toolpath.models import MotionSegment
+from ..planning import limits as rectangle_limits
+from ..toolpath.models import MotionSegment, ToolpathPlan
+from ..toolpath.preview_adapter import toolpath_to_preview
+from ..toolpath.serialization import toolpath_to_dict, toolpath_to_json
 from . import codes
-from .artifacts import load_package, resolve_package_ref, reverify_snapshot, read_exact
+from .artifacts import (
+    load_package,
+    read_bounded,
+    read_exact,
+    resolve_package_ref,
+    reverify_additional,
+    reverify_snapshot,
+)
 from .bounds import check_declared_request, check_motions, check_posting_precision
 from .compatibility import (
     AUTHORITY_LIMITATIONS,
@@ -32,6 +44,7 @@ from .errors import TraceabilityDefect
 from .identity import check_identity
 from .models import (
     ExportEvaluation,
+    GeneratedCandidate,
     PackageBundle,
     PlanningRequest,
     Refusal,
@@ -46,11 +59,18 @@ from .parsing import (
     parse_review_bytes,
 )
 from .planning import (
+    build_generated_candidate,
     compute_plan_digest,
+    is_explicit,
+    is_generated,
     plan_candidate,
+    plan_motions,
+    replan_matches,
     request_digest,
+    tag_explicit_motion,
     traceable_strategy_fingerprint,
 )
+from .planner_inputs import load_planner_inputs
 from .posting import render_experimental_program, toolpath_digest
 from .review import bind_review
 from .trust import assess_producer
@@ -231,21 +251,75 @@ def evaluate_verified_motion_export(
     """Continue from a captured verification snapshot.
 
     Bytes that change after that snapshot refuse with ``SNAPSHOT_CHANGED``
-    and do not produce a program.
+    and do not produce a program. Caller-supplied motion stays explicit.
     """
     if not verification.accepted or verification.request is None or verification.bundle is None or verification.context is None:
         return _refused(verification.refusal or Refusal(
             codes.SCHEMA_INVALID, "package was not verified"), verification)
+    candidate = tag_explicit_motion(motions, plan_digest="")
+    return _export_source_candidate(
+        verification, package_root, candidate, review_bytes, mode=mode)
+
+
+def evaluate_generated_candidate_export(
+    candidate: object,
+    package_root: Path,
+    review_bytes: bytes | None,
+    *,
+    mode: str,
+) -> ExportEvaluation:
+    """Export one sealed generated candidate. A source string is not proof."""
+    if not is_generated(candidate):
+        verification = getattr(candidate, "verification", None)
+        if not isinstance(verification, VerificationResult):
+            verification = None
+        return _refused(Refusal(
+            codes.UNSUPPORTED_CAPABILITY,
+            "caller motion_source is not generated provenance",
+        ), verification)
+    return _export_source_candidate(
+        candidate.verification, package_root, candidate, review_bytes, mode=mode)
+
+
+def _export_source_candidate(
+    verification: VerificationResult,
+    package_root: Path,
+    candidate: object,
+    review_bytes: bytes | None,
+    *,
+    mode: str,
+) -> ExportEvaluation:
+    """Shared review and render gate for explicit and generated motion."""
+    if verification.request is None or verification.bundle is None:
+        return _refused(verification.refusal or Refusal(
+            codes.SCHEMA_INVALID, "package was not verified"), verification)
+    generated = is_generated(candidate)
+    if is_explicit(candidate):
+        motions = candidate.motions
+    elif generated:
+        motions = plan_motions(candidate.plan)
+    else:
+        return _refused(Refusal(
+            codes.UNSUPPORTED_CAPABILITY,
+            "caller motion_source is not generated provenance",
+        ), verification)
     refusal = reverify_snapshot(verification.bundle.snapshot, package_root)
     if refusal is not None:
         return _refused(refusal, verification)
+    if generated:
+        refusal = reverify_additional(candidate.additional, package_root)
+        if refusal is not None:
+            return _refused(refusal, verification)
+        refusal = replan_matches(candidate)
+        if refusal is not None:
+            return _refused(refusal, verification, candidate.plan_digest)
     refusal = check_motions(verification.request, motions)
     if refusal is not None:
         return _refused(refusal, verification)
     refusal = check_posting_precision(verification.request, motions)
     if refusal is not None:
         return _refused(refusal, verification)
-    plan_fp = _plan_digest(verification, motions)
+    plan_fp = candidate.plan_digest if generated else _plan_digest(verification, motions)
     review, refusal = _load_review(review_bytes)
     if refusal is not None:
         return _refused(refusal, verification)
@@ -262,23 +336,26 @@ def evaluate_verified_motion_export(
         return _refused(Refusal(
             codes.POLICY_UNSUPPORTED, f"unknown export mode {mode!r}"),
             verification, plan_fp)
+    if review is None:
+        raise TraceabilityDefect("export passed review binding without a review")
     program, refusal = render_experimental_program(
         motions, clearance_mm=verification.request.clearance_mm)
     if refusal is not None or program is None:
         return _refused(refusal or Refusal(
             codes.UNSUPPORTED_CAPABILITY, "program was not rendered"),
             verification, plan_fp)
-    manifest = _manifest(
-        verification,
-        plan_digest_value=plan_fp,
-        program_sha=sha256_bytes(program.encode("utf-8")),
-        review=review,
-    )
+    program_sha = sha256_bytes(program.encode("utf-8"))
+    if generated:
+        manifest = _generated_manifest(
+            candidate, plan_digest_value=plan_fp, program_sha=program_sha, review=review)
+    else:
+        manifest = _manifest(
+            verification, plan_digest_value=plan_fp, program_sha=program_sha, review=review)
     return ExportEvaluation(
         allowed=True,
         refusal=None,
         program_text=program,
-        program_sha256=sha256_bytes(program.encode("utf-8")),
+        program_sha256=program_sha,
         manifest=manifest,
         plan_digest=plan_fp,
         input_manifest=_input_manifest(verification),
@@ -287,28 +364,26 @@ def evaluate_verified_motion_export(
 
 def write_offline_export(destination: Path, evaluation: ExportEvaluation) -> None:
     """Write an experimental program only when the shared gate allowed it."""
+    if _symlink_output(destination, _EXPLICIT_OUTPUTS):
+        raise OSError("refusing to write or delete a symlink output")
     destination.mkdir(parents=True, exist_ok=True)
-    program = destination / "program.gcode"
-    manifest = destination / "manifest.json"
     if not evaluation.allowed or evaluation.program_text is None or evaluation.manifest is None:
-        for path in (program, destination / "program.nc", manifest):
-            if path.exists():
-                path.unlink()
+        _unlink_regular(destination, ("program.gcode", "program.nc", "manifest.json"))
         _write_export_result(destination, evaluation, program_written=False)
         return
-    raw = evaluation.program_text.encode("utf-8")
-    if (
-        not evaluation.program_text.startswith(f"({EXPERIMENTAL_BANNER})\n")
-        or evaluation.manifest.get("experimental_banner") != EXPERIMENTAL_BANNER
-        or sha256_bytes(raw) != evaluation.program_sha256
-        or evaluation.manifest.get("program_sha256") != evaluation.program_sha256
-    ):
-        raise TraceabilityDefect("offline export lost its experimental label or digest binding")
-    # Exact bytes on Windows too: text-mode newline conversion would invalidate
-    # the program digest recorded in the manifest.
-    program.write_bytes(raw)
-    manifest.write_text(_stable_json(evaluation.manifest), encoding="utf-8")
-    _write_export_result(destination, evaluation, program_written=True)
+    try:
+        _write_program_files(destination, evaluation)
+        _write_export_result(destination, evaluation, program_written=True)
+    except OSError as exc:
+        _unlink_regular(destination, ("program.gcode", "program.nc", "manifest.json"))
+        _write_export_result(
+            destination,
+            _refused(Refusal(
+                codes.REFERENCE_UNRESOLVED,
+                f"experimental outputs could not be published: {exc.strerror or exc}",
+            )),
+            program_written=False,
+        )
 
 
 def _write_export_result(
@@ -323,13 +398,16 @@ def _write_export_result(
         "detail": None if refusal is None else refusal.detail,
         "plan_digest": evaluation.plan_digest,
     }
-    (destination / "result.json").write_text(_stable_json(payload), encoding="utf-8")
+    _publish_files(destination, (
+        ("result.json", _stable_json(payload).encode("utf-8")),
+    ))
 
 
 def run_witness(package_root: Path, destination: Path, *, case: str) -> dict:
     """Verify a package and record the planner boundary. Does not emit a program."""
-    if destination.resolve() == package_root.resolve():
-        raise ValueError("witness destination must not be the package directory")
+    blocked = _open_witness_destination(package_root, destination)
+    if blocked is not None:
+        return _unwritten_verify_refusal(case, blocked)
     destination.mkdir(parents=True, exist_ok=True)
     verification = verify_package(package_root, mode="offline")
     payload: dict = {
@@ -381,6 +459,176 @@ def run_witness(package_root: Path, destination: Path, *, case: str) -> dict:
     return payload
 
 
+def prepare_planned_witness(
+    package_root: Path, destination: Path, *, case: str,
+) -> dict:
+    """Verify planner inputs and write a candidate. Does not write a program."""
+    blocked = _open_witness_destination(package_root, destination)
+    if blocked is not None:
+        return _unwritten_planned_refusal(case, blocked)
+    candidate, refusal = _plan_rectangular_package(package_root)
+    if refusal is not None or candidate is None:
+        _unlink_planned(destination, _PLANNED_OUTPUTS)
+        payload = _planned_payload(
+            case=case, candidate=None, refusal=refusal or Refusal(
+                codes.SCHEMA_INVALID, "rectangular plan was not produced"),
+            planning_status="refused", export_status="blocked",
+            program_written=False,
+        )
+        _write_planned_result(destination, payload)
+        payload["exit_code"] = 1
+        return payload
+    evaluation = evaluate_generated_candidate_export(
+        candidate, package_root, None, mode="offline")
+    refusal = evaluation.refusal
+    if refusal is None or refusal.code != codes.REVIEW_REQUIRED:
+        _unlink_planned(destination, _PLANNED_OUTPUTS)
+        payload = _planned_payload(
+            case=case, candidate=None, refusal=refusal or Refusal(
+                codes.UNSUPPORTED_CAPABILITY, "prepare did not reach review"),
+            planning_status="refused", export_status="blocked",
+            program_written=False,
+        )
+        _write_planned_result(destination, payload)
+        payload["exit_code"] = 1
+        return payload
+    try:
+        _write_candidate_files(destination, candidate)
+        _unlink_planned(destination, ("program.gcode", "program.nc", "manifest.json"))
+        payload = _planned_payload(
+            case=case, candidate=candidate, refusal=refusal,
+            planning_status="candidate_ready", export_status="blocked",
+            program_written=False,
+        )
+        _write_planned_result(destination, payload)
+    except OSError as exc:
+        return _publication_failure(destination, case, exc, drop_candidate=True)
+    payload["exit_code"] = 1
+    return payload
+
+
+def export_planned_witness(
+    package_root: Path,
+    destination: Path,
+    review_bytes: bytes,
+    *,
+    case: str,
+) -> dict:
+    """Reverify a prepared rectangle and write one experimental program."""
+    blocked = _open_witness_destination(package_root, destination)
+    if blocked is not None:
+        return _unwritten_planned_refusal(case, blocked)
+    prepared = destination / "candidate_plan.json"
+    if prepared.exists():
+        recorded, refusal = _recorded_input_digests(prepared)
+        if refusal is not None or recorded is None:
+            _unlink_planned(destination, _PLANNED_OUTPUTS)
+            payload = _planned_payload(
+                case=case, candidate=None, refusal=refusal or Refusal(
+                    codes.SCHEMA_INVALID, "prepared candidate could not be read"),
+                planning_status="refused", export_status="blocked",
+                program_written=False,
+            )
+            _write_planned_result(destination, payload)
+            payload["exit_code"] = 1
+            return payload
+        refusal = _prepared_inputs_still_match(package_root, recorded)
+        if refusal is not None:
+            _unlink_planned(destination, _PLANNED_OUTPUTS)
+            payload = _planned_payload(
+                case=case, candidate=None, refusal=refusal,
+                planning_status="refused", export_status="blocked",
+                program_written=False,
+            )
+            _write_planned_result(destination, payload)
+            payload["exit_code"] = 1
+            return payload
+    candidate, refusal = _plan_rectangular_package(package_root)
+    if refusal is not None or candidate is None:
+        _unlink_planned(destination, _PLANNED_OUTPUTS)
+        payload = _planned_payload(
+            case=case, candidate=None, refusal=refusal or Refusal(
+                codes.SCHEMA_INVALID, "rectangular plan was not produced"),
+            planning_status="refused", export_status="blocked",
+            program_written=False,
+        )
+        _write_planned_result(destination, payload)
+        payload["exit_code"] = 1
+        return payload
+    evaluation = evaluate_generated_candidate_export(
+        candidate, package_root, review_bytes, mode="offline")
+    if not evaluation.allowed or evaluation.program_text is None or evaluation.manifest is None:
+        refusal = evaluation.refusal or Refusal(
+            codes.UNSUPPORTED_CAPABILITY, "experimental program was not rendered")
+        try:
+            if refusal.code == codes.SNAPSHOT_CHANGED:
+                _unlink_planned(destination, _PLANNED_OUTPUTS)
+                shown = None
+            else:
+                _write_candidate_files(destination, candidate)
+                _unlink_planned(
+                    destination, ("program.gcode", "program.nc", "manifest.json"))
+                shown = candidate
+            payload = _planned_payload(
+                case=case, candidate=shown, refusal=refusal,
+                planning_status="refused" if shown is None else "candidate_ready",
+                export_status="blocked", program_written=False,
+            )
+            _write_planned_result(destination, payload)
+        except OSError as exc:
+            return _publication_failure(
+                destination, case, exc,
+                drop_candidate=refusal.code == codes.SNAPSHOT_CHANGED,
+            )
+        payload["exit_code"] = 1
+        return payload
+    try:
+        _write_candidate_files(destination, candidate)
+        _write_program_files(destination, evaluation)
+        payload = _planned_payload(
+            case=case, candidate=candidate, refusal=None,
+            planning_status="candidate_ready", export_status="written",
+            program_written=True,
+        )
+        _write_planned_result(destination, payload)
+    except OSError as exc:
+        return _publication_failure(destination, case, exc, drop_candidate=False)
+    payload["exit_code"] = 0
+    return payload
+
+
+def export_planned_witness_from_file(
+    package_root: Path,
+    destination: Path,
+    review_path: Path,
+    *,
+    case: str,
+) -> dict:
+    """Export from a review path. Unreadable reviews invalidate stale outputs."""
+    blocked = _open_witness_destination(package_root, destination)
+    if blocked is not None:
+        return _unwritten_planned_refusal(case, blocked)
+    if _review_is_output(review_path, destination):
+        return _unwritten_planned_refusal(case, Refusal(
+            codes.REFERENCE_UNRESOLVED,
+            "review file is a witness output and would be replaced or deleted",
+        ))
+    try:
+        review_bytes = review_path.read_bytes()
+    except OSError as exc:
+        return _invalidate_planned_attempt(
+            destination,
+            case,
+            Refusal(
+                codes.REFERENCE_UNRESOLVED,
+                f"review file is unreadable: {exc.strerror or exc}",
+            ),
+            drop_candidate=False,
+        )
+    return export_planned_witness(
+        package_root, destination, review_bytes, case=case)
+
+
 def parse_request_bytes_public(raw: bytes):
     """Public parser used by the gate and by structure tests."""
     return parse_request_bytes(raw)
@@ -426,7 +674,7 @@ def _context(bundle: PackageBundle, trust: str) -> VerifiedImportContext:
         EXPERIMENTAL_BANNER,
         "Producer trust is an offline fixture pin, not an operational anchor.",
         "Current state is not established.",
-        "Contour planner is unavailable.",
+        "Rectangular centerline planning is a separate planner-input path.",
         "Operational governed export is disabled.",
         "No human-review authority is configured.",
     )
@@ -511,6 +759,542 @@ def _manifest(
     }
 
 
+def _generated_manifest(
+    candidate: GeneratedCandidate,
+    *,
+    plan_digest_value: str,
+    program_sha: str,
+    review: ReviewRecord,
+) -> dict:
+    verification = candidate.verification
+    if verification.request is None:
+        raise TraceabilityDefect("generated manifest requires a verified request")
+    references = _input_manifest(verification) or {}
+    references = dict(references)
+    references["planner_input_sha256"] = candidate.additional.planner_input_sha256
+    references["operation_plan_sha256"] = candidate.additional.operation_plan_sha256
+    references["planner_input_ref"] = candidate.additional.planner_input_ref
+    references["operation_plan_ref"] = candidate.additional.operation_plan_ref
+    return {
+        "contract_version": rectangle_limits.GENERATED_MANIFEST_VERSION,
+        "program_sha256": program_sha,
+        "plan_digest": plan_digest_value,
+        "plan_contract_version": rectangle_limits.GENERATED_PLAN_VERSION,
+        "input_references": references,
+        "profile_id": verification.request.profile_id,
+        "postprocessor_id": POSTPROCESSOR_ID,
+        "postprocessor_version": postprocessor_version(),
+        "planner_id": rectangle_limits.PLANNER_ID,
+        "planner_version": rectangle_limits.PLANNER_VERSION,
+        "motion_source": rectangle_limits.MOTION_SOURCE,
+        "review": {
+            "review_id": review.review_id,
+            "plan_digest": review.plan_digest,
+            "policy_digest": review.policy_digest,
+            "decision": review.decision,
+            "experimental": review.experimental,
+            "authority": review.authority,
+        },
+        "authority_limitations": list(AUTHORITY_LIMITATIONS),
+        "experimental_banner": EXPERIMENTAL_BANNER,
+        "human_approval": False,
+        "operational_export": False,
+    }
+
+
+_PLANNED_OUTPUTS = (
+    "candidate_plan.json",
+    "preview.json",
+    "program.gcode",
+    "program.nc",
+    "manifest.json",
+)
+
+
+def _plan_rectangular_package(
+    package_root: Path,
+) -> tuple[GeneratedCandidate | None, Refusal | None]:
+    verification = verify_package(package_root, mode="offline")
+    if (
+        not verification.accepted
+        or verification.bundle is None
+        or verification.request is None
+    ):
+        return None, verification.refusal or Refusal(
+            codes.SCHEMA_INVALID, "package was not verified")
+    loaded, refusal = load_planner_inputs(
+        package_root, verification.bundle.snapshot.request_raw)
+    if refusal is not None or loaded is None:
+        return None, refusal
+    return build_generated_candidate(verification, loaded)
+
+
+def _require_distinct_destination(package_root: Path, destination: Path) -> None:
+    if destination.resolve() == package_root.resolve():
+        raise ValueError("witness destination must not be the package directory")
+
+
+_EXPLICIT_OUTPUTS = (
+    "program.gcode",
+    "program.nc",
+    "manifest.json",
+    "result.json",
+)
+_PROGRAM_OUTPUTS = ("program.gcode", "program.nc", "manifest.json")
+
+
+def _output_names() -> tuple[str, ...]:
+    return _PLANNED_OUTPUTS + ("result.json",)
+
+
+def _open_witness_destination(
+    package_root: Path, destination: Path,
+) -> Refusal | None:
+    """Refuse unsafe outputs before creating the destination or touching files."""
+    _require_distinct_destination(package_root, destination)
+    refusal = _refuse_unsafe_outputs(package_root, destination)
+    if refusal is not None:
+        return refusal
+    destination.mkdir(parents=True, exist_ok=True)
+    return None
+
+
+def _refuse_unsafe_outputs(
+    package_root: Path, destination: Path,
+) -> Refusal | None:
+    """Refuse symlink outputs and outputs that are captured inputs.
+
+    The check runs before any write or delete. A symlink is not removed
+    and is not followed.
+    """
+    if destination.is_symlink():
+        return Refusal(
+            codes.REFERENCE_UNRESOLVED,
+            "witness destination is a symlink and is not written or deleted",
+        )
+    captured = _captured_input_paths(package_root)
+    outputs = [destination / name for name in _output_names()]
+    for path in outputs:
+        if path.is_symlink():
+            return Refusal(
+                codes.REFERENCE_UNRESOLVED,
+                f"output {path.name} is a symlink and is not written or deleted",
+            )
+    for path in outputs:
+        if _overlaps_captured_input(path, captured):
+            return Refusal(
+                codes.REFERENCE_UNRESOLVED,
+                f"output {path.name} is a captured input and is not written or deleted",
+            )
+    return None
+
+
+def _captured_input_paths(package_root: Path) -> set[Path]:
+    """Resolved paths the witness has captured or is about to read."""
+    found: set[Path] = set()
+
+    def consider(package_ref: object) -> None:
+        if not isinstance(package_ref, str):
+            return
+        path, refusal = resolve_package_ref(package_root, package_ref)
+        if refusal is not None or path is None:
+            return
+        try:
+            found.add(path.resolve())
+        except OSError:
+            found.add(path)
+
+    consider("request.json")
+    consider("planner-inputs.json")
+    request = _loose_object(package_root / "request.json")
+    artifacts = request.get("upstream_artifacts") if request is not None else None
+    if isinstance(artifacts, list):
+        for item in artifacts:
+            if isinstance(item, dict):
+                consider(item.get("package_ref"))
+    planner = _loose_object(package_root / "planner-inputs.json")
+    if planner is not None:
+        operation_plan = planner.get("operation_plan")
+        if isinstance(operation_plan, dict):
+            consider(operation_plan.get("package_ref"))
+    return found
+
+
+def _loose_object(path: Path) -> dict | None:
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(document, dict):
+        return None
+    return document
+
+
+def _overlaps_captured_input(path: Path, captured: set[Path]) -> bool:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return True
+    if resolved in captured:
+        return True
+    if path.is_symlink() or not path.exists():
+        return False
+    for item in captured:
+        try:
+            if path.samefile(item):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _review_is_output(review_path: Path, destination: Path) -> bool:
+    """True when the review file is, or links to, a file the witness writes."""
+    outputs = [destination / name for name in _output_names()]
+    try:
+        review = review_path.resolve()
+    except OSError:
+        return False
+    for path in outputs:
+        try:
+            if path.resolve() == review:
+                return True
+            if path.exists() and review_path.exists() and path.samefile(review_path):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _symlink_output(destination: Path, names: tuple[str, ...]) -> bool:
+    if destination.is_symlink():
+        return True
+    return any((destination / name).is_symlink() for name in names)
+
+
+def _unlink_regular(destination: Path, names: tuple[str, ...]) -> None:
+    """Remove regular output files. Symlinks are left in place."""
+    for name in names:
+        path = destination / name
+        if path.is_symlink() or not path.is_file():
+            continue
+        path.unlink()
+
+
+def _unlink_planned(destination: Path, names: tuple[str, ...]) -> None:
+    _unlink_regular(destination, names)
+
+
+def _replace_file(source: Path, final: Path) -> None:
+    os.replace(source, final)
+
+
+def _publish_files(
+    destination: Path, files: tuple[tuple[str, bytes], ...],
+) -> None:
+    """Stage every file, then publish. A partial publication is rolled back."""
+    pairs: list[tuple[Path, Path]] = []
+    published: list[Path] = []
+    try:
+        for name, data in files:
+            final = destination / name
+            if final.is_symlink():
+                raise OSError(f"output {name} is a symlink")
+            fd, tmp_name = tempfile.mkstemp(prefix=f".{name}.", dir=destination)
+            tmp = Path(tmp_name)
+            pairs.append((tmp, final))
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+        for tmp, final in pairs:
+            if final.is_symlink():
+                raise OSError(f"output {final.name} is a symlink")
+            _replace_file(tmp, final)
+            published.append(final)
+    except OSError:
+        for tmp, _final in pairs:
+            if tmp.exists() and not tmp.is_symlink():
+                tmp.unlink()
+        for final in published:
+            if final.is_symlink() or not final.is_file():
+                continue
+            final.unlink()
+        raise
+
+
+def _publication_failure(
+    destination: Path, case: str, exc: OSError, *, drop_candidate: bool,
+) -> dict:
+    return _invalidate_planned_attempt(
+        destination,
+        case,
+        Refusal(
+            codes.REFERENCE_UNRESOLVED,
+            "experimental outputs could not be published: "
+            f"{exc.strerror or exc}",
+        ),
+        drop_candidate=drop_candidate,
+    )
+
+
+def _invalidate_planned_attempt(
+    destination: Path,
+    case: str,
+    refusal: Refusal,
+    *,
+    drop_candidate: bool,
+) -> dict:
+    """Drop stale program outputs and record the failed attempt."""
+    _unlink_regular(destination, _PROGRAM_OUTPUTS)
+    if drop_candidate:
+        _unlink_regular(destination, ("candidate_plan.json", "preview.json"))
+    candidate_remains = (destination / "candidate_plan.json").is_file()
+    payload = _planned_payload(
+        case=case,
+        candidate=None,
+        refusal=refusal,
+        planning_status="candidate_ready" if candidate_remains else "refused",
+        export_status="blocked",
+        program_written=False,
+    )
+    result_path = destination / "result.json"
+    if not result_path.is_symlink():
+        # Remove the previous record first. If the new one cannot be written,
+        # no stale success claim survives.
+        _unlink_regular(destination, ("result.json",))
+        _write_planned_result(destination, payload)
+    payload["exit_code"] = 1
+    return payload
+
+
+def _unwritten_planned_refusal(case: str, refusal: Refusal) -> dict:
+    payload = _planned_payload(
+        case=case,
+        candidate=None,
+        refusal=refusal,
+        planning_status="refused",
+        export_status="blocked",
+        program_written=False,
+    )
+    payload["exit_code"] = 1
+    return payload
+
+
+def _unwritten_verify_refusal(case: str, refusal: Refusal) -> dict:
+    return {
+        "witness": "cs-pep-001",
+        "case": case,
+        "experimental_banner": EXPERIMENTAL_BANNER,
+        "acoustic_validity": False,
+        "physical_machining_authorized": False,
+        "program_written": False,
+        "candidate_plan": None,
+        "preview": None,
+        "blocked": [
+            "contour_planner",
+            "operational_trust",
+            "operational_governed_export",
+            "human_review_authority",
+        ],
+        "accepted": False,
+        "reason_codes": [refusal.code],
+        "detail": refusal.detail,
+        "manufacturing_check": {
+            "declared_limits": refusal.code,
+            "motion_checks": "not_run",
+        },
+        "exit_code": 1,
+    }
+
+
+def _write_program_files(destination: Path, evaluation: ExportEvaluation) -> None:
+    if evaluation.program_text is None or evaluation.manifest is None:
+        raise TraceabilityDefect("program files require an allowed evaluation")
+    raw = evaluation.program_text.encode("utf-8")
+    if (
+        not evaluation.program_text.startswith(f"({EXPERIMENTAL_BANNER})\n")
+        or evaluation.manifest.get("experimental_banner") != EXPERIMENTAL_BANNER
+        or sha256_bytes(raw) != evaluation.program_sha256
+        or evaluation.manifest.get("program_sha256") != evaluation.program_sha256
+    ):
+        raise TraceabilityDefect(
+            "offline export lost its experimental label or digest binding")
+    _publish_files(destination, (
+        ("program.gcode", raw),
+        ("manifest.json", _stable_json(evaluation.manifest).encode("utf-8")),
+    ))
+
+
+def _candidate_document(candidate: GeneratedCandidate) -> dict:
+    plan = candidate.plan
+    if not isinstance(plan, ToolpathPlan):
+        raise TraceabilityDefect("generated candidate is missing a ToolpathPlan")
+    toolpath_json = toolpath_to_json(plan)
+    verification = candidate.verification
+    request = verification.request
+    bundle = verification.bundle
+    if request is None or bundle is None:
+        raise TraceabilityDefect("candidate document requires a verified package")
+    return {
+        "contract_version": rectangle_limits.GENERATED_PLAN_VERSION,
+        "experimental_banner": EXPERIMENTAL_BANNER,
+        "physical_machining_authorized": False,
+        "human_approval": False,
+        "program_exported": False,
+        "planner_id": rectangle_limits.PLANNER_ID,
+        "planner_version": rectangle_limits.PLANNER_VERSION,
+        "motion_source": rectangle_limits.MOTION_SOURCE,
+        "plan_digest": candidate.plan_digest,
+        "request_sha256": bundle.snapshot.request_sha256,
+        "request_digest": request_digest(request),
+        "artifact_digests": {
+            item.role: item.sha256 for item in bundle.snapshot.artifacts
+        },
+        "planner_input_sha256": candidate.additional.planner_input_sha256,
+        "planner_input_ref": candidate.additional.planner_input_ref,
+        "operation_plan_sha256": candidate.additional.operation_plan_sha256,
+        "operation_plan_ref": candidate.additional.operation_plan_ref,
+        "definition_id": candidate.definition_id,
+        "binding_id": candidate.binding_id,
+        "geometry_ids": list(candidate.geometry_ids),
+        "recommendation_id": candidate.recommendation_id,
+        "planned_cut_feed_mm_min": candidate.planned_cut_feed_mm_min,
+        "planned_plunge_feed_mm_min": candidate.planned_plunge_feed_mm_min,
+        "tool_id": candidate.tool_id,
+        "tool_diameter_mm": candidate.tool_diameter_mm,
+        "tool_flutes": candidate.tool_flutes,
+        "material_id": candidate.material_id,
+        "strategy_fingerprint": plan.strategy_fingerprint,
+        "frame_id": request.frame_id,
+        "units": request.units,
+        "profile_id": request.profile_id,
+        "stock_allowance_mm": request.stock_allowance_mm,
+        "policy_digest": policy_digest(),
+        "postprocessor_id": POSTPROCESSOR_ID,
+        "postprocessor_version": postprocessor_version(),
+        "toolpath_digest": toolpath_digest(plan_motions(plan)),
+        "toolpath_sha256": sha256_bytes(toolpath_json.encode("utf-8")),
+        "local_limits": {
+            "max_depth_levels": rectangle_limits.MAX_DEPTH_LEVELS,
+            "max_motions": rectangle_limits.MAX_MOTIONS,
+            "max_planner_input_bytes": rectangle_limits.MAX_PLANNER_INPUT_BYTES,
+        },
+        "toolpath": toolpath_to_dict(plan),
+    }
+
+
+def _preview_document(candidate: GeneratedCandidate) -> dict:
+    plan = candidate.plan
+    if not isinstance(plan, ToolpathPlan):
+        raise TraceabilityDefect("preview requires a ToolpathPlan")
+    segments = []
+    for segment in toolpath_to_preview(plan):
+        segments.append({
+            "distance": segment.distance,
+            "end": [segment.end.x, segment.end.y, segment.end.z],
+            "feed": segment.feed,
+            "start": [segment.start.x, segment.start.y, segment.start.z],
+            "type": segment.type,
+        })
+    return {
+        "authoritative": False,
+        "experimental_banner": EXPERIMENTAL_BANNER,
+        "plan_digest": candidate.plan_digest,
+        "projection": "cam_creation_studio.toolpath.toolpath_to_preview",
+        "segments": segments,
+    }
+
+
+def _write_candidate_files(destination: Path, candidate: GeneratedCandidate) -> None:
+    _publish_files(destination, (
+        ("candidate_plan.json", _stable_json(
+            _candidate_document(candidate)).encode("utf-8")),
+        ("preview.json", _stable_json(_preview_document(candidate)).encode("utf-8")),
+    ))
+
+
+def _planned_payload(
+    *,
+    case: str,
+    candidate: GeneratedCandidate | None,
+    refusal: Refusal | None,
+    planning_status: str,
+    export_status: str,
+    program_written: bool,
+) -> dict:
+    return {
+        "case": case,
+        "detail": None if refusal is None else refusal.detail,
+        "experimental_banner": EXPERIMENTAL_BANNER,
+        "export_status": export_status,
+        "human_approval": False,
+        "physical_machining_authorized": False,
+        "plan_digest": None if candidate is None else candidate.plan_digest,
+        "planning_status": planning_status,
+        "program_exported": False,
+        "program_written": program_written,
+        "reason_codes": [] if refusal is None else [refusal.code],
+        "witness": "cs-017",
+    }
+
+
+def _write_planned_result(destination: Path, payload: dict) -> None:
+    public = {key: value for key, value in payload.items() if key != "exit_code"}
+    _publish_files(destination, (
+        ("result.json", _stable_json(public).encode("utf-8")),
+    ))
+
+
+def _recorded_input_digests(
+    path: Path,
+) -> tuple[dict | None, Refusal | None]:
+    try:
+        document = load_bounded_json(path.read_bytes())
+    except _ParseFailure as exc:
+        return None, Refusal(exc.code, exc.detail)
+    except OSError as exc:
+        return None, Refusal(
+            codes.REFERENCE_UNRESOLVED, f"prepared candidate is unreadable: {exc}")
+    required = (
+        "planner_input_sha256", "operation_plan_sha256",
+        "planner_input_ref", "operation_plan_ref", "plan_digest",
+    )
+    if any(key not in document for key in required):
+        return None, Refusal(
+            codes.SCHEMA_INVALID, "prepared candidate is missing input digests")
+    return {key: document[key] for key in required}, None
+
+
+def _prepared_inputs_still_match(
+    package_root: Path, recorded: dict,
+) -> Refusal | None:
+    pairs = (
+        (recorded["planner_input_ref"], recorded["planner_input_sha256"],
+         "planner input"),
+        (recorded["operation_plan_ref"], recorded["operation_plan_sha256"],
+         "operation plan"),
+    )
+    for package_ref, digest, label in pairs:
+        if not isinstance(package_ref, str) or not isinstance(digest, str):
+            return Refusal(
+                codes.SCHEMA_INVALID, "prepared candidate digests are not strings")
+        path, refusal = resolve_package_ref(package_root, package_ref)
+        if refusal is not None or path is None:
+            return refusal
+        raw, refusal = read_bounded(path, rectangle_limits.MAX_PLANNER_INPUT_BYTES)
+        if refusal is not None or raw is None:
+            return refusal
+        if sha256_bytes(raw) != digest:
+            return Refusal(
+                codes.SNAPSHOT_CHANGED,
+                f"{label} bytes changed after prepare",
+            )
+    return None
+
+
 def _rejected(refusal: Refusal) -> VerificationResult:
     return VerificationResult(False, refusal, None, None, None)
 
@@ -580,8 +1364,10 @@ def _stable_json(payload: dict) -> str:
 
 def _write_result(destination: Path, payload: dict) -> None:
     public = {key: value for key, value in payload.items() if key != "exit_code"}
-    (destination / "result.json").write_text(_stable_json(public), encoding="utf-8")
-    for name in ("program.gcode", "program.nc", "manifest.json"):
-        stray = destination / name
-        if stray.exists():
-            stray.unlink()
+    _publish_files(destination, (
+        ("result.json", _stable_json(public).encode("utf-8")),
+    ))
+    _unlink_regular(destination, (
+        "program.gcode", "program.nc", "manifest.json",
+        "candidate_plan.json", "preview.json",
+    ))

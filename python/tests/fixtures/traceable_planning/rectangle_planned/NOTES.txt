@@ -1,0 +1,6 @@
+Software-test values only. EXPERIMENTAL — NOT FOR MACHINING.
+Tool endmill_1_4 resolves to diameter 6.35 mm, kind endmill.
+Request tooling.kind is flat_end_mill. Material is hardwood.
+Centerline (20, 15) to (60, 35). Depths are 1 mm and 2 mm.
+Cut feed 800 mm/min and plunge feed 300 mm/min are explicit selections.
+The stored feed recommendation is not selected.

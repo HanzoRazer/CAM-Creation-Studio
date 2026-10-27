@@ -5,14 +5,26 @@ repository. Nothing here invents a canonical upstream version. Every pin is
 experimental. An artifact field such as ``pin_status`` or ``approved`` cannot
 change that.
 
-There is no operational trust anchor and no contour planner. Operational
-governed export stays disabled.
+There is no operational trust anchor. A rectangular centerline planner
+covers one explicit rectangle. Operational governed export stays disabled.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..planning.limits import (
+    GENERATED_MANIFEST_VERSION,
+    GENERATED_PLAN_VERSION,
+    INPUT_VERSION,
+    MAX_DEPTH_LEVELS,
+    MAX_MOTIONS,
+    MAX_PLANNER_INPUT_BYTES,
+    MOTION_SOURCE as RECTANGULAR_MOTION_SOURCE,
+    PLANNER_ID as RECTANGULAR_PLANNER_ID,
+    PLANNER_VERSION as RECTANGULAR_PLANNER_VERSION,
+    RECTANGULAR_CENTERLINE_AVAILABLE,
+)
 from .codes import REASON_CODES
 from .encoding import digest_json
 
@@ -94,8 +106,8 @@ AUTHORITY_LIMITATIONS: tuple[str, ...] = (
     "Does not authorize physical machining.",
     "Does not claim machine readiness, full collision simulation, "
     "structural safety, or cutting-force analysis.",
-    "No contour planner is available. Explicit linear motion is not "
-    "planner output.",
+    "A rectangular cutter-centerline planner expands one explicit rectangle. "
+    "It does not offset geometry. Explicit linear motion is not planner output.",
     "A fixture review tests binding only and is not human approval.",
     "Admission to human review is not plan approval.",
     "Operational governed export is disabled.",
@@ -155,6 +167,16 @@ def policy_document() -> dict:
         "supported_profile": SUPPORTED_PROFILE,
         "supported_units": SUPPORTED_UNITS,
         "depth_level_abs_tolerance_mm": DEPTH_LEVEL_ABS_TOLERANCE_MM,
+        "rectangular_centerline_available": RECTANGULAR_CENTERLINE_AVAILABLE,
+        "rectangular_planner_id": RECTANGULAR_PLANNER_ID,
+        "rectangular_planner_version": RECTANGULAR_PLANNER_VERSION,
+        "rectangular_motion_source": RECTANGULAR_MOTION_SOURCE,
+        "rectangular_input_version": INPUT_VERSION,
+        "generated_plan_version": GENERATED_PLAN_VERSION,
+        "generated_manifest_version": GENERATED_MANIFEST_VERSION,
+        "max_rectangular_depth_levels": MAX_DEPTH_LEVELS,
+        "max_rectangular_motions": MAX_MOTIONS,
+        "max_planner_input_bytes": MAX_PLANNER_INPUT_BYTES,
         "profiles": {
             role: {"contract_id": pair[0], "contract_version": pair[1],
                    "maturity": "experimental"}

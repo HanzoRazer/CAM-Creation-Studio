@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creation-studio.rectangular-planner-input/1",
+  "title": "RectangularPlannerInputV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "request_sha256",
+    "operation_plan",
+    "definition_id",
+    "planned_cut_feed_mm_min",
+    "planned_plunge_feed_mm_min",
+    "recommendation_id"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "creation-studio.rectangular-planner-input/1"
+    },
+    "request_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "operation_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package_ref", "sha256"],
+      "properties": {
+        "package_ref": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "definition_id": {"type": "string", "minLength": 1},
+    "planned_cut_feed_mm_min": {"type": "number", "exclusiveMinimum": 0},
+    "planned_plunge_feed_mm_min": {"type": "number", "exclusiveMinimum": 0},
+    "recommendation_id": {"type": ["string", "null"]}
+  }
+}
