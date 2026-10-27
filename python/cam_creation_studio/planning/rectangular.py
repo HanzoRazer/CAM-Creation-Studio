@@ -201,12 +201,22 @@ def _validate_feeds(options: RectangularPlannerOptions) -> None:
         "planned_plunge_feed_mm_min", options.planned_plunge_feed_mm_min)
 
 
+def _as_float(value: object, name: str) -> float:
+    """Convert a numeric value, refusing integers that overflow float."""
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except OverflowError:
+        raise PlanningError(
+            "SCHEMA_INVALID", f"{name} must be a finite number") from None
+
+
 def _positive_feed(name: str, value: object) -> None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise PlanningError(_UNSUPPORTED, f"{name} must be an explicit positive feed")
-    if not math.isfinite(float(value)) or value <= 0:
+    number = _as_float(value, name)
+    if not math.isfinite(number) or number <= 0:
         raise PlanningError(_UNSUPPORTED, f"{name} must be an explicit positive feed")
-    if round_for_gcode(float(value)) <= 0:
+    if round_for_gcode(number) <= 0:
         raise PlanningError(
             _UNSUPPORTED, f"{name} rounds to zero at posting precision")
 
@@ -216,13 +226,15 @@ def _validate_depths(options: RectangularPlannerOptions) -> None:
         options.stepdown_mm, (int, float)
     ):
         raise PlanningError(_DEPTH, "stepdown must be a positive number")
-    if not math.isfinite(float(options.stepdown_mm)) or options.stepdown_mm <= 0:
+    stepdown = _as_float(options.stepdown_mm, "stepdown")
+    if not math.isfinite(stepdown) or stepdown <= 0:
         raise PlanningError(_DEPTH, "stepdown must be a positive number")
     if isinstance(options.removal_max_depth_mm, bool) or not isinstance(
         options.removal_max_depth_mm, (int, float)
     ):
         raise PlanningError(_DEPTH, "removal max depth must be a finite number")
-    if not math.isfinite(float(options.removal_max_depth_mm)):
+    removal = _as_float(options.removal_max_depth_mm, "removal max depth")
+    if not math.isfinite(removal):
         raise PlanningError(_DEPTH, "removal max depth must be a finite number")
     if isinstance(options.travel_height_mm, bool) or not isinstance(
         options.travel_height_mm, (int, float)
@@ -230,30 +242,31 @@ def _validate_depths(options: RectangularPlannerOptions) -> None:
         options.clearance_mm, (int, float)
     ):
         raise PlanningError(_CLEARANCE, "travel height and clearance must be finite")
-    if not math.isfinite(float(options.travel_height_mm)) or not math.isfinite(
-        float(options.clearance_mm)
-    ):
+    travel = _as_float(options.travel_height_mm, "travel height")
+    clearance = _as_float(options.clearance_mm, "clearance")
+    if not math.isfinite(travel) or not math.isfinite(clearance):
         raise PlanningError(_CLEARANCE, "travel height and clearance must be finite")
     previous = 0.0
     for index, level in enumerate(options.depth_levels_mm):
         if isinstance(level, bool) or not isinstance(level, (int, float)):
             raise PlanningError(_DEPTH, f"depth level {index} is not a finite number")
-        if not math.isfinite(float(level)) or level <= 0:
+        number = _as_float(level, f"depth level {index}")
+        if not math.isfinite(number) or number <= 0:
             raise PlanningError(
                 _DEPTH, f"depth level {index} must be positive and finite")
-        if level <= previous:
+        if number <= previous:
             raise PlanningError(
                 _DEPTH, "depth levels must be strictly increasing")
-        if level - previous > options.stepdown_mm:
+        if number - previous > stepdown:
             raise PlanningError(
                 _DEPTH, "a depth step exceeds the declared stepdown")
-        if level > options.removal_max_depth_mm:
+        if number > removal:
             raise PlanningError(
                 _DEPTH,
                 f"depth level {level} mm exceeds declared removal limit "
                 f"{options.removal_max_depth_mm} mm",
             )
-        previous = float(level)
+        previous = number
 
 
 def _require_contour(
@@ -345,8 +358,8 @@ def _passes(rectangle: NormalizedRectangle, options: RectangularPlannerOptions):
     )
     paths = []
     index = 0
-    for depth in options.depth_levels_mm:
-        z = -float(depth)
+    for depth_index, depth in enumerate(options.depth_levels_mm):
+        z = -_as_float(depth, f"depth level {depth_index}")
         motions = []
         motions.append(make_linear_motion(
             MotionKind.PLUNGE,

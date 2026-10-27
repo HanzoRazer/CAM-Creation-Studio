@@ -9,6 +9,8 @@ the rules.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 from ..planning import limits as rectangle_limits
@@ -362,17 +364,26 @@ def _export_source_candidate(
 
 def write_offline_export(destination: Path, evaluation: ExportEvaluation) -> None:
     """Write an experimental program only when the shared gate allowed it."""
+    if _symlink_output(destination, _EXPLICIT_OUTPUTS):
+        raise OSError("refusing to write or delete a symlink output")
     destination.mkdir(parents=True, exist_ok=True)
-    program = destination / "program.gcode"
-    manifest = destination / "manifest.json"
     if not evaluation.allowed or evaluation.program_text is None or evaluation.manifest is None:
-        for path in (program, destination / "program.nc", manifest):
-            if path.exists():
-                path.unlink()
+        _unlink_regular(destination, ("program.gcode", "program.nc", "manifest.json"))
         _write_export_result(destination, evaluation, program_written=False)
         return
-    _write_program_files(destination, evaluation)
-    _write_export_result(destination, evaluation, program_written=True)
+    try:
+        _write_program_files(destination, evaluation)
+        _write_export_result(destination, evaluation, program_written=True)
+    except OSError as exc:
+        _unlink_regular(destination, ("program.gcode", "program.nc", "manifest.json"))
+        _write_export_result(
+            destination,
+            _refused(Refusal(
+                codes.REFERENCE_UNRESOLVED,
+                f"experimental outputs could not be published: {exc.strerror or exc}",
+            )),
+            program_written=False,
+        )
 
 
 def _write_export_result(
@@ -387,13 +398,16 @@ def _write_export_result(
         "detail": None if refusal is None else refusal.detail,
         "plan_digest": evaluation.plan_digest,
     }
-    (destination / "result.json").write_text(_stable_json(payload), encoding="utf-8")
+    _publish_files(destination, (
+        ("result.json", _stable_json(payload).encode("utf-8")),
+    ))
 
 
 def run_witness(package_root: Path, destination: Path, *, case: str) -> dict:
     """Verify a package and record the planner boundary. Does not emit a program."""
-    if destination.resolve() == package_root.resolve():
-        raise ValueError("witness destination must not be the package directory")
+    blocked = _open_witness_destination(package_root, destination)
+    if blocked is not None:
+        return _unwritten_verify_refusal(case, blocked)
     destination.mkdir(parents=True, exist_ok=True)
     verification = verify_package(package_root, mode="offline")
     payload: dict = {
@@ -449,8 +463,9 @@ def prepare_planned_witness(
     package_root: Path, destination: Path, *, case: str,
 ) -> dict:
     """Verify planner inputs and write a candidate. Does not write a program."""
-    _require_distinct_destination(package_root, destination)
-    destination.mkdir(parents=True, exist_ok=True)
+    blocked = _open_witness_destination(package_root, destination)
+    if blocked is not None:
+        return _unwritten_planned_refusal(case, blocked)
     candidate, refusal = _plan_rectangular_package(package_root)
     if refusal is not None or candidate is None:
         _unlink_planned(destination, _PLANNED_OUTPUTS)
@@ -477,14 +492,17 @@ def prepare_planned_witness(
         _write_planned_result(destination, payload)
         payload["exit_code"] = 1
         return payload
-    _write_candidate_files(destination, candidate)
-    _unlink_planned(destination, ("program.gcode", "program.nc", "manifest.json"))
-    payload = _planned_payload(
-        case=case, candidate=candidate, refusal=refusal,
-        planning_status="candidate_ready", export_status="blocked",
-        program_written=False,
-    )
-    _write_planned_result(destination, payload)
+    try:
+        _write_candidate_files(destination, candidate)
+        _unlink_planned(destination, ("program.gcode", "program.nc", "manifest.json"))
+        payload = _planned_payload(
+            case=case, candidate=candidate, refusal=refusal,
+            planning_status="candidate_ready", export_status="blocked",
+            program_written=False,
+        )
+        _write_planned_result(destination, payload)
+    except OSError as exc:
+        return _publication_failure(destination, case, exc, drop_candidate=True)
     payload["exit_code"] = 1
     return payload
 
@@ -497,8 +515,9 @@ def export_planned_witness(
     case: str,
 ) -> dict:
     """Reverify a prepared rectangle and write one experimental program."""
-    _require_distinct_destination(package_root, destination)
-    destination.mkdir(parents=True, exist_ok=True)
+    blocked = _open_witness_destination(package_root, destination)
+    if blocked is not None:
+        return _unwritten_planned_refusal(case, blocked)
     prepared = destination / "candidate_plan.json"
     if prepared.exists():
         recorded, refusal = _recorded_input_digests(prepared)
@@ -541,32 +560,68 @@ def export_planned_witness(
     if not evaluation.allowed or evaluation.program_text is None or evaluation.manifest is None:
         refusal = evaluation.refusal or Refusal(
             codes.UNSUPPORTED_CAPABILITY, "experimental program was not rendered")
-        if refusal.code == codes.SNAPSHOT_CHANGED:
-            _unlink_planned(destination, _PLANNED_OUTPUTS)
-            shown = None
-        else:
-            _write_candidate_files(destination, candidate)
-            _unlink_planned(
-                destination, ("program.gcode", "program.nc", "manifest.json"))
-            shown = candidate
-        payload = _planned_payload(
-            case=case, candidate=shown, refusal=refusal,
-            planning_status="refused" if shown is None else "candidate_ready",
-            export_status="blocked", program_written=False,
-        )
-        _write_planned_result(destination, payload)
+        try:
+            if refusal.code == codes.SNAPSHOT_CHANGED:
+                _unlink_planned(destination, _PLANNED_OUTPUTS)
+                shown = None
+            else:
+                _write_candidate_files(destination, candidate)
+                _unlink_planned(
+                    destination, ("program.gcode", "program.nc", "manifest.json"))
+                shown = candidate
+            payload = _planned_payload(
+                case=case, candidate=shown, refusal=refusal,
+                planning_status="refused" if shown is None else "candidate_ready",
+                export_status="blocked", program_written=False,
+            )
+            _write_planned_result(destination, payload)
+        except OSError as exc:
+            return _publication_failure(
+                destination, case, exc,
+                drop_candidate=refusal.code == codes.SNAPSHOT_CHANGED,
+            )
         payload["exit_code"] = 1
         return payload
-    _write_candidate_files(destination, candidate)
-    _write_program_files(destination, evaluation)
-    payload = _planned_payload(
-        case=case, candidate=candidate, refusal=None,
-        planning_status="candidate_ready", export_status="written",
-        program_written=True,
-    )
-    _write_planned_result(destination, payload)
+    try:
+        _write_candidate_files(destination, candidate)
+        _write_program_files(destination, evaluation)
+        payload = _planned_payload(
+            case=case, candidate=candidate, refusal=None,
+            planning_status="candidate_ready", export_status="written",
+            program_written=True,
+        )
+        _write_planned_result(destination, payload)
+    except OSError as exc:
+        return _publication_failure(destination, case, exc, drop_candidate=False)
     payload["exit_code"] = 0
     return payload
+
+
+def export_planned_witness_from_file(
+    package_root: Path,
+    destination: Path,
+    review_path: Path,
+    *,
+    case: str,
+) -> dict:
+    """Export from a review path. Unreadable reviews invalidate stale outputs."""
+    blocked = _open_witness_destination(package_root, destination)
+    if blocked is not None:
+        return _unwritten_planned_refusal(case, blocked)
+    try:
+        review_bytes = review_path.read_bytes()
+    except OSError as exc:
+        return _invalidate_planned_attempt(
+            destination,
+            case,
+            Refusal(
+                codes.REFERENCE_UNRESOLVED,
+                f"review file is unreadable: {exc.strerror or exc}",
+            ),
+            drop_candidate=False,
+        )
+    return export_planned_witness(
+        package_root, destination, review_bytes, case=case)
 
 
 def parse_request_bytes_public(raw: bytes):
@@ -774,11 +829,259 @@ def _require_distinct_destination(package_root: Path, destination: Path) -> None
         raise ValueError("witness destination must not be the package directory")
 
 
-def _unlink_planned(destination: Path, names: tuple[str, ...]) -> None:
+_EXPLICIT_OUTPUTS = (
+    "program.gcode",
+    "program.nc",
+    "manifest.json",
+    "result.json",
+)
+_PROGRAM_OUTPUTS = ("program.gcode", "program.nc", "manifest.json")
+
+
+def _output_names() -> tuple[str, ...]:
+    return _PLANNED_OUTPUTS + ("result.json",)
+
+
+def _open_witness_destination(
+    package_root: Path, destination: Path,
+) -> Refusal | None:
+    """Refuse unsafe outputs before creating the destination or touching files."""
+    _require_distinct_destination(package_root, destination)
+    refusal = _refuse_unsafe_outputs(package_root, destination)
+    if refusal is not None:
+        return refusal
+    destination.mkdir(parents=True, exist_ok=True)
+    return None
+
+
+def _refuse_unsafe_outputs(
+    package_root: Path, destination: Path,
+) -> Refusal | None:
+    """Refuse symlink outputs and outputs that are captured inputs.
+
+    The check runs before any write or delete. A symlink is not removed
+    and is not followed.
+    """
+    if destination.is_symlink():
+        return Refusal(
+            codes.REFERENCE_UNRESOLVED,
+            "witness destination is a symlink and is not written or deleted",
+        )
+    captured = _captured_input_paths(package_root)
+    outputs = [destination / name for name in _output_names()]
+    for path in outputs:
+        if path.is_symlink():
+            return Refusal(
+                codes.REFERENCE_UNRESOLVED,
+                f"output {path.name} is a symlink and is not written or deleted",
+            )
+    for path in outputs:
+        if _overlaps_captured_input(path, captured):
+            return Refusal(
+                codes.REFERENCE_UNRESOLVED,
+                f"output {path.name} is a captured input and is not written or deleted",
+            )
+    return None
+
+
+def _captured_input_paths(package_root: Path) -> set[Path]:
+    """Resolved paths the witness has captured or is about to read."""
+    found: set[Path] = set()
+
+    def consider(package_ref: object) -> None:
+        if not isinstance(package_ref, str):
+            return
+        path, refusal = resolve_package_ref(package_root, package_ref)
+        if refusal is not None or path is None:
+            return
+        try:
+            found.add(path.resolve())
+        except OSError:
+            found.add(path)
+
+    consider("request.json")
+    consider("planner-inputs.json")
+    request = _loose_object(package_root / "request.json")
+    artifacts = request.get("upstream_artifacts") if request is not None else None
+    if isinstance(artifacts, list):
+        for item in artifacts:
+            if isinstance(item, dict):
+                consider(item.get("package_ref"))
+    planner = _loose_object(package_root / "planner-inputs.json")
+    if planner is not None:
+        operation_plan = planner.get("operation_plan")
+        if isinstance(operation_plan, dict):
+            consider(operation_plan.get("package_ref"))
+    return found
+
+
+def _loose_object(path: Path) -> dict | None:
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(document, dict):
+        return None
+    return document
+
+
+def _overlaps_captured_input(path: Path, captured: set[Path]) -> bool:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return True
+    if resolved in captured:
+        return True
+    if path.is_symlink() or not path.exists():
+        return False
+    for item in captured:
+        try:
+            if path.samefile(item):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _symlink_output(destination: Path, names: tuple[str, ...]) -> bool:
+    if destination.is_symlink():
+        return True
+    return any((destination / name).is_symlink() for name in names)
+
+
+def _unlink_regular(destination: Path, names: tuple[str, ...]) -> None:
+    """Remove regular output files. Symlinks are left in place."""
     for name in names:
         path = destination / name
-        if path.is_symlink() or path.exists():
-            path.unlink()
+        if path.is_symlink() or not path.is_file():
+            continue
+        path.unlink()
+
+
+def _unlink_planned(destination: Path, names: tuple[str, ...]) -> None:
+    _unlink_regular(destination, names)
+
+
+def _replace_file(source: Path, final: Path) -> None:
+    os.replace(source, final)
+
+
+def _publish_files(
+    destination: Path, files: tuple[tuple[str, bytes], ...],
+) -> None:
+    """Stage every file, then publish. A partial publication is rolled back."""
+    pairs: list[tuple[Path, Path]] = []
+    published: list[Path] = []
+    try:
+        for name, data in files:
+            final = destination / name
+            if final.is_symlink():
+                raise OSError(f"output {name} is a symlink")
+            fd, tmp_name = tempfile.mkstemp(prefix=f".{name}.", dir=destination)
+            tmp = Path(tmp_name)
+            pairs.append((tmp, final))
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+        for tmp, final in pairs:
+            if final.is_symlink():
+                raise OSError(f"output {final.name} is a symlink")
+            _replace_file(tmp, final)
+            published.append(final)
+    except OSError:
+        for tmp, _final in pairs:
+            if tmp.exists() and not tmp.is_symlink():
+                tmp.unlink()
+        for final in published:
+            if final.is_symlink() or not final.is_file():
+                continue
+            final.unlink()
+        raise
+
+
+def _publication_failure(
+    destination: Path, case: str, exc: OSError, *, drop_candidate: bool,
+) -> dict:
+    return _invalidate_planned_attempt(
+        destination,
+        case,
+        Refusal(
+            codes.REFERENCE_UNRESOLVED,
+            "experimental outputs could not be published: "
+            f"{exc.strerror or exc}",
+        ),
+        drop_candidate=drop_candidate,
+    )
+
+
+def _invalidate_planned_attempt(
+    destination: Path,
+    case: str,
+    refusal: Refusal,
+    *,
+    drop_candidate: bool,
+) -> dict:
+    """Drop stale program outputs and record the failed attempt."""
+    _unlink_regular(destination, _PROGRAM_OUTPUTS)
+    if drop_candidate:
+        _unlink_regular(destination, ("candidate_plan.json", "preview.json"))
+    candidate_remains = (destination / "candidate_plan.json").is_file()
+    payload = _planned_payload(
+        case=case,
+        candidate=None,
+        refusal=refusal,
+        planning_status="candidate_ready" if candidate_remains else "refused",
+        export_status="blocked",
+        program_written=False,
+    )
+    result_path = destination / "result.json"
+    if not result_path.is_symlink():
+        _write_planned_result(destination, payload)
+    payload["exit_code"] = 1
+    return payload
+
+
+def _unwritten_planned_refusal(case: str, refusal: Refusal) -> dict:
+    payload = _planned_payload(
+        case=case,
+        candidate=None,
+        refusal=refusal,
+        planning_status="refused",
+        export_status="blocked",
+        program_written=False,
+    )
+    payload["exit_code"] = 1
+    return payload
+
+
+def _unwritten_verify_refusal(case: str, refusal: Refusal) -> dict:
+    return {
+        "witness": "cs-pep-001",
+        "case": case,
+        "experimental_banner": EXPERIMENTAL_BANNER,
+        "acoustic_validity": False,
+        "physical_machining_authorized": False,
+        "program_written": False,
+        "candidate_plan": None,
+        "preview": None,
+        "blocked": [
+            "contour_planner",
+            "operational_trust",
+            "operational_governed_export",
+            "human_review_authority",
+        ],
+        "accepted": False,
+        "reason_codes": [refusal.code],
+        "detail": refusal.detail,
+        "manufacturing_check": {
+            "declared_limits": refusal.code,
+            "motion_checks": "not_run",
+        },
+        "exit_code": 1,
+    }
 
 
 def _write_program_files(destination: Path, evaluation: ExportEvaluation) -> None:
@@ -793,9 +1096,10 @@ def _write_program_files(destination: Path, evaluation: ExportEvaluation) -> Non
     ):
         raise TraceabilityDefect(
             "offline export lost its experimental label or digest binding")
-    (destination / "program.gcode").write_bytes(raw)
-    (destination / "manifest.json").write_text(
-        _stable_json(evaluation.manifest), encoding="utf-8")
+    _publish_files(destination, (
+        ("program.gcode", raw),
+        ("manifest.json", _stable_json(evaluation.manifest).encode("utf-8")),
+    ))
 
 
 def _candidate_document(candidate: GeneratedCandidate) -> dict:
@@ -879,10 +1183,11 @@ def _preview_document(candidate: GeneratedCandidate) -> dict:
 
 
 def _write_candidate_files(destination: Path, candidate: GeneratedCandidate) -> None:
-    (destination / "candidate_plan.json").write_text(
-        _stable_json(_candidate_document(candidate)), encoding="utf-8")
-    (destination / "preview.json").write_text(
-        _stable_json(_preview_document(candidate)), encoding="utf-8")
+    _publish_files(destination, (
+        ("candidate_plan.json", _stable_json(
+            _candidate_document(candidate)).encode("utf-8")),
+        ("preview.json", _stable_json(_preview_document(candidate)).encode("utf-8")),
+    ))
 
 
 def _planned_payload(
@@ -912,7 +1217,9 @@ def _planned_payload(
 
 def _write_planned_result(destination: Path, payload: dict) -> None:
     public = {key: value for key, value in payload.items() if key != "exit_code"}
-    (destination / "result.json").write_text(_stable_json(public), encoding="utf-8")
+    _publish_files(destination, (
+        ("result.json", _stable_json(public).encode("utf-8")),
+    ))
 
 
 def _recorded_input_digests(
@@ -1031,11 +1338,10 @@ def _stable_json(payload: dict) -> str:
 
 def _write_result(destination: Path, payload: dict) -> None:
     public = {key: value for key, value in payload.items() if key != "exit_code"}
-    (destination / "result.json").write_text(_stable_json(public), encoding="utf-8")
-    for name in (
+    _publish_files(destination, (
+        ("result.json", _stable_json(public).encode("utf-8")),
+    ))
+    _unlink_regular(destination, (
         "program.gcode", "program.nc", "manifest.json",
         "candidate_plan.json", "preview.json",
-    ):
-        stray = destination / name
-        if stray.exists():
-            stray.unlink()
+    ))

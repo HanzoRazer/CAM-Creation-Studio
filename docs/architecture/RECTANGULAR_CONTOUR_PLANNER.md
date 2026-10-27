@@ -102,6 +102,14 @@ fixture-binding review writes `program.gcode` and `manifest.json` and
 exits 0. The program is experimental. The review is not human approval.
 Operational mode stays `EXPERIMENTAL_ONLY`.
 
+Before any write or delete, each output path is compared with the
+captured request, upstream artifacts, planner input, and operation-plan
+reference. A destination or output that is a symlink, or that is one of
+those inputs, is refused and left untouched. Program and manifest bytes
+are staged and published together. If publication fails, or the review
+file cannot be read, the attempt records a failure result and does not
+leave a program behind a previous success or `REVIEW_REQUIRED` record.
+
 If the operation plan or planner input changes after prepare, export
 refuses with `SNAPSHOT_CHANGED`, writes no program, and removes the stale
 candidate and preview. Fixture-review bytes are created only by the test

@@ -306,7 +306,12 @@ def agree_with_request(
 def _feed(value: object, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise _ParseFailure(codes.SCHEMA_INVALID, f"{name} must be a number")
-    if not math.isfinite(float(value)) or value <= 0:
+    try:
+        number = float(value)
+    except OverflowError:
+        raise _ParseFailure(
+            codes.SCHEMA_INVALID, f"{name} must be a finite number") from None
+    if not math.isfinite(number) or number <= 0:
         raise _ParseFailure(
             codes.UNSUPPORTED_CAPABILITY, f"{name} must be an explicit positive feed")
     return value

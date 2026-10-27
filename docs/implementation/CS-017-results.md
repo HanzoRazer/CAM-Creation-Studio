@@ -13,7 +13,8 @@ merged or deployed. The program text below is experimental fixture output.
 | Requested branch name | `cs-017-rectangular-contour-witness` |
 | Working branch | `cursor/cs-017-rectangular-contour-witness-39ad` |
 | Verified implementation | `f96a9dd29bccb8d5b49cc86b98cd1760d8b3e330` |
-| Draft pull request | #36, not merged |
+| Draft record | `d4f2af60ce45e7bdb02fbfeed482bf03fbc76634` |
+| Pull request | #36, not merged |
 
 Stage 0 on this machine, before the planner edits: `python3 -m pytest -q --tb=line`
 from `python/` reported `1110 passed, 21 skipped`. That is the count for this
@@ -110,6 +111,46 @@ and geometry ids. The 1/4 inch catalog tool (`endmill_1_4`, 6.35 mm) and
 not selected. Independent bounds checks accept the plan and refuse a
 corrupted endpoint. Preview is a lossy projection of that plan. A separate
 fixture review allows one labeled offline program.
+
+## Failure-path revision
+
+Recorded 2026-10-27 (America/Chicago) on parent
+`d4f2af60ce45e7bdb02fbfeed482bf03fbc76634`.
+
+Witness outputs are refused when a destination or output path is a symlink,
+or when an output resolves to a captured input: the request, an upstream
+artifact, `planner-inputs.json`, or the operation-plan reference. That
+refusal happens before any write or delete, so an operation plan stored at
+`out/program.gcode` is not removed by stale-output cleanup, and a
+`program.gcode` symlink is not followed. Program and manifest bytes are
+staged and published together. If manifest publication fails, the program
+is removed and `result.json` records the failure, including when the
+previous record was `REVIEW_REQUIRED` or a successful export. An unreadable
+`--review` file uses that same failure result, exits 1, and clears the
+previous program. Integers that cannot be represented as finite floats,
+including a feed of `10**1000`, are refused with `SCHEMA_INVALID` at
+planner-input intake and at the same conversions in the planner.
+
+The rectangle permutation test compares the full ordered motion sequence,
+after edge permutation and endpoint reversal, with the handwritten oracle.
+
+```text
+cd python
+python3 -m pytest tests/test_rectangular_contour_planner.py tests/test_planned_witness.py tests/test_traceable_planning.py tests/test_traceable_review_regressions.py -q --tb=line
+```
+
+`133 passed, 7 skipped`.
+
+```text
+cd python
+python3 -m pytest -q --tb=line
+```
+
+`1167 passed, 21 skipped in 5.06s`.
+
+`git diff --check` produced no output. The plan digest and program SHA-256
+above are unchanged. The shared review gate, the operational-export
+refusal, and the bounds checker are unchanged.
 
 ## What remains
 

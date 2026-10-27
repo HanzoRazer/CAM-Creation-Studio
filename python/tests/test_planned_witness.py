@@ -365,6 +365,217 @@ def test_committed_fixture_matches_the_builder(tmp_path):
         assert (rebuilt / name).read_bytes() == (_FIXTURE / name).read_bytes()
 
 
+def test_output_collision_does_not_delete_captured_inputs(tmp_path):
+    package = _package(tmp_path)
+    destination = package / "out"
+    destination.mkdir()
+    plan_bytes = (package / "operation_plan.json").read_bytes()
+    consumed = destination / "program.gcode"
+    consumed.write_bytes(plan_bytes)
+    proposal_bytes = (package / "proposal.json").read_bytes()
+    manifest_input = destination / "manifest.json"
+    manifest_input.write_bytes(proposal_bytes)
+    planner = json.loads((package / "planner-inputs.json").read_text(encoding="utf-8"))
+    planner["operation_plan"]["package_ref"] = "out/program.gcode"
+    (package / "planner-inputs.json").write_text(
+        json.dumps(planner, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    request = json.loads((package / "request.json").read_text(encoding="utf-8"))
+    for artifact in request["upstream_artifacts"]:
+        if artifact["role"] == "proposal":
+            artifact["package_ref"] = "out/manifest.json"
+    (package / "request.json").write_text(
+        json.dumps(request, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    payload = prepare_planned_witness(package, destination, case="rectangle")
+    assert payload["exit_code"] == 1
+    assert payload["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert consumed.read_bytes() == plan_bytes
+    assert manifest_input.read_bytes() == proposal_bytes
+    assert not (destination / "candidate_plan.json").exists()
+    assert not (destination / "result.json").exists()
+    manifest_only = _package(tmp_path / "manifest-only")
+    manifest_dest = manifest_only / "out"
+    manifest_dest.mkdir()
+    proposal = (manifest_only / "proposal.json").read_bytes()
+    manifest_target = manifest_dest / "manifest.json"
+    manifest_target.write_bytes(proposal)
+    manifest_request = json.loads(
+        (manifest_only / "request.json").read_text(encoding="utf-8"))
+    for artifact in manifest_request["upstream_artifacts"]:
+        if artifact["role"] == "proposal":
+            artifact["package_ref"] = "out/manifest.json"
+    (manifest_only / "request.json").write_text(
+        json.dumps(manifest_request, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8")
+    manifest_refusal = prepare_planned_witness(
+        manifest_only, manifest_dest, case="rectangle")
+    assert manifest_refusal["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert manifest_target.read_bytes() == proposal
+    assert not (manifest_dest / "candidate_plan.json").exists()
+    fresh = _package(tmp_path / "fresh")
+    allowed = prepare_planned_witness(fresh, fresh / "witness-out", case="rectangle")
+    assert allowed["planning_status"] == "candidate_ready"
+    assert (fresh / "operation_plan.json").is_file()
+    assert (fresh / "witness-out" / "candidate_plan.json").is_file()
+    assert not (fresh / "witness-out" / "program.gcode").exists()
+
+
+def test_symlink_output_is_not_written_or_deleted(tmp_path):
+    package = _package(tmp_path)
+    prepared = prepare_planned_witness(package, tmp_path / "prep", case="rectangle")
+    assert prepared["planning_status"] == "candidate_ready"
+    digest = json.loads(
+        (tmp_path / "prep" / "candidate_plan.json").read_text(encoding="utf-8")
+    )["plan_digest"]
+    destination = tmp_path / "out"
+    destination.mkdir()
+    unrelated = tmp_path / "unrelated.gcode"
+    unrelated.write_text("KEEP\n", encoding="utf-8")
+    link = destination / "program.gcode"
+    link.symlink_to(unrelated)
+    payload = export_planned_witness(
+        package, destination, fixture_review_bytes(digest), case="rectangle")
+    assert payload["exit_code"] == 1
+    assert payload["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert unrelated.read_text(encoding="utf-8") == "KEEP\n"
+    assert link.is_symlink()
+    assert not (destination / "manifest.json").exists()
+    assert not (destination / "result.json").exists()
+    real = tmp_path / "real-dest"
+    real.mkdir()
+    marker = real / "marker.txt"
+    marker.write_text("KEEP", encoding="utf-8")
+    via = tmp_path / "via"
+    via.symlink_to(real, target_is_directory=True)
+    refused = prepare_planned_witness(package, via, case="rectangle")
+    assert refused["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert marker.read_text(encoding="utf-8") == "KEEP"
+    assert not (real / "candidate_plan.json").exists()
+    assert not (real / "program.gcode").exists()
+
+
+def test_manifest_publish_failure_records_the_failure(tmp_path, monkeypatch):
+    from cam_creation_studio.traceability import service as gate
+
+    package = _package(tmp_path)
+    destination = tmp_path / "out"
+    prepare_planned_witness(package, destination, case="rectangle")
+    previous = json.loads((destination / "result.json").read_text(encoding="utf-8"))
+    assert previous["reason_codes"] == ["REVIEW_REQUIRED"]
+    assert previous["program_written"] is False
+    digest = json.loads(
+        (destination / "candidate_plan.json").read_text(encoding="utf-8"))["plan_digest"]
+    real_replace = gate._replace_file
+
+    def fail_manifest(source: Path, final: Path) -> None:
+        if final.name == "manifest.json":
+            raise OSError("injected manifest failure")
+        real_replace(source, final)
+
+    monkeypatch.setattr(gate, "_replace_file", fail_manifest)
+    payload = export_planned_witness(
+        package, destination, fixture_review_bytes(digest), case="rectangle")
+    assert payload["exit_code"] == 1
+    assert payload["program_written"] is False
+    assert payload["export_status"] == "blocked"
+    assert payload["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert not (destination / "program.gcode").exists()
+    assert not (destination / "manifest.json").exists()
+    saved = json.loads((destination / "result.json").read_text(encoding="utf-8"))
+    assert saved["program_written"] is False
+    assert saved["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert saved["reason_codes"] != ["REVIEW_REQUIRED"]
+    assert [path.name for path in destination.iterdir() if path.name.startswith(".")] == []
+
+
+def test_publish_failure_invalidates_a_previous_success(tmp_path, monkeypatch):
+    from cam_creation_studio.traceability import service as gate
+
+    package = _package(tmp_path)
+    destination = tmp_path / "out"
+    prepare_planned_witness(package, tmp_path / "prep", case="rectangle")
+    digest = json.loads(
+        (tmp_path / "prep" / "candidate_plan.json").read_text(encoding="utf-8")
+    )["plan_digest"]
+    exported = export_planned_witness(
+        package, destination, fixture_review_bytes(digest), case="rectangle")
+    assert exported["program_written"] is True
+    assert (destination / "program.gcode").is_file()
+    real_replace = gate._replace_file
+
+    def fail_manifest(source: Path, final: Path) -> None:
+        if final.name == "manifest.json":
+            raise OSError("injected manifest failure")
+        real_replace(source, final)
+
+    monkeypatch.setattr(gate, "_replace_file", fail_manifest)
+    payload = export_planned_witness(
+        package, destination, fixture_review_bytes(digest), case="rectangle")
+    assert payload["program_written"] is False
+    assert payload["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert not (destination / "program.gcode").exists()
+    assert not (destination / "manifest.json").exists()
+    saved = json.loads((destination / "result.json").read_text(encoding="utf-8"))
+    assert saved["program_written"] is False
+    assert saved["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+
+
+def test_missing_review_file_invalidates_the_previous_program(tmp_path):
+    package = _package(tmp_path)
+    prepare_dir = tmp_path / "prep"
+    completed = _cli([
+        "--package", str(package), "--destination", str(prepare_dir),
+        "--mode", "prepare", "--case", "rectangle",
+    ])
+    assert completed.returncode == 1
+    digest = json.loads(
+        (prepare_dir / "candidate_plan.json").read_text(encoding="utf-8"))["plan_digest"]
+    review = tmp_path / "review.json"
+    review.write_bytes(fixture_review_bytes(digest))
+    destination = tmp_path / "out"
+    exported = _cli([
+        "--package", str(package), "--destination", str(destination),
+        "--mode", "export", "--review", str(review), "--case", "rectangle",
+    ])
+    assert exported.returncode == 0
+    assert json.loads(exported.stdout)["program_written"] is True
+    missing = tmp_path / "missing-review.json"
+    again = _cli([
+        "--package", str(package), "--destination", str(destination),
+        "--mode", "export", "--review", str(missing), "--case", "rectangle",
+    ])
+    assert again.returncode == 1
+    body = json.loads(again.stdout)
+    assert body["program_written"] is False
+    assert body["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert not (destination / "program.gcode").exists()
+    assert not (destination / "manifest.json").exists()
+    saved = json.loads((destination / "result.json").read_text(encoding="utf-8"))
+    assert saved["program_written"] is False
+    assert saved["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert (destination / "candidate_plan.json").is_file()
+
+
+def test_unrepresentable_feed_is_a_refusal(tmp_path):
+    package = _package(tmp_path)
+    document = json.loads((package / "planner-inputs.json").read_text(encoding="utf-8"))
+    document["planned_cut_feed_mm_min"] = 10**1000
+    (package / "planner-inputs.json").write_text(
+        json.dumps(document) + "\n", encoding="utf-8")
+    payload = prepare_planned_witness(package, tmp_path / "out", case="huge-feed")
+    assert payload["exit_code"] == 1
+    assert payload["reason_codes"] == ["SCHEMA_INVALID"]
+    assert "finite number" in payload["detail"]
+    plunge = _package(tmp_path / "plunge-parent")
+    plunge_document = json.loads(
+        (plunge / "planner-inputs.json").read_text(encoding="utf-8"))
+    plunge_document["planned_plunge_feed_mm_min"] = 10**1000
+    (plunge / "planner-inputs.json").write_text(
+        json.dumps(plunge_document) + "\n", encoding="utf-8")
+    refused = prepare_planned_witness(plunge, tmp_path / "plunge-out", case="huge-plunge")
+    assert refused["reason_codes"] == ["SCHEMA_INVALID"]
+    assert "finite number" in refused["detail"]
+
+
 def test_cli_usage_exits_2(tmp_path):
     package = _package(tmp_path)
     missing = _cli([

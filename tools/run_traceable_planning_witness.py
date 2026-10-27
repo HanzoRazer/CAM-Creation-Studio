@@ -27,7 +27,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT / "python"))
 
 from cam_creation_studio.traceability.service import (  # noqa: E402
-    export_planned_witness,
+    export_planned_witness_from_file,
     prepare_planned_witness,
     run_witness,
 )
@@ -59,9 +59,8 @@ def main(argv: list[str] | None = None) -> int:
             result = prepare_planned_witness(
                 args.package, args.destination, case=case)
         else:
-            review_bytes = args.review.read_bytes()
-            result = export_planned_witness(
-                args.package, args.destination, review_bytes, case=case)
+            result = export_planned_witness_from_file(
+                args.package, args.destination, args.review, case=case)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

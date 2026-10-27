@@ -170,10 +170,25 @@ def test_rectangle_normalization_is_independent_of_edge_order():
             next(ref.entity_index for ref in operation.workspace.geometry_refs
                  if ref.id == entity_id)
         ]
-        edges.append((entity_id, entity))
+        edges.append((entity_id, Line2D(entity.end, entity.start)))
     rectangle = normalize_rectangle(edges)
     assert (rectangle.x_min_mm, rectangle.y_min_mm,
             rectangle.x_max_mm, rectangle.y_max_mm) == CENTER
+    flipped = [Line2D(line.end, line.start) for line in golden_lines()]
+    permuted = flipped[2:] + flipped[:2]
+    planned = make_operation_plan(permuted)
+    expansion = expand_rectangular_contour(
+        planned, planned.definitions[0].id, _options())
+    actual = [
+        (
+            motion.kind.value,
+            _pose(motion.start),
+            _pose(motion.end),
+            motion.planned_feed_mm_min,
+        )
+        for motion in _flat(expansion)
+    ]
+    assert actual == _expected_rows()
 
 
 @pytest.mark.parametrize("lines", [
@@ -277,6 +292,24 @@ def test_final_depth_must_match_the_definition():
             _options(depth_levels_mm=(1.0, 1.5)),
         )
     assert caught.value.code == "DEPTH_LIMIT_EXCEEDED"
+
+
+def test_unrepresentable_numeric_options_are_refused():
+    operation = make_operation_plan()
+    definition_id = operation.definitions[0].id
+    for overrides in (
+        {"planned_cut_feed_mm_min": 10**1000},
+        {"planned_plunge_feed_mm_min": 10**1000},
+        {"depth_levels_mm": (10**1000,)},
+        {"stepdown_mm": 10**1000},
+        {"removal_max_depth_mm": 10**1000},
+        {"travel_height_mm": 10**1000},
+        {"clearance_mm": 10**1000},
+    ):
+        with pytest.raises(PlanningError) as caught:
+            expand_rectangular_contour(operation, definition_id, _options(**overrides))
+        assert caught.value.code == "SCHEMA_INVALID"
+        assert "finite number" in caught.value.detail
 
 
 @pytest.mark.parametrize("feed", [None, 0, -5, math.nan, math.inf, 0.0004, True])
