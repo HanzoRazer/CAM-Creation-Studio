@@ -153,6 +153,55 @@ python3 -m pytest -q --tb=line
 above are unchanged. The shared review gate, the operational-export
 refusal, and the bounds checker are unchanged.
 
+## Independent review corrections on October 27
+
+Reviewed at `964a8dee5d388329a92c9a3df7fc1773cff89622`. Each item below was
+reproduced with a probe. Each new test fails on that head.
+
+* **The new tests did not run on Windows.** `tests.support` resolves only
+  when `tests` is a namespace package. Any installed regular `tests` package
+  shadows it, and collection fails. The imports now use `support`, the same
+  sibling-import idiom as `from test_traceable_planning import ...`.
+* **Fixture builders wrote CRLF on Windows.** `write_text` translated
+  newlines, so the rebuilt package did not match the committed LF bytes and a
+  test reported `DIGEST_MISMATCH`. The writers in
+  `traceability/synthetic.py` and `tests/support/rectangle_planned.py` now
+  pin `newline="\n"`, and the test writes the bytes it hashes.
+* **A review file inside the destination was replaced or deleted.** With
+  `--review out/manifest.json`, `out/program.gcode` or `out/result.json`, a
+  successful export overwrote the review. With `out/candidate_plan.json` it
+  was deleted. A review path that is, or links to, a witness output is now
+  refused before anything is read, written or deleted.
+* **A failed invalidation left a stale success record.** When every
+  publication failed after an earlier success, the program and manifest were
+  removed but `result.json` still said `program_written: true`. The old
+  record is now removed before the new one is written.
+* **Malformed operation-plan numbers raised instead of refusing.**
+  - An edge coordinate given as a 1001-digit integer, a string or a bool
+    raised `OverflowError` or `TypeError`, or was accepted as Z0. These now
+    refuse with `UNSUPPORTED_CAPABILITY`.
+  - A 1001-digit `target_depth_mm` or `stock_allowance_mm` escaped
+    `decode_operation_plan`. It now refuses with `SCHEMA_INVALID`.
+* `_rectangle_from_plan` now catches `WorkspaceError`, not `Exception`.
+* Witness CLI output now includes `mode`.
+
+```text
+cd python
+python -m pytest -q --tb=line
+1185 passed, 14 skipped
+```
+
+Open, not changed here:
+
+* Feeds have no upper bound. A planned cut feed of `1e300` produces an
+  experimental program with a 300-digit `F` word. Choosing a limit is
+  manufacturing policy, and that needs an owner decision.
+* `replan_matches` re-derives the motions, but not the candidate's tool or
+  material metadata. A forged in-process candidate can carry wrong metadata.
+  It cannot be reached from package bytes.
+* A `-0.0` coordinate changes the candidate JSON and digest depending on edge
+  order. The G-code is identical.
+
 ## What remains
 
 Canonical upstream admission and trust, a governed review of real

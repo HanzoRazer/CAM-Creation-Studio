@@ -31,6 +31,7 @@ from ..toolpath.builders import (
 from ..toolpath.enums import MotionKind
 from ..toolpath.errors import ToolpathError
 from ..toolpath.models import ToolpathStrategy
+from ..workspace.errors import WorkspaceError
 from ..workspace.models import OperationKind
 from ..workspace.refs import resolve_entity
 from .errors import PlanningError
@@ -116,7 +117,7 @@ def normalize_rectangle(
             raise PlanningError(
                 _UNSUPPORTED, "only straight Line2D edges are supported")
         for point in (entity.start, entity.end):
-            if not all(math.isfinite(value) for value in (point.x, point.y, point.z)):
+            if not all(_finite(value) for value in (point.x, point.y, point.z)):
                 raise PlanningError(_UNSUPPORTED, "edge coordinates must be finite")
             if point.z != 0:
                 raise PlanningError(
@@ -325,9 +326,20 @@ def _rectangle_from_plan(
             (entity_id, resolve_entity(workspace, entity_id))
             for entity_id in selection.entity_ids
         )
-    except Exception as exc:
+    except WorkspaceError as exc:
         raise PlanningError(_UNSUPPORTED, str(exc)) from exc
     return normalize_rectangle(edges)
+
+
+def _finite(value: object) -> bool:
+    # The workspace decoder does not type-check coordinates. A string, a bool,
+    # or an integer too large for a float is refused, not raised.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _require_endmill(operation_plan: OperationPlan, definition_id: str) -> None:

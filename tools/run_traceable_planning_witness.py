@@ -81,6 +81,7 @@ def main(argv: list[str] | None = None) -> int:
             "detail": result["detail"],
             "experimental_banner": result["experimental_banner"],
             "export_status": result["export_status"],
+            "mode": args.mode,
             "planning_status": result["planning_status"],
             "program_written": result["program_written"],
             "reason_codes": result["reason_codes"],

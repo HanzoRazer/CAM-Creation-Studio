@@ -122,7 +122,8 @@ def write_planned_package(root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     plan = make_operation_plan()
     plan_text = operation_plan_to_json(plan, indent=2, sort_keys=True) + "\n"
-    (root / "operation_plan.json").write_text(plan_text, encoding="utf-8")
+    (root / "operation_plan.json").write_text(
+        plan_text, encoding="utf-8", newline="\n")
     plan_sha = sha256_bytes((root / "operation_plan.json").read_bytes())
     _write_upstream(root)
     request_sha = sha256_bytes((root / "request.json").read_bytes())
@@ -150,6 +151,7 @@ def write_planned_package(root: Path) -> Path:
             "",
         ]),
         encoding="utf-8",
+        newline="\n",
     )
     return root
 
@@ -321,4 +323,5 @@ def _write(path: Path, document: dict) -> None:
     path.write_text(
         json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
+        newline="\n",
     )

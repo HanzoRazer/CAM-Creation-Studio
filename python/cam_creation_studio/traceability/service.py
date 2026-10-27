@@ -608,6 +608,11 @@ def export_planned_witness_from_file(
     blocked = _open_witness_destination(package_root, destination)
     if blocked is not None:
         return _unwritten_planned_refusal(case, blocked)
+    if _review_is_output(review_path, destination):
+        return _unwritten_planned_refusal(case, Refusal(
+            codes.REFERENCE_UNRESOLVED,
+            "review file is a witness output and would be replaced or deleted",
+        ))
     try:
         review_bytes = review_path.read_bytes()
     except OSError as exc:
@@ -945,6 +950,24 @@ def _overlaps_captured_input(path: Path, captured: set[Path]) -> bool:
     return False
 
 
+def _review_is_output(review_path: Path, destination: Path) -> bool:
+    """True when the review file is, or links to, a file the witness writes."""
+    outputs = [destination / name for name in _output_names()]
+    try:
+        review = review_path.resolve()
+    except OSError:
+        return False
+    for path in outputs:
+        try:
+            if path.resolve() == review:
+                return True
+            if path.exists() and review_path.exists() and path.samefile(review_path):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def _symlink_output(destination: Path, names: tuple[str, ...]) -> bool:
     if destination.is_symlink():
         return True
@@ -1039,6 +1062,9 @@ def _invalidate_planned_attempt(
     )
     result_path = destination / "result.json"
     if not result_path.is_symlink():
+        # Remove the previous record first. If the new one cannot be written,
+        # no stale success claim survives.
+        _unlink_regular(destination, ("result.json",))
         _write_planned_result(destination, payload)
     payload["exit_code"] = 1
     return payload

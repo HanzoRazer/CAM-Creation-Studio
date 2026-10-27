@@ -261,4 +261,5 @@ def _write(path: Path, document: dict) -> None:
     path.write_text(
         json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
+        newline="\n",
     )

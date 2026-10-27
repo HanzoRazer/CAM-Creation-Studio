@@ -203,7 +203,7 @@ def decode_operation_plan(
         return None, Refusal(exc.code, exc.detail)
     except (
         OperationDefinitionError, BindingError, RecommendationError,
-        WorkspaceError, ValueError, TypeError, KeyError,
+        WorkspaceError, ValueError, TypeError, KeyError, OverflowError,
     ) as exc:
         return None, Refusal(codes.SCHEMA_INVALID, f"operation plan: {exc}")
     return plan, None

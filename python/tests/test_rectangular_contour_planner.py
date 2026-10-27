@@ -35,7 +35,7 @@ from cam_creation_studio.traceability.bounds import (
 )
 from cam_creation_studio.traceability.service import verify_package
 from cam_creation_studio.traceability.synthetic import build_synthetic_package
-from tests.support.rectangle_planned import (
+from support.rectangle_planned import (
     CENTER,
     CUT_FEED,
     DEPTH_LEVELS,

@@ -15,6 +15,7 @@ from cam_creation_studio.traceability.service import (
     evaluate_explicit_motion_export,
     evaluate_generated_candidate_export,
     export_planned_witness,
+    export_planned_witness_from_file,
     prepare_planned_witness,
     run_witness,
     verify_package,
@@ -23,9 +24,9 @@ from cam_creation_studio.traceability.synthetic import build_synthetic_package
 from cam_creation_studio.toolpath.enums import MotionKind
 from cam_creation_studio.toolpath.builders import make_linear_motion
 from cam_creation_studio.shared.geometry import Point
-from tests.support.closed_schema import load_schema, validate
-from tests.support.fixture_review import fixture_review_bytes
-from tests.support.rectangle_planned import (
+from support.closed_schema import load_schema, validate
+from support.fixture_review import fixture_review_bytes
+from support.rectangle_planned import (
     CENTER,
     CUT_FEED,
     make_operation_plan,
@@ -335,7 +336,7 @@ def test_tool_mismatch_and_unknown_versions_refuse(tmp_path):
     package = _package(tmp_path)
     other = make_operation_plan(tool_id="endmill_1_8")
     text = operation_plan_to_json(other, indent=2, sort_keys=True) + "\n"
-    (package / "operation_plan.json").write_text(text, encoding="utf-8")
+    (package / "operation_plan.json").write_bytes(text.encode("utf-8"))
     document = json.loads((package / "planner-inputs.json").read_text(encoding="utf-8"))
     document["definition_id"] = other.definitions[0].id
     document["operation_plan"]["sha256"] = sha256_bytes(text.encode("utf-8"))
@@ -588,3 +589,90 @@ def test_cli_usage_exits_2(tmp_path):
         "--mode", "prepare", "--review", str(package / "request.json"),
     ])
     assert prepare.returncode == 2
+
+
+# --- Independent review at 964a8de ----------------------------------------
+
+
+def _reviewed_export(tmp_path: Path) -> tuple[Path, Path, str]:
+    package = _package(tmp_path)
+    destination = tmp_path / "out"
+    prepare_planned_witness(package, tmp_path / "prep", case="rectangle")
+    digest = json.loads(
+        (tmp_path / "prep" / "candidate_plan.json").read_text(encoding="utf-8")
+    )["plan_digest"]
+    exported = export_planned_witness(
+        package, destination, fixture_review_bytes(digest), case="rectangle")
+    assert exported["program_written"] is True
+    return package, destination, digest
+
+
+@pytest.mark.parametrize("name", [
+    "program.gcode", "manifest.json", "result.json", "candidate_plan.json",
+])
+def test_review_file_that_is_an_output_is_not_replaced(tmp_path, name):
+    package, destination, digest = _reviewed_export(tmp_path)
+    review = destination / name
+    review.write_bytes(fixture_review_bytes(digest))
+    before = {path.name: path.read_bytes() for path in destination.iterdir()}
+    payload = export_planned_witness_from_file(
+        package, destination, review, case="rectangle")
+    assert payload["exit_code"] == 1
+    assert payload["reason_codes"] == ["REFERENCE_UNRESOLVED"]
+    assert {path.name: path.read_bytes() for path in destination.iterdir()} == before
+
+
+def test_failed_invalidation_leaves_no_stale_success_record(tmp_path, monkeypatch):
+    from cam_creation_studio.traceability import service as gate
+
+    package, destination, _digest = _reviewed_export(tmp_path)
+
+    def no_space(destination: Path, files) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(gate, "_publish_files", no_space)
+    with pytest.raises(OSError):
+        export_planned_witness(package, destination, b"{", case="rectangle")
+    assert not (destination / "program.gcode").exists()
+    assert not (destination / "manifest.json").exists()
+    assert not (destination / "result.json").exists()
+
+
+def _rewrite_plan(package: Path, edit) -> None:
+    plan_path = package / "operation_plan.json"
+    text = edit(plan_path.read_bytes().decode("utf-8"))
+    plan_path.write_bytes(text.encode("utf-8"))
+    planner = json.loads((package / "planner-inputs.json").read_text(encoding="utf-8"))
+    planner["operation_plan"]["sha256"] = sha256_bytes(text.encode("utf-8"))
+    (package / "planner-inputs.json").write_bytes(
+        (json.dumps(planner, indent=2, sort_keys=True) + "\n").encode("utf-8"))
+
+
+@pytest.mark.parametrize(("old", "new", "code"), [
+    ('"x": 60.0', '"x": 1' + "0" * 1000, "UNSUPPORTED_CAPABILITY"),
+    ('"x": 60.0', '"x": "60"', "UNSUPPORTED_CAPABILITY"),
+    ('"z": 0', '"z": false', "UNSUPPORTED_CAPABILITY"),
+    ('"target_depth_mm": 2.0', '"target_depth_mm": 1' + "0" * 1000, "SCHEMA_INVALID"),
+    ('"stock_allowance_mm": 0.0', '"stock_allowance_mm": 1' + "0" * 1000, "SCHEMA_INVALID"),
+])
+def test_malformed_operation_plan_numbers_are_refusals(tmp_path, old, new, code):
+    package = _package(tmp_path)
+
+    def edit(text: str) -> str:
+        assert old in text
+        return text.replace(old, new, 1)
+
+    _rewrite_plan(package, edit)
+    payload = prepare_planned_witness(package, tmp_path / "out", case="rectangle")
+    assert payload["exit_code"] == 1
+    assert payload["reason_codes"] == [code]
+    assert not (tmp_path / "out" / "candidate_plan.json").exists()
+
+
+def test_cli_reports_its_mode(tmp_path):
+    package = _package(tmp_path)
+    completed = _cli([
+        "--package", str(package), "--destination", str(tmp_path / "prep"),
+        "--mode", "prepare", "--case", "rectangle",
+    ])
+    assert json.loads(completed.stdout)["mode"] == "prepare"
