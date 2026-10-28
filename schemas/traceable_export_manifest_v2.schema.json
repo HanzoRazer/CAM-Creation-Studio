@@ -32,7 +32,10 @@
     "postprocessor_id": {"type": "string", "minLength": 1},
     "postprocessor_version": {"type": "string", "minLength": 1},
     "planner_id": {"const": "creation-studio.rectangle-centerline"},
-    "planner_version": {"const": "1"},
+    "planner_version": {
+      "description": "1 is a historical inspection record from planner version 1. 2 is the current rectangular planner. Export follows the live policy and does not honor an older policy digest.",
+      "enum": ["1", "2"]
+    },
     "motion_source": {"const": "rectangular_centerline_planner"},
     "review": {"$ref": "#/$defs/review"},
     "authority_limitations": {

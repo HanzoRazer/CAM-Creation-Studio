@@ -1,6 +1,6 @@
 # Rectangular centerline planner
 
-**Order:** CS-017
+**Order:** CS-017, identity correction CS-018
 **Status:** Experimental. Not for machining.
 
 `cam_creation_studio.planning` expands one explicit rectangular cutter
@@ -14,7 +14,7 @@ from another repository.
 | Field | Value |
 |---|---|
 | Planner id | `creation-studio.rectangle-centerline` |
-| Planner version | `1` |
+| Planner version | `2` |
 | Motion source | `rectangular_centerline_planner` |
 | Planner input | `creation-studio.rectangular-planner-input/1` |
 | Generated plan wrapper | `creation-studio.traceable-plan/2` |
@@ -26,6 +26,57 @@ Explicit linear motion supplied by a caller stays
 `motion_source` string on a caller object is not generated provenance.
 The generated seal is assigned only by the traceability adapter after
 `expand_rectangular_contour`.
+
+Planner version `1` is a historical inspection value. The generated plan and
+export-manifest schemas accept `1` and `2` so an old record can be read.
+New runtime records emit `2`. Reading a version `1` shape does not authorize
+export under an older policy digest.
+
+## Signed zero
+
+A rectangle endpoint is checked for a finite number before any zero
+normalization. A coordinate that is numerically zero then becomes positive
+floating-point zero. Every other finite value is kept, including a tiny
+nonzero such as `1e-9`. There is no geometric epsilon, no gap repair, and no
+coercion of strings or bools.
+
+The positive zero is applied to the endpoint pair before extrema are
+collected, before the undirected edge lookup, and before normalized bounds
+and generated poses are built. Exact axis alignment and exact edge matching
+stay exact.
+
+This does not rewrite captured source bytes. An exact-byte SHA-256 can still
+change when source text, encoding, whitespace, or `-0.0` spelling changes.
+Equivalent endpoint signs and edge order produce the same computed poses,
+kinds, feeds, and canonical zero spelling. A complete candidate digest still
+binds the actual source bytes, so two source files are not required to share
+one provenance digest.
+
+## Reconstruction
+
+Initial construction and export-time revalidation share one derivation. Its
+inputs are the verified request and the captured planner-input and
+operation-plan bytes. The candidate's declared tool, material, feeds,
+definition, binding, geometry ids, and recommendation are the values being
+checked. They are not inputs to the expected digest.
+
+The derivation resolves the selected definition's own binding, regenerates
+the canonical plan, and hashes that result with the captured byte identities,
+the current planner and postprocessor versions, and the local policy. The
+public constructor is not called from the check. Only construction assigns
+the generation seal.
+
+Disagreement on metadata, the canonical plan, or the digest is
+`PLAN_CHANGED` and is decided before the fixture review is applied. A
+captured file that no longer matches the prepared snapshot is
+`SNAPSHOT_CHANGED` before that derivation runs. A failed byte binding inside
+the captured documents is `DIGEST_MISMATCH`.
+
+`cam_creation_studio.traceability.service` does not grow a second export
+gate. The shared gate already calls this check before review binding and
+rendering. Refusal still uses the existing output cleanup: no new program is
+written, verified input bytes stay in place, and a stale program or manifest
+is removed.
 
 ## Supported shape
 
@@ -82,7 +133,11 @@ planner-input field, or CLI flag cannot raise them. One pass is six motions.
 | Planner-input bytes | 262144 | `UNSUPPORTED_CAPABILITY` before expansion |
 
 The same numbers are part of the traceability policy digest, so changing a
-limit invalidates a fixture review.
+limit invalidates a fixture review. The policy digest also includes the
+rectangular planner version and the validation sentence for positive zero
+and source-derived metadata. A fixture review bound to planner version `1`
+does not authorize a version `2` export. No new feed ceiling is introduced.
+The recorded `1e300` feed question remains a separate policy decision.
 
 ## Witness
 
@@ -97,10 +152,14 @@ and checks the canonical plan, and writes `candidate_plan.json`,
 review.
 
 Export (`--mode export --review PATH`) reverifies the prepared input
-digests, regenerates the plan, and binds the review. A matching
-fixture-binding review writes `program.gcode` and `manifest.json` and
-exits 0. The program is experimental. The review is not human approval.
-Operational mode stays `EXPERIMENTAL_ONLY`.
+digests, re-derives metadata and the canonical plan from the captured
+bytes, and only then binds the review. A candidate whose claims disagree
+with that derivation is refused with `PLAN_CHANGED` even when its digest
+was recomputed from those claims and a fixture review matches that digest.
+A matching fixture-binding review of a freshly prepared candidate writes
+`program.gcode` and `manifest.json` and exits 0. The program is
+experimental. The review is not human approval. Operational mode stays
+`EXPERIMENTAL_ONLY`.
 
 Before any write or delete, each output path is compared with the
 captured request, upstream artifacts, planner input, and operation-plan

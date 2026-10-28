@@ -22,7 +22,6 @@ from ..planning.limits import (
     MAX_PLANNER_INPUT_BYTES,
     MOTION_SOURCE as RECTANGULAR_MOTION_SOURCE,
     PLANNER_ID as RECTANGULAR_PLANNER_ID,
-    PLANNER_VERSION as RECTANGULAR_PLANNER_VERSION,
     RECTANGULAR_CENTERLINE_AVAILABLE,
 )
 from .codes import REASON_CODES
@@ -107,7 +106,9 @@ AUTHORITY_LIMITATIONS: tuple[str, ...] = (
     "Does not claim machine readiness, full collision simulation, "
     "structural safety, or cutting-force analysis.",
     "A rectangular cutter-centerline planner expands one explicit rectangle. "
-    "It does not offset geometry. Explicit linear motion is not planner output.",
+    "It does not offset geometry. Explicit linear motion is not planner output. "
+    "Numerically zero rectangle coordinates are positive zero, and generated "
+    "candidate metadata is re-derived from captured inputs.",
     "A fixture review tests binding only and is not human approval.",
     "Admission to human review is not plan approval.",
     "Operational governed export is disabled.",
@@ -152,6 +153,8 @@ def assigned_maturity(pin_status: str | None = None) -> str:
 
 def policy_document() -> dict:
     """The local policy payload. Its digest is what a review must bind."""
+    from ..planning import limits as rectangle_limits
+
     return {
         "policy_id": POLICY_ID,
         "operational_governed_export": OPERATIONAL_GOVERNED_EXPORT,
@@ -169,7 +172,7 @@ def policy_document() -> dict:
         "depth_level_abs_tolerance_mm": DEPTH_LEVEL_ABS_TOLERANCE_MM,
         "rectangular_centerline_available": RECTANGULAR_CENTERLINE_AVAILABLE,
         "rectangular_planner_id": RECTANGULAR_PLANNER_ID,
-        "rectangular_planner_version": RECTANGULAR_PLANNER_VERSION,
+        "rectangular_planner_version": rectangle_limits.PLANNER_VERSION,
         "rectangular_motion_source": RECTANGULAR_MOTION_SOURCE,
         "rectangular_input_version": INPUT_VERSION,
         "generated_plan_version": GENERATED_PLAN_VERSION,

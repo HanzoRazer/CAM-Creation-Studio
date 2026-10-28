@@ -131,6 +131,32 @@ tool and material, the canonical toolpath digest, and the local pass limits.
 `creation-studio.traceable-plan/1` is unchanged and still requires planner
 identity `unavailable`.
 
+Three identities stay separate:
+
+* Captured artifact identity is the exact-byte SHA-256. Signed-zero text,
+  encoding, whitespace, and source ordering can change it. Planning does not
+  rewrite a source or canonicalize it before hashing.
+* Normalized computational motion treats equivalent endpoint signs and edge
+  order as the same poses, kinds, feeds, and positive-zero spelling.
+  Numerically zero rectangle coordinates become positive zero after they have
+  passed finite validation. A tiny nonzero stays nonzero.
+* Complete candidate provenance still binds the actual source bytes,
+  definition and binding, geometry ids, catalog fields, policy, and planner
+  version. Reordered source files legitimately produce different provenance
+  digests.
+
+Export re-derives the selected definition, its binding, geometry ids,
+recommendation, feeds, tool, material, canonical plan, and digest from the
+verified request and the captured planner-input and operation-plan bytes.
+The candidate's metadata is compared with that result. Recomputing a digest
+from the candidate's own tool or material claims is not an independent check.
+Agreement inside this process is not producer trust, not a canonical upstream
+validator, and not human approval. The check does not claim to protect a
+Python process against arbitrary code execution or access to a private seal.
+A fixture review remains `fixture_binding_only`. Rectangular planner version
+`2` is the current generated record. Version `1` can be inspected and does
+not authorize export.
+
 ## Trust boundary
 
 Checks run in this order:

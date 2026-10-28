@@ -8,7 +8,7 @@ digest so a limit change invalidates a fixture review.
 from __future__ import annotations
 
 PLANNER_ID = "creation-studio.rectangle-centerline"
-PLANNER_VERSION = "1"
+PLANNER_VERSION = "2"
 MOTION_SOURCE = "rectangular_centerline_planner"
 INPUT_VERSION = "creation-studio.rectangular-planner-input/1"
 GENERATED_PLAN_VERSION = "creation-studio.traceable-plan/2"

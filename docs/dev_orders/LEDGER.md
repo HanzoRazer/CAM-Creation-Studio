@@ -144,6 +144,7 @@ traceable. Retirement is recorded instead.
 | CS-016 | Toolpath core contracts | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-016-toolpath-core-contracts-b250` | Merged (#31) `30c9718` | — | Production `cam_creation_studio.toolpath`; IDs, fingerprints, JSON, staleness, preview projection; no path algorithms |
 | CS-PEP-001 | Traceable planning boundary | `docs/TOOLPATH_CORE.md` | `cursor/cs-pep-001-traceable-planning-eaf7` | Merged (#33) `941efe5` | — | Experimental package verification and governed-export refusal. Contour planner remains blocked. Does not issue CS-017 |
 | CS-017 | Bounded rectangular centerline planner | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-017-rectangular-contour-witness-39ad` | Merged (#36) `eeb0ed0` | — | One explicit rectangle expanded through the CS-016 builders and an experimental offline witness. Offset, pocket, and drill planners remain unissued. Operational export stays disabled |
+| CS-018 | Generated plan identity conformance | `docs/architecture/RECTANGULAR_CONTOUR_PLANNER.md` | `cursor/cs-018-generated-plan-identity-39ad` | Issued. Draft against `main`; not merged | — | Positive zero for validated rectangle coordinates and source-derived candidate metadata. Planner version `2`. Does not authorize operational export |
 
 *Status column last refreshed 2026-10-27.* Confirm against GitHub before relying
 on it — see § Source of truth.
@@ -159,8 +160,11 @@ boundary; operational governed export stays disabled. CS-PEP-001 CLOSED and
 does not itself issue CS-017. **CS-017** merged as #36 (`eeb0ed0`): one
 explicit rectangular centerline expanded through the CS-016 builders, with an
 experimental offline witness. CS-017 CLOSED. It does not authorize offset,
-pocket, or drill planners, and operational export stays disabled. The
-importer remains under feature freeze — defects only.
+pocket, or drill planners, and operational export stays disabled. **CS-018**
+is issued on `cursor/cs-018-generated-plan-identity-39ad` from `main` at
+`416a466`. It corrects generated-plan signed zero and source-derived
+metadata. It is not merged, and it does not authorize operational export.
+The importer remains under feature freeze — defects only.
 
 ---
 
@@ -343,7 +347,8 @@ Record a `Point` as `[x, y, z]` or as separate keys.
 
 The remediation chain is complete and merged, and **closure has landed**. Steps 1
 to 10 below are done. **CS-017** merged as #36 for one explicit rectangular
-centerline. Offset, pocket, and drill planners remain unissued.
+centerline. **CS-018** is the issued identity correction for that planner.
+Offset, pocket, and drill planners remain unissued.
 
 1. ~~**F8 / F9 / F10 disposition.**~~ **Done** — CS-008R-CL. F8 remediated
    (documentation), F9 accepted, F10 remediated and verified. None was dropped
@@ -387,6 +392,10 @@ centerline. Offset, pocket, and drill planners remain unissued.
     The bounded increment expands one explicit rectangular cutter centerline
     through the CS-016 builders. It does not offset geometry. Pocket, drill,
     and offset algorithms remain unissued.
+11. **Generated plan identity.** **Issued** — CS-018, not merged. Positive
+    zero for validated rectangle coordinates, and candidate metadata
+    re-derived from captured inputs. Planner version `2`. No feed ceiling,
+    upstream validator, human approval, or operational export.
 
 **Known and unfixed, available as defect orders when someone wants them:** F9's
 `numpy` type should any of its recorded reopening triggers occur. The
