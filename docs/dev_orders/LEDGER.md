@@ -144,7 +144,7 @@ traceable. Retirement is recorded instead.
 | CS-016 | Toolpath core contracts | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-016-toolpath-core-contracts-b250` | Merged (#31) `30c9718` | — | Production `cam_creation_studio.toolpath`; IDs, fingerprints, JSON, staleness, preview projection; no path algorithms |
 | CS-PEP-001 | Traceable planning boundary | `docs/TOOLPATH_CORE.md` | `cursor/cs-pep-001-traceable-planning-eaf7` | Merged (#33) `941efe5` | — | Experimental package verification and governed-export refusal. Contour planner remains blocked. Does not issue CS-017 |
 | CS-017 | Bounded rectangular centerline planner | `docs/architecture/TOOLPATH_CONTRACT.md` | `cursor/cs-017-rectangular-contour-witness-39ad` | Merged (#36) `eeb0ed0` | — | One explicit rectangle expanded through the CS-016 builders and an experimental offline witness. Offset, pocket, and drill planners remain unissued. Operational export stays disabled |
-| CS-018 | Generated plan identity conformance | `docs/architecture/RECTANGULAR_CONTOUR_PLANNER.md` | `cursor/cs-018-generated-plan-identity-39ad` | Issued. Draft against `main`; not merged | — | Positive zero for validated rectangle coordinates and source-derived candidate metadata. Planner version `2`. Does not authorize operational export |
+| CS-018 | Generated plan identity conformance | `docs/architecture/RECTANGULAR_CONTOUR_PLANNER.md` | `cursor/cs-018-generated-plan-identity-39ad` | Draft (#38) against `main`; not merged | — | Positive zero for validated rectangle coordinates and source-derived candidate metadata. Planner version `2`. Does not authorize operational export |
 
 *Status column last refreshed 2026-10-27.* Confirm against GitHub before relying
 on it — see § Source of truth.
@@ -162,8 +162,9 @@ explicit rectangular centerline expanded through the CS-016 builders, with an
 experimental offline witness. CS-017 CLOSED. It does not authorize offset,
 pocket, or drill planners, and operational export stays disabled. **CS-018**
 is issued on `cursor/cs-018-generated-plan-identity-39ad` from `main` at
-`416a466`. It corrects generated-plan signed zero and source-derived
-metadata. It is not merged, and it does not authorize operational export.
+`416a466`, as draft pull request #38. It corrects generated-plan signed
+zero and source-derived metadata. It is not merged, and it does not
+authorize operational export.
 The importer remains under feature freeze — defects only.
 
 ---
