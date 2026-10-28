@@ -163,3 +163,53 @@ trust, human-review authority, operational export, or a machining
 authorization. In-process agreement between a candidate and bytes captured
 in this process is not a claim that the process is sealed against arbitrary
 code execution.
+
+## PR 38 review corrections on October 28
+
+Reviewed at `eca79a9107603fb42b766ea0a8b6bbc51754c846` in an isolated
+Creation Studio worktree. The structured digest domain (contract version,
+motion source, planner identity, local policy, and canonical payload), the
+signed-zero boundary, and the fixture-only authority model were already
+implemented; those review concerns did not require a redesign.
+
+Confirmed and corrected:
+
+* Captured reference aliases were accepted when their file bytes matched.
+  Replacing an operation-plan or planner-input reference could change emitted
+  provenance without changing the reconstructed digest. Construction and
+  revalidation now compare those references with the supported input path
+  and the parsed planner-input document.
+* `candidate.plan = None`, a string, or a dictionary raised during projection
+  or serialization. The shared gate now reconstructs generated candidates
+  before projecting their plans, and a wrong model type is `PLAN_CHANGED`.
+* Historical digest/policy refusals now explain the required action:
+  re-prepare under current planner/policy and create a new fixture-binding
+  review. This changes no authority, schema version, or planner version.
+* The deferred feed range is now named `CS018-DEFERRED-FEED-RANGE` and has
+  explicit extreme-cut/plunge regression cases proving labeled offline-only
+  output and operational refusal. No physical feed limit was selected.
+
+The new file `python/tests/test_cs018_review_regressions.py` contains nine
+cases. Before the fixes, six failed for the intended reasons: two accepted
+reference substitutions, three plan-type exceptions, and one missing
+migration instruction. The remaining cases confirm already supported digest
+domain separation and explicitly deferred feed-range behavior.
+
+Verification on Python 3.12 with pytest 8.4.2:
+
+```text
+cd python
+python -m pytest -q --tb=line
+1222 passed, 14 skipped
+```
+
+`git diff --check` is clean. The skips are the existing scaffolder cases.
+
+The initial baseline run with pytest 9.2.0 had two unrelated failures in
+`test_cs008r_closure.py`: nested `pytest.approx()` expectations are rejected.
+The development dependency now temporarily requires `pytest>=7,<9.2` until
+those existing assertions are migrated. Neither geometry runtime nor the
+frozen importer was changed.
+
+No merge, deployment, trust activation, human machining approval, or
+operational export was performed in this review increment.

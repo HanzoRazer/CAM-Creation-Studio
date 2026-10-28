@@ -138,6 +138,22 @@ rectangular planner version and the validation sentence for positive zero
 and source-derived metadata. A fixture review bound to planner version `1`
 does not authorize a version `2` export. No new feed ceiling is introduced.
 The recorded `1e300` feed question remains a separate policy decision.
+It is tracked as `CS018-DEFERRED-FEED-RANGE` in
+`tests/test_cs018_review_regressions.py`: finite extreme cut/plunge feeds
+remain accepted only for the labeled offline workflow, while operational
+export remains blocked. This regression records existing behavior; it is
+not a recommended feed or an approved physical ceiling.
+
+Captured snapshot references must also agree with the references declared
+inside planner-input bytes. Matching bytes at a different path do not allow
+an in-process candidate to change its emitted provenance. Revalidation
+rejects a candidate whose plan is not a `ToolpathPlan` before projecting it
+into motion. These are consistency controls, not process isolation.
+
+When a historical planner/policy digest no longer matches, re-prepare the
+candidate under the current planner and policy and create a new fixture-only
+binding review. Do not edit an old review to make its digest match. Older
+records remain inspectable; no migration step grants human approval.
 
 ## Witness
 

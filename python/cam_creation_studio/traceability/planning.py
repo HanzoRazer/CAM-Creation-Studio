@@ -34,7 +34,11 @@ from .models import (
     Refusal,
     VerificationResult,
 )
-from .planner_inputs import LoadedPlannerInputs, agree_with_request
+from .planner_inputs import (
+    LoadedPlannerInputs,
+    agree_with_request,
+    captured_reference_disagreement,
+)
 from .posting import toolpath_digest
 
 
@@ -365,6 +369,8 @@ def reconstruction_disagreement(
     derived: DerivedRectangularState,
 ) -> Refusal | None:
     """Compare a candidate with source reconstruction. Details name the field."""
+    if not isinstance(candidate.plan, ToolpathPlan):
+        return Refusal(codes.PLAN_CHANGED, "candidate plan is not a ToolpathPlan")
     for attribute, label in _RECONSTRUCTION_FIELDS:
         if getattr(candidate, attribute) != getattr(derived, attribute):
             return Refusal(
@@ -379,7 +385,9 @@ def reconstruction_disagreement(
     if candidate.plan_digest != derived.plan_digest:
         return Refusal(
             codes.PLAN_CHANGED,
-            "candidate plan digest does not match the reconstructed digest",
+            "candidate plan digest does not match the reconstructed digest; "
+            "re-prepare the candidate and create a new fixture-binding review "
+            "under the current planner and policy",
         )
     return None
 
@@ -389,6 +397,9 @@ def build_generated_candidate(
     loaded: LoadedPlannerInputs,
 ) -> tuple[GeneratedCandidate | None, Refusal | None]:
     """Expand one verified rectangle. The seal is set only here."""
+    refusal = captured_reference_disagreement(loaded.additional)
+    if refusal is not None:
+        return None, refusal
     derived, refusal = derive_rectangular_state(
         verification,
         loaded.additional.planner_input_raw,
@@ -433,6 +444,9 @@ def replan_matches(candidate: GeneratedCandidate) -> Refusal | None:
             codes.DIGEST_MISMATCH,
             "captured operation-plan bytes do not match the snapshot declaration",
         )
+    refusal = captured_reference_disagreement(additional)
+    if refusal is not None:
+        return refusal
     derived, refusal = derive_rectangular_state(
         candidate.verification,
         additional.planner_input_raw,

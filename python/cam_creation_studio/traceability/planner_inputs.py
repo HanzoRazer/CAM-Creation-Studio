@@ -184,6 +184,30 @@ def parse_planner_input_bytes(
     ), None
 
 
+def captured_reference_disagreement(
+    snapshot: AdditionalInputSnapshot,
+) -> Refusal | None:
+    """A snapshot's references must match the document that declared them.
+
+    Identical bytes at an alias do not authorize changing emitted provenance.
+    Byte digest checks remain the caller's separate responsibility.
+    """
+    document, refusal = parse_planner_input_bytes(snapshot.planner_input_raw)
+    if refusal is not None or document is None:
+        return refusal
+    if snapshot.planner_input_ref != _PLANNER_INPUT_REF:
+        return Refusal(
+            codes.PLAN_CHANGED,
+            "captured planner-input reference does not match the supported input path",
+        )
+    if snapshot.operation_plan_ref != document.operation_plan_ref:
+        return Refusal(
+            codes.PLAN_CHANGED,
+            "captured operation-plan reference does not match the planner-input document",
+        )
+    return None
+
+
 def interpret_captured_planner_bytes(
     request_raw: bytes,
     planner_input_raw: bytes,

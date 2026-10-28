@@ -290,8 +290,9 @@ def test_version_1_review_does_not_authorize_version_2(tmp_path, monkeypatch):
     refusal = replan_matches(historical)
     assert refusal is not None
     assert refusal.code == "PLAN_CHANGED"
-    assert refusal.detail == (
+    assert refusal.detail.startswith(
         "candidate plan digest does not match the reconstructed digest")
+    assert "re-prepare" in refusal.detail
     evaluation = evaluate_generated_candidate_export(
         historical, package, historical_review, mode="offline")
     assert evaluation.program_text is None
@@ -303,7 +304,8 @@ def test_version_1_review_does_not_authorize_version_2(tmp_path, monkeypatch):
     bound = bind_review(review, current.plan_digest)
     assert bound is not None
     assert bound.code == "POLICY_UNSUPPORTED"
-    assert bound.detail == "review policy digest does not match the local policy"
+    assert bound.detail.startswith("review policy digest does not match the local policy")
+    assert "re-prepare" in bound.detail
     destination = tmp_path / "exported"
     payload = export_planned_witness(
         package, destination, fixture_review_bytes(current.plan_digest),
