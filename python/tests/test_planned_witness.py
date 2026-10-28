@@ -110,6 +110,7 @@ def test_reviewed_export_writes_labeled_program(tmp_path):
     assert manifest["human_approval"] is False
     assert manifest["operational_export"] is False
     assert manifest["planner_id"] == "creation-studio.rectangle-centerline"
+    assert manifest["planner_version"] == "2"
     assert validate(manifest, load_schema(
         _SCHEMAS / "traceable_export_manifest_v2.schema.json")) == []
     candidate = json.loads(
@@ -254,7 +255,7 @@ def test_input_changes_invalidate_the_review(tmp_path, monkeypatch):
     assert payload["reason_codes"] == ["PLAN_CHANGED"]
     assert not (changed / "program.gcode").exists()
     import cam_creation_studio.planning.limits as limits
-    monkeypatch.setattr(limits, "PLANNER_VERSION", "2")
+    monkeypatch.setattr(limits, "PLANNER_VERSION", "3")
     fresh = tmp_path / "fresh"
     write_planned_package(tmp_path / "other")
     prepare_planned_witness(tmp_path / "other", fresh, case="rectangle")

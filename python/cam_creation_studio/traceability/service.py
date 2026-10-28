@@ -297,7 +297,9 @@ def _export_source_candidate(
     if is_explicit(candidate):
         motions = candidate.motions
     elif generated:
-        motions = plan_motions(candidate.plan)
+        # A generated candidate is checked against reconstructed source data
+        # before its plan is projected or used to render program bytes.
+        motions = None
     else:
         return _refused(Refusal(
             codes.UNSUPPORTED_CAPABILITY,
@@ -313,6 +315,7 @@ def _export_source_candidate(
         refusal = replan_matches(candidate)
         if refusal is not None:
             return _refused(refusal, verification, candidate.plan_digest)
+        motions = plan_motions(candidate.plan)
     refusal = check_motions(verification.request, motions)
     if refusal is not None:
         return _refused(refusal, verification)

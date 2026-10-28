@@ -37,7 +37,9 @@ def bind_review(
     if review.policy_digest != policy_digest():
         return Refusal(
             codes.POLICY_UNSUPPORTED,
-            "review policy digest does not match the local policy",
+            "review policy digest does not match the local policy; "
+            "re-prepare the candidate and create a new fixture-binding review "
+            "under the current planner and policy",
         )
     if review.plan_digest != plan_digest_value:
         return Refusal(

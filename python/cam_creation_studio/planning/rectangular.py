@@ -122,15 +122,18 @@ def normalize_rectangle(
             if point.z != 0:
                 raise PlanningError(
                     _UNSUPPORTED, "rectangle is not in the Z0 plane")
-        dx = entity.end.x - entity.start.x
-        dy = entity.end.y - entity.start.y
+        start = (
+            _canonical_zero(entity.start.x),
+            _canonical_zero(entity.start.y),
+        )
+        end = (_canonical_zero(entity.end.x), _canonical_zero(entity.end.y))
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
         if dx == 0 and dy == 0:
             raise PlanningError(_UNSUPPORTED, "rectangle edge has zero length")
         if dx != 0 and dy != 0:
             raise PlanningError(
                 _UNSUPPORTED, "rectangle edges must be axis-aligned")
-        start = (entity.start.x, entity.start.y)
-        end = (entity.end.x, entity.end.y)
         parsed.append((entity_id, start, end))
         xs.extend((start[0], end[0]))
         ys.extend((start[1], end[1]))
@@ -169,6 +172,17 @@ def normalize_rectangle(
         y_max_mm=y_max,
         edge_ids=(ordered[0], ordered[1], ordered[2], ordered[3]),
     )
+
+
+def _canonical_zero(value: float) -> float:
+    """Map a validated numeric zero to positive zero.
+
+    Other values, including tiny nonzero coordinates, are returned unchanged.
+    This is not a geometric tolerance and it does not rewrite source bytes.
+    """
+    if value == 0:
+        return 0.0
+    return value
 
 
 def _undirected(

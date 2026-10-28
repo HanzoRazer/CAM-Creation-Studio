@@ -88,11 +88,6 @@ def load_planner_inputs(
     document, refusal = parse_planner_input_bytes(raw)
     if refusal is not None or document is None:
         return None, refusal
-    if document.request_sha256 != sha256_bytes(request_raw):
-        return None, Refusal(
-            codes.DIGEST_MISMATCH,
-            "planner input request_sha256 does not match the stored request",
-        )
     plan_path, refusal = resolve_package_ref(
         package_root, document.operation_plan_ref)
     if refusal is not None or plan_path is None:
@@ -100,14 +95,11 @@ def load_planner_inputs(
     plan_raw, refusal = read_bounded(plan_path, MAX_PLANNER_INPUT_BYTES)
     if refusal is not None or plan_raw is None:
         return None, refusal
-    if sha256_bytes(plan_raw) != document.operation_plan_sha256:
-        return None, Refusal(
-            codes.DIGEST_MISMATCH,
-            "operation-plan bytes do not match the planner input digest",
-        )
-    operation_plan, refusal = decode_operation_plan(plan_raw)
-    if refusal is not None or operation_plan is None:
+    interpreted, refusal = interpret_captured_planner_bytes(
+        request_raw, raw, plan_raw)
+    if refusal is not None or interpreted is None:
         return None, refusal
+    document, operation_plan = interpreted
     additional = AdditionalInputSnapshot(
         planner_input_ref=_PLANNER_INPUT_REF,
         planner_input_raw=bytes(raw),
@@ -190,6 +182,69 @@ def parse_planner_input_bytes(
         planned_plunge_feed_mm_min=plunge,
         recommendation_id=recommendation,
     ), None
+
+
+def captured_reference_disagreement(
+    snapshot: AdditionalInputSnapshot,
+) -> Refusal | None:
+    """A snapshot's references must match the document that declared them.
+
+    Identical bytes at an alias do not authorize changing emitted provenance.
+    Byte digest checks remain the caller's separate responsibility.
+    """
+    document, refusal = parse_planner_input_bytes(snapshot.planner_input_raw)
+    if refusal is not None or document is None:
+        return refusal
+    if snapshot.planner_input_ref != _PLANNER_INPUT_REF:
+        return Refusal(
+            codes.PLAN_CHANGED,
+            "captured planner-input reference does not match the supported input path",
+        )
+    if snapshot.operation_plan_ref != document.operation_plan_ref:
+        return Refusal(
+            codes.PLAN_CHANGED,
+            "captured operation-plan reference does not match the planner-input document",
+        )
+    return None
+
+
+def interpret_captured_planner_bytes(
+    request_raw: bytes,
+    planner_input_raw: bytes,
+    operation_plan_raw: bytes,
+) -> tuple[tuple[PlannerInputDocument, OperationPlan] | None, Refusal | None]:
+    """Parse captured bytes and check their digest and definition bindings.
+
+    This does not read the filesystem and does not assign a generation seal.
+    """
+    document, refusal = parse_planner_input_bytes(planner_input_raw)
+    if refusal is not None or document is None:
+        return None, refusal
+    if document.request_sha256 != sha256_bytes(request_raw):
+        return None, Refusal(
+            codes.DIGEST_MISMATCH,
+            "planner input request_sha256 does not match the stored request",
+        )
+    if sha256_bytes(operation_plan_raw) != document.operation_plan_sha256:
+        return None, Refusal(
+            codes.DIGEST_MISMATCH,
+            "operation-plan bytes do not match the planner input digest",
+        )
+    operation_plan, refusal = decode_operation_plan(operation_plan_raw)
+    if refusal is not None or operation_plan is None:
+        return None, refusal
+    if (
+        len(operation_plan.definitions) != 1
+        or operation_plan.definitions[0].id != document.definition_id
+    ):
+        return None, Refusal(
+            codes.UNSUPPORTED_CAPABILITY,
+            "planner definition does not match the operation plan",
+        )
+    if binding_for_definition(operation_plan, document.definition_id) is None:
+        return None, Refusal(
+            codes.UNSUPPORTED_CAPABILITY, "definition has no binding")
+    return (document, operation_plan), None
 
 
 def decode_operation_plan(

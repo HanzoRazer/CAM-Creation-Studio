@@ -34,7 +34,11 @@ from .models import (
     Refusal,
     VerificationResult,
 )
-from .planner_inputs import LoadedPlannerInputs, agree_with_request
+from .planner_inputs import (
+    LoadedPlannerInputs,
+    agree_with_request,
+    captured_reference_disagreement,
+)
 from .posting import toolpath_digest
 
 
@@ -199,11 +203,37 @@ def plan_motions(plan: ToolpathPlan) -> tuple:
     return tuple(motion for path in plan.paths for motion in path.motions)
 
 
-def build_generated_candidate(
+@dataclass(frozen=True, slots=True)
+class DerivedRectangularState:
+    """Source reconstruction. It has no generation seal and no review authority."""
+
+    definition_id: str
+    binding_id: str
+    geometry_ids: tuple[str, ...]
+    recommendation_id: str | None
+    planned_cut_feed_mm_min: float
+    planned_plunge_feed_mm_min: float
+    tool_id: str
+    tool_diameter_mm: float
+    tool_flutes: int | None
+    material_id: str
+    plan: ToolpathPlan
+    plan_digest: str
+
+
+def derive_rectangular_state(
     verification: VerificationResult,
-    loaded: LoadedPlannerInputs,
-) -> tuple[GeneratedCandidate | None, Refusal | None]:
-    """Expand one verified rectangle. The seal is set only here."""
+    planner_input_raw: bytes,
+    operation_plan_raw: bytes,
+) -> tuple[DerivedRectangularState | None, Refusal | None]:
+    """Rebuild metadata, the canonical plan, and the digest from captured bytes.
+
+    Candidate claims are not inputs. The public constructor is not called.
+    """
+    from ..operations.errors import BindingError
+    from ..operations.resolution import binding_for_definition, resolve_material, resolve_tool
+    from .planner_inputs import interpret_captured_planner_bytes
+
     if not rectangle_limits.RECTANGULAR_CENTERLINE_AVAILABLE:
         return None, Refusal(
             codes.UNSUPPORTED_CAPABILITY,
@@ -217,7 +247,27 @@ def build_generated_candidate(
         return None, verification.refusal or Refusal(
             codes.SCHEMA_INVALID, "package was not verified")
     request = verification.request
-    geometry = verification.bundle.geometry
+    bundle = verification.bundle
+    interpreted, refusal = interpret_captured_planner_bytes(
+        bundle.snapshot.request_raw, planner_input_raw, operation_plan_raw)
+    if refusal is not None or interpreted is None:
+        return None, refusal
+    document, operation_plan = interpreted
+    from .models import AdditionalInputSnapshot
+
+    loaded = LoadedPlannerInputs(
+        document=document,
+        additional=AdditionalInputSnapshot(
+            planner_input_ref="planner-inputs.json",
+            planner_input_raw=bytes(planner_input_raw),
+            planner_input_sha256=sha256_bytes(planner_input_raw),
+            operation_plan_ref=document.operation_plan_ref,
+            operation_plan_raw=bytes(operation_plan_raw),
+            operation_plan_sha256=sha256_bytes(operation_plan_raw),
+        ),
+        operation_plan=operation_plan,
+    )
+    geometry = bundle.geometry
     refusal = agree_with_request(
         request,
         (
@@ -228,7 +278,6 @@ def build_generated_candidate(
     )
     if refusal is not None:
         return None, refusal
-    document = loaded.document
     options = RectangularPlannerOptions(
         planned_cut_feed_mm_min=document.planned_cut_feed_mm_min,
         planned_plunge_feed_mm_min=document.planned_plunge_feed_mm_min,
@@ -242,24 +291,40 @@ def build_generated_candidate(
     )
     try:
         expansion = expand_rectangular_contour(
-            loaded.operation_plan, document.definition_id, options)
+            operation_plan, document.definition_id, options)
     except PlanningError as exc:
         if exc.code not in codes.REASON_CODES:
-            return None, Refusal(
-                codes.UNSUPPORTED_CAPABILITY, exc.detail)
+            return None, Refusal(codes.UNSUPPORTED_CAPABILITY, exc.detail)
         return None, Refusal(exc.code, exc.detail)
     plan = expansion.plan
-    binding = loaded.operation_plan.bindings[0]
-    from ..operations.resolution import resolve_material, resolve_tool
-    tool = resolve_tool(binding)
-    material = resolve_material(binding)
+    if plan.operation_definition_id != document.definition_id:
+        raise TraceabilityDefect(
+            "reconstructed plan definition does not match the planner input")
+    binding = binding_for_definition(operation_plan, document.definition_id)
+    if binding is None or plan.binding_id != binding.id:
+        raise TraceabilityDefect(
+            "reconstructed plan binding is not the selected definition binding")
+    try:
+        tool = resolve_tool(binding)
+        material = resolve_material(binding)
+    except BindingError as exc:
+        raise TraceabilityDefect(
+            "selected binding did not resolve after agreement") from exc
+    if plan.recommendation_id != document.recommendation_id:
+        raise TraceabilityDefect(
+            "reconstructed recommendation does not match the planner input")
+    if plan.geometry_ids != tuple(
+        operation_plan.workspace.selections[0].entity_ids
+    ):
+        raise TraceabilityDefect(
+            "reconstructed geometry ids do not match the selected entities")
     digest = compute_generated_plan_digest(
         verification=verification,
-        planner_input_sha256=loaded.additional.planner_input_sha256,
-        operation_plan_sha256=loaded.additional.operation_plan_sha256,
+        planner_input_sha256=sha256_bytes(planner_input_raw),
+        operation_plan_sha256=sha256_bytes(operation_plan_raw),
         plan=plan,
         definition_id=document.definition_id,
-        binding_id=plan.binding_id,
+        binding_id=binding.id,
         geometry_ids=plan.geometry_ids,
         recommendation_id=plan.recommendation_id,
         planned_cut_feed_mm_min=document.planned_cut_feed_mm_min,
@@ -269,16 +334,13 @@ def build_generated_candidate(
         tool_flutes=tool.flutes,
         material_id=material.id,
     )
-    return GeneratedCandidate(
-        source_seal=_GENERATION_SEAL,
-        verification=verification,
-        additional=loaded.additional,
+    return DerivedRectangularState(
         definition_id=document.definition_id,
+        binding_id=binding.id,
+        geometry_ids=plan.geometry_ids,
+        recommendation_id=plan.recommendation_id,
         planned_cut_feed_mm_min=document.planned_cut_feed_mm_min,
         planned_plunge_feed_mm_min=document.planned_plunge_feed_mm_min,
-        recommendation_id=plan.recommendation_id,
-        binding_id=plan.binding_id,
-        geometry_ids=plan.geometry_ids,
         tool_id=tool.id,
         tool_diameter_mm=tool.diameter_mm,
         tool_flutes=tool.flutes,
@@ -288,64 +350,112 @@ def build_generated_candidate(
     ), None
 
 
-def replan_matches(candidate: GeneratedCandidate) -> Refusal | None:
-    """Expand the captured operation plan again and require the same bytes."""
-    from .planner_inputs import decode_operation_plan
+_RECONSTRUCTION_FIELDS = (
+    ("definition_id", "definition"),
+    ("binding_id", "binding"),
+    ("geometry_ids", "geometry ids"),
+    ("recommendation_id", "recommendation"),
+    ("planned_cut_feed_mm_min", "planned cut feed"),
+    ("planned_plunge_feed_mm_min", "planned plunge feed"),
+    ("tool_id", "tool id"),
+    ("tool_diameter_mm", "tool diameter"),
+    ("tool_flutes", "tool flutes"),
+    ("material_id", "material"),
+)
 
+
+def reconstruction_disagreement(
+    candidate: GeneratedCandidate,
+    derived: DerivedRectangularState,
+) -> Refusal | None:
+    """Compare a candidate with source reconstruction. Details name the field."""
+    if not isinstance(candidate.plan, ToolpathPlan):
+        return Refusal(codes.PLAN_CHANGED, "candidate plan is not a ToolpathPlan")
+    for attribute, label in _RECONSTRUCTION_FIELDS:
+        if getattr(candidate, attribute) != getattr(derived, attribute):
+            return Refusal(
+                codes.PLAN_CHANGED,
+                f"candidate {label} does not match the reconstructed {label}",
+            )
+    if toolpath_to_json(candidate.plan) != toolpath_to_json(derived.plan):
+        return Refusal(
+            codes.PLAN_CHANGED,
+            "candidate plan does not match the reconstructed plan",
+        )
+    if candidate.plan_digest != derived.plan_digest:
+        return Refusal(
+            codes.PLAN_CHANGED,
+            "candidate plan digest does not match the reconstructed digest; "
+            "re-prepare the candidate and create a new fixture-binding review "
+            "under the current planner and policy",
+        )
+    return None
+
+
+def build_generated_candidate(
+    verification: VerificationResult,
+    loaded: LoadedPlannerInputs,
+) -> tuple[GeneratedCandidate | None, Refusal | None]:
+    """Expand one verified rectangle. The seal is set only here."""
+    refusal = captured_reference_disagreement(loaded.additional)
+    if refusal is not None:
+        return None, refusal
+    derived, refusal = derive_rectangular_state(
+        verification,
+        loaded.additional.planner_input_raw,
+        loaded.additional.operation_plan_raw,
+    )
+    if refusal is not None or derived is None:
+        return None, refusal
+    return GeneratedCandidate(
+        source_seal=_GENERATION_SEAL,
+        verification=verification,
+        additional=loaded.additional,
+        definition_id=derived.definition_id,
+        planned_cut_feed_mm_min=derived.planned_cut_feed_mm_min,
+        planned_plunge_feed_mm_min=derived.planned_plunge_feed_mm_min,
+        recommendation_id=derived.recommendation_id,
+        binding_id=derived.binding_id,
+        geometry_ids=derived.geometry_ids,
+        tool_id=derived.tool_id,
+        tool_diameter_mm=derived.tool_diameter_mm,
+        tool_flutes=derived.tool_flutes,
+        material_id=derived.material_id,
+        plan=derived.plan,
+        plan_digest=derived.plan_digest,
+    ), None
+
+
+def replan_matches(candidate: GeneratedCandidate) -> Refusal | None:
+    """Re-derive the rectangle from captured bytes and require the same claims."""
     if not is_generated(candidate) or candidate.verification.request is None:
         return Refusal(
             codes.UNSUPPORTED_CAPABILITY,
             "caller motion_source is not generated provenance",
         )
-    operation_plan, refusal = decode_operation_plan(
-        candidate.additional.operation_plan_raw)
-    if refusal is not None or operation_plan is None:
+    additional = candidate.additional
+    if sha256_bytes(additional.planner_input_raw) != additional.planner_input_sha256:
+        return Refusal(
+            codes.DIGEST_MISMATCH,
+            "captured planner-input bytes do not match the snapshot declaration",
+        )
+    if sha256_bytes(additional.operation_plan_raw) != additional.operation_plan_sha256:
+        return Refusal(
+            codes.DIGEST_MISMATCH,
+            "captured operation-plan bytes do not match the snapshot declaration",
+        )
+    refusal = captured_reference_disagreement(additional)
+    if refusal is not None:
         return refusal
-    request = candidate.verification.request
-    options = RectangularPlannerOptions(
-        planned_cut_feed_mm_min=candidate.planned_cut_feed_mm_min,
-        planned_plunge_feed_mm_min=candidate.planned_plunge_feed_mm_min,
-        recommendation_id=candidate.recommendation_id,
-        depth_levels_mm=request.depth_levels_mm,
-        travel_height_mm=request.travel_height_mm,
-        clearance_mm=request.clearance_mm,
-        stepdown_mm=request.stepdown_mm,
-        removal_max_depth_mm=request.removal_max_depth_mm,
-        stock_allowance_mm=request.stock_allowance_mm,
+    derived, refusal = derive_rectangular_state(
+        candidate.verification,
+        additional.planner_input_raw,
+        additional.operation_plan_raw,
     )
-    try:
-        expansion = expand_rectangular_contour(
-            operation_plan, candidate.definition_id, options)
-    except PlanningError as exc:
-        return Refusal(
-            exc.code if exc.code in codes.REASON_CODES else codes.UNSUPPORTED_CAPABILITY,
-            exc.detail,
-        )
-    if toolpath_to_json(expansion.plan) != toolpath_to_json(candidate.plan):
-        return Refusal(
-            codes.PLAN_CHANGED,
-            "regenerated rectangular plan does not match the candidate",
-        )
-    digest = compute_generated_plan_digest(
-        verification=candidate.verification,
-        planner_input_sha256=candidate.additional.planner_input_sha256,
-        operation_plan_sha256=candidate.additional.operation_plan_sha256,
-        plan=expansion.plan,
-        definition_id=candidate.definition_id,
-        binding_id=candidate.binding_id,
-        geometry_ids=candidate.geometry_ids,
-        recommendation_id=candidate.recommendation_id,
-        planned_cut_feed_mm_min=candidate.planned_cut_feed_mm_min,
-        planned_plunge_feed_mm_min=candidate.planned_plunge_feed_mm_min,
-        tool_id=candidate.tool_id,
-        tool_diameter_mm=candidate.tool_diameter_mm,
-        tool_flutes=candidate.tool_flutes,
-        material_id=candidate.material_id,
-    )
-    if digest != candidate.plan_digest:
-        return Refusal(
-            codes.PLAN_CHANGED, "generated plan digest does not match its inputs")
-    return None
+    if refusal is not None or derived is None:
+        return refusal or Refusal(
+            codes.SCHEMA_INVALID, "captured planner inputs were not reconstructed")
+    return reconstruction_disagreement(candidate, derived)
 
 
 def compute_generated_plan_digest(
